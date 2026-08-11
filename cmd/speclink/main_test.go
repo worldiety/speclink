@@ -16,8 +16,24 @@ func TestVerifyExample(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected a clean run, got exit %d:\n%s", code, out)
 	}
-	if !strings.Contains(out, "100% covered") {
-		t.Errorf("expected full coverage in the summary, got:\n%s", out)
+	for _, want := range []string{"100% bound", "100% covered"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q in the summary, got:\n%s", want, out)
+		}
+	}
+}
+
+// TestInference pins what the nago recognisers must find. Without them
+// speclink cannot tell which constructs carry business meaning, and forward
+// coverage would measure nothing.
+func TestInference(t *testing.T) {
+	out, code := runVerify(t, "../../testdata/example")
+	if code != 0 {
+		t.Fatalf("expected a clean run, got exit %d:\n%s", code, out)
+	}
+	// use case, query-free command, event, aggregate, permission, second use case
+	if !strings.Contains(out, "6 constructs") {
+		t.Errorf("expected 6 recognised constructs, got:\n%s", out)
 	}
 }
 
@@ -47,6 +63,10 @@ func TestVerifyBad(t *testing.T) {
 		"SPEC-V5-033", // directory contradicts Kind
 		"SPEC-V5-035", // domain directory contradicts the ID prefix
 		"SPEC-V6-001", // normative requirement covered by nothing
+	}
+	// The generic CRUD ban fires once per forbidden factory.
+	if n := strings.Count(out, "[SPEC-V6-010]"); n != 3 {
+		t.Errorf("expected the generic CRUD ban to fire 3 times, got %d", n)
 	}
 	for _, code := range want {
 		if n := strings.Count(out, "["+code+"]"); n != 1 {

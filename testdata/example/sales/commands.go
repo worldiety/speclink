@@ -1,13 +1,42 @@
 // Package sales implements the quotation domain.
 package sales
 
+import (
+	"context"
+
+	"go.wdy.de/nago/application/evs"
+	"go.wdy.de/nago/application/permission"
+	"go.wdy.de/nago/auth"
+)
+
 // SubmitQuoteUC submits an approved quote and draws a quote number.
-type SubmitQuoteUC func(cmd SubmitQuoteCmd) error
+type SubmitQuoteUC func(auth.Subject, SubmitQuoteCmd) (evs.SeqID, error)
+
+// PermSubmitQuote guards the submission use case.
+var PermSubmitQuote = permission.Declare[SubmitQuoteUC](
+	"sales.quote.submit", "Submit quote", "May submit an approved quote.")
+
+// QuoteAggregate is the consistency boundary of a quote.
+type QuoteAggregate struct {
+	ID     string
+	Status string
+}
+
+// Identity makes the quote an aggregate root.
+func (q QuoteAggregate) Identity() string { return q.ID }
 
 // SubmitQuoteCmd carries the input of a submission.
 type SubmitQuoteCmd struct {
 	QuoteID string
 	Title   string
+}
+
+// Decide validates the submission and yields the resulting facts.
+func (c SubmitQuoteCmd) Decide(s auth.Subject, q *QuoteAggregate) ([]QuoteSubmitted, error) {
+	if err := s.Audit(PermSubmitQuote); err != nil {
+		return nil, err
+	}
+	return []QuoteSubmitted{{QuoteID: c.QuoteID}}, nil
 }
 
 // QuoteSubmitted is the fact recorded on submission.
@@ -16,8 +45,11 @@ type QuoteSubmitted struct {
 	QuoteNumber string
 }
 
-// PermSubmitQuote guards the submission use case.
-var PermSubmitQuote = "sales.quote.submit"
+// Evolve folds the fact into the aggregate.
+func (e QuoteSubmitted) Evolve(_ context.Context, q *QuoteAggregate) error {
+	q.Status = "submitted"
+	return nil
+}
 
-// NewSubmitQuote wires the submission use case.
-func NewSubmitQuote() SubmitQuoteUC { return func(SubmitQuoteCmd) error { return nil } }
+// Discriminator is the stable serialisation tag.
+func (e QuoteSubmitted) Discriminator() evs.Discriminator { return "sales.quote.submitted.v1" }

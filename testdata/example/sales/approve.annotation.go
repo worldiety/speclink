@@ -7,5 +7,4 @@ import (
 
 var _ = spec.For[ApproveQuoteUC](
 	spec.Satisfies(quote.RQuoteApprove),
-	spec.Transition[QuoteApproved]("approved"),
 )

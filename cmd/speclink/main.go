@@ -104,14 +104,16 @@ func verify(args []string) error {
 	// V3: read the model. Declarations first, then assertions, so forward
 	// references are legal and the input order is irrelevant.
 	var (
-		reqs     []*ir.Requirement
-		bindings []ir.Binding
+		reqs       []*ir.Requirement
+		bindings   []ir.Binding
+		constructs []ir.Construct
 	)
 	for _, p := range pkgs {
 		reqs = append(reqs, p.ReadRequirements(findings)...)
 	}
 	for _, p := range pkgs {
 		bindings = append(bindings, p.ReadBindings(findings)...)
+		constructs = append(constructs, p.Infer()...)
 	}
 
 	// V5: resolve identity, layout, the derivation graph and the outer edge.
@@ -119,10 +121,14 @@ func verify(args []string) error {
 	tree.CheckLayout(findings)
 	tree.CheckSources(findings)
 
-	// V6: the specification rules.
+	// V6: the specification rules, in both directions of the coverage.
+	for _, p := range pkgs {
+		p.CheckGenericCRUD(findings)
+	}
+	str := check.CoverConstructs(constructs, bindings, findings)
 	cov := check.CoverRequirements(tree, bindings, findings)
 
-	if err := report(*format, findings, cov, len(bindings)); err != nil {
+	if err := report(*format, findings, cov, str, len(bindings)); err != nil {
 		return err
 	}
 	if !findings.Empty() {
@@ -131,7 +137,7 @@ func verify(args []string) error {
 	return nil
 }
 
-func report(format string, findings *diag.Set, cov check.Coverage, bindings int) error {
+func report(format string, findings *diag.Set, cov check.Coverage, str check.Structure, bindings int) error {
 	switch format {
 	case "json":
 		return findings.WriteJSON(os.Stdout)
@@ -139,8 +145,11 @@ func report(format string, findings *diag.Set, cov check.Coverage, bindings int)
 		if err := findings.WriteText(os.Stdout); err != nil {
 			return err
 		}
-		fmt.Fprintf(os.Stderr, "\n%d bindings, %d normative requirements, %.0f%% covered, %s\n",
-			bindings, cov.Normative, cov.Ratio()*100, plural(findings.Len(), "finding", "findings"))
+		fmt.Fprintf(os.Stderr,
+			"\n%d constructs (%.0f%% bound), %d normative requirements (%.0f%% covered), %d bindings, %s\n",
+			len(str.Constructs), str.Ratio()*100,
+			cov.Normative, cov.Ratio()*100,
+			bindings, plural(findings.Len(), "finding", "findings"))
 		return nil
 	default:
 		return fmt.Errorf("unknown format %q, expected text or json", format)

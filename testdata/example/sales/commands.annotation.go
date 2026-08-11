@@ -7,9 +7,17 @@ import (
 
 var _ = spec.For[SubmitQuoteUC](
 	spec.Satisfies(quote.RQuoteSubmit),
-	spec.Transition[QuoteSubmitted]("submitted"),
 	spec.Help(`Submit the approved quote. The system draws the next quote
 number from the central registry.`),
+)
+
+var _ = spec.For[SubmitQuoteCmd](
+	spec.Satisfies(quote.RQuoteSubmit),
+)
+
+var _ = spec.For[QuoteSubmitted](
+	spec.Satisfies(quote.RQuoteSubmit),
+	spec.Transition[QuoteSubmitted]("submitted"),
 )
 
 var _ = spec.ForVar(&PermSubmitQuote,

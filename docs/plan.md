@@ -93,7 +93,7 @@ Drei Übergänge, keiner davon die IR:
 | Laufzeitregister liefert exakte Positionen | ✅ annotations §7.4 |
 | Init-Reihenfolge ≠ Quelltextreihenfolge (deterministisch, aber verdreht) | ✅ erzwingt Mengenvergleich |
 
-### S1 — IR, Anforderungsbaum, Go-Frontend
+### S1 — IR, Anforderungsbaum, Go-Frontend ✅ abgeschlossen
 
 **Inhalt**
 - `internal/ir` — Zwischenmodell als Go-Datentypen (§3.1)
@@ -102,19 +102,23 @@ Drei Übergänge, keiner davon die IR:
 - `internal/lang/golang/infer` — nago-Recognizer
 - `spec/` — der Direktivenkatalog als übersetzbares Go
 
-**Abnahmekriterium.** Die aus `werp/` inferierten Aggregate, Events und Use Cases werden gegen das normative `spec/`-Modell abgeglichen. Erwartete Größenordnung: 146 Aggregate, 417 Events, 130 Use Cases. Jede Abweichung ist entweder ein Recognizer-Defekt oder echter Drift — beides wertvoll. Das ist der Grund für den schrittweisen Weg: `spec/` ist eine unabhängige Referenz, gegen die sich die gesamte Inferenzschicht validieren lässt.
+**Erkannte Konstrukte.** Use Case (benannter Functype mit `auth.Subject` als erstem Parameter), Query (dito, aber mit Datenrückgabe), Command (`Decide`), Event (`Evolve` + `Discriminator`), Aggregat (`Identity`), Permission (`permission.Declare[UC]`). Alles über aufgelöste Typen, nie über die Schreibweise eines Bezeichners — ein Alias-Import oder ein verdeckter Name kann die Erkennung nicht täuschen.
+
+**Abnahmekriterium.** Die aus `werp/` inferierten Aggregate, Events und Use Cases werden gegen das normative `spec/`-Modell abgeglichen. Erwartete Größenordnung: 146 Aggregate, 417 Events, 130 Use Cases. Jede Abweichung ist entweder ein Recognizer-Defekt oder echter Drift — beides wertvoll. Das ist der Grund für den schrittweisen Weg: `spec/` ist eine unabhängige Referenz, gegen die sich die gesamte Inferenzschicht validieren lässt. *Noch offen, siehe §6 Punkt 7.*
 
 **Bereits belegter Drift, der dabei fallen muss:** `R-QUOTE-SUBMIT` existiert nur in `werp/`, nicht im normativen Modell, wird aber im Wissensgraphen als erfüllt ausgewiesen.
 
-**Property-Test.** Permutation der Eingabereihenfolge ⇒ bitgleiches IR und bitgleiche Diagnostik.
+**Property-Test.** Permutation der Eingabereihenfolge ⇒ bitgleiches IR und bitgleiche Diagnostik. Zwanzig Permutationen, Graph *und* Diagnostik verglichen.
+
+**Befund: Phase V4 ist leer — und das ist ein gutes Zeichen.** Die Redundanzprüfung („annotierte Tatsache ist inferierbar") hat nichts zu prüfen, weil der Direktivenkatalog so entworfen wurde, dass alles Inferierbare gar nicht erst eine Direktive hat. Rolle, Permission, Aggregat, Kontext und Eventfluss kommen ausschließlich aus den Recognizern. V4 wird erst dann nicht-leer, wenn der Katalog wächst; bis dahin ist die Vorrangregel durch Abwesenheit erfüllt statt durch Prüfung.
 
 ### S2 — Prüfungen und Diagnostik
 
 **Inhalt**
 - Portierung der 33 im Zielprojekt bereits maschinell erzwungenen Invarianten als Regeln mit stabilen IDs
 - Whitelist-Durchsetzung über `*.annotation.go` und `*.spec.go` — sicherheitsrelevant, nicht formal (annotations §3)
-- `K4-NO-GENERIC-CRUD` — rein syntaktisch, Aufrufstelle über `types.Info.Uses`
 - K4 nur mit belegtem Bedarf: Query-Signatur `func(auth.Subject) (…, error)` (realer projektweiter Bug), `subject.Audit` als erste Anweisung in `Decide`, Produces/Emits/Reacts
+- `K4-NO-GENERIC-CRUD` ist bereits umgesetzt (S1): erkennt `cfgent.Enable`, `ent.DeclarePermissions`, `ent.NewUseCases` und den Import der generischen CRUD-UI
 - `internal/diag` — Text und JSON aus einer Quelle, präskriptiv, Meldungstexte per Golden-Test festgehalten
 
 **Nicht enthalten:** Schweregrade. Der Geltungsbereich wird hier als Konfiguration eingeführt (annotations §1.8, offene Form).
@@ -187,6 +191,8 @@ Abhängigkeit: Der Strang kann parallel zu S1 laufen, muss aber vor S3 abgeschlo
 | 4 | F8 Reviewmodell: wird der Code-Diff noch reviewt oder nur der von Annotationen und Anforderungen? | vor S4 |
 | 5 | Verdrahtungswahrheit als eigener Befehl (braucht Eingriff im Zielprojekt) | nach S3 |
 | 6 | Bildregionen als prüfbarer Verweis — derzeit bewusste Lücke | offen, evtl. nie |
+| 7 | Abnahme der Inferenzschicht gegen das reale `spec/`-Modell des ERP (146 Aggregate, 417 Events, 130 Use Cases) | vor S2 |
+| 8 | Weitere Recognizer: Eventfluss (`bus.Publish`, `events.SubscribeFor`), Routen (`cfg.RootView`, `admin.Card`), ReBAC-Namespaces | S2, nach Bedarf |
 
 ---
 
