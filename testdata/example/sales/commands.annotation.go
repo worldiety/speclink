@@ -20,7 +20,7 @@ var _ = spec.For[QuoteSubmitted](
 	spec.Transition[QuoteSubmitted]("submitted"),
 )
 
-var _ = spec.ForVar(&PermSubmitQuote,
+var _ = spec.ForDecl(PermSubmitQuote,
 	spec.Rationale("Submission draws from a gapless registry and is therefore not repeatable without consequence."),
 )
 

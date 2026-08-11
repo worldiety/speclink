@@ -36,7 +36,7 @@ var _ = spec.For[submitQuoteUC](
 	spec.Help("Submit the approved quote."),
 )
 
-var _ = spec.ForVar(&permSubmitQuote,
+var _ = spec.ForDecl(permSubmitQuote,
 	spec.Rationale("Drawing from a gapless registry is not repeatable without consequence."),
 )
 
@@ -80,10 +80,17 @@ func TestRegistryTargets(t *testing.T) {
 	if got := kinds["field"]; !strings.HasSuffix(got, ".submitQuoteCmd.Title") {
 		t.Errorf("field binding target = %q, want …submitQuoteCmd.Title", got)
 	}
-	// ForVar can only report the pointer type: the variable name is not
-	// recoverable at run time. This is why the comparison is keyed by position.
-	if got := kinds["var"]; got != "*string" {
-		t.Errorf("var binding target = %q, want *string", got)
+	// A declaration cannot name itself at run time: the identifier is gone by
+	// the time the value arrives, and reflection cannot tell a constant from a
+	// variable of the same type. The runtime therefore reports one kind "decl"
+	// with an empty name, and the static reader refines it into func, var or
+	// const. This is why the cross check is keyed by position.
+	name, ok := kinds["decl"]
+	if !ok {
+		t.Error("no declaration binding was recorded")
+	}
+	if name != "" {
+		t.Errorf("decl binding target = %q, want an empty name", name)
 	}
 }
 

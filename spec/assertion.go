@@ -28,7 +28,7 @@ const (
 //		spec.Transition[QuoteSubmitted]("submitted"), // then
 //	)                                                    // For runs last
 //
-// The side effect surface of the whole language is therefore exactly the five
+// The side effect surface of the whole language is therefore exactly the four
 // binding functions in binding.go.
 type Assertion struct {
 	kind      assertionKind

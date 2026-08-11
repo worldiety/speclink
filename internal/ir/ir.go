@@ -37,12 +37,17 @@ func (p Position) String() string {
 }
 
 // TargetKind is the sort of construct a binding attaches to.
+//
+// Func, Var and Const are not chosen by the author. spec.ForDecl names a
+// declaration and the type checker decides which of the three it is, so the
+// annotation cannot disagree with the code.
 type TargetKind int
 
 const (
 	TargetType TargetKind = iota + 1
 	TargetFunc
 	TargetVar
+	TargetConst
 	TargetField
 	TargetPackage
 )
@@ -55,6 +60,8 @@ func (k TargetKind) String() string {
 		return "func"
 	case TargetVar:
 		return "var"
+	case TargetConst:
+		return "constant"
 	case TargetField:
 		return "field"
 	case TargetPackage:

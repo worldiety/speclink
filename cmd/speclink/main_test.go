@@ -37,6 +37,16 @@ func TestInference(t *testing.T) {
 	}
 }
 
+// TestBindConstant guards what the previous ForVar could not do at all: taking
+// the address of a constant is a compile error, so a constant such as a ReBAC
+// namespace was unbindable while the documentation claimed otherwise.
+func TestBindConstant(t *testing.T) {
+	out, code := runVerify(t, "../../testdata/example")
+	if code != 0 {
+		t.Fatalf("binding a constant must verify clean, got exit %d:\n%s", code, out)
+	}
+}
+
 // TestVerifyBad pins the diagnostics. Message texts are treated as public API:
 // they are consumed by an LLM, and their quality decides how fast the loop
 // converges. A silent change of wording is a change of interface.
@@ -52,9 +62,11 @@ func TestVerifyBad(t *testing.T) {
 		"SPEC-V1-006", // binding not declared as var _
 		"SPEC-V3-001", // orphaned annotation file
 		"SPEC-V3-003", // waiver without a reason
+		"SPEC-V1-011", // address-of operator
 		"SPEC-V3-005", // unknown struct field in ForField
 		"SPEC-V3-006", // assertion at an illegal target kind
 		"SPEC-V3-007", // non repeatable assertion given twice
+		"SPEC-V3-008", // ForDecl argument names no declaration
 		"SPEC-V5-004", // decision without a rationale
 		"SPEC-V5-020", // normative requirement without a source
 		"SPEC-V5-023", // source document does not exist

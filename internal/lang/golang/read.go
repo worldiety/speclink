@@ -60,18 +60,15 @@ func (p *Package) readBinding(call *ast.CallExpr, out *diag.Set) (ir.Binding, bo
 		target = ir.Target{Kind: ir.TargetType, Package: p.PkgPath(), Name: typeName(t)}
 		args = call.Args
 
-	case "ForFunc":
+	case "ForDecl":
 		if len(call.Args) == 0 {
 			return ir.Binding{}, false
 		}
-		target = ir.Target{Kind: ir.TargetFunc, Package: p.PkgPath(), Name: p.objectName(call.Args[0])}
-		args = call.Args[1:]
-
-	case "ForVar":
-		if len(call.Args) == 0 {
+		t, ok := p.declTarget(call.Args[0], out)
+		if !ok {
 			return ir.Binding{}, false
 		}
-		target = ir.Target{Kind: ir.TargetVar, Package: p.PkgPath(), Name: p.objectName(call.Args[0])}
+		target = t
 		args = call.Args[1:]
 
 	case "ForField":
@@ -308,4 +305,97 @@ func shortName(t types.Type) string {
 		return full[i+1:]
 	}
 	return full
+}
+
+// declTarget resolves the argument of spec.ForDecl to its declaration and
+// derives the target kind from the type checker.
+//
+// The kind is never taken from the directive the author picked. types.Info
+// already knows whether the identifier denotes a function, a variable or a
+// constant, so there is no way for the annotation to contradict the code.
+func (p *Package) declTarget(e ast.Expr, out *diag.Set) (ir.Target, bool) {
+	obj := p.objectOf(e)
+	if obj == nil {
+		out.Add(diag.Finding{
+			Code: diag.Code(diag.PhaseBinding, 8),
+			Pos:  p.pos(e.Pos()),
+			What: "spec.ForDecl requires a declared function, variable or constant.",
+			Why:  "The argument names the construct being annotated. A literal or an expression names nothing, so the binding would have no target at all.",
+			How:  "Pass a package level identifier, e.g. spec.ForDecl(PermSubmitQuote, …).",
+		})
+		return ir.Target{}, false
+	}
+
+	kind, ok := targetKindOf(obj)
+	if !ok {
+		out.Add(diag.Finding{
+			Code: diag.Code(diag.PhaseBinding, 9),
+			Pos:  p.pos(e.Pos()),
+			What: obj.Name() + " is not a function, variable or constant.",
+			Why:  "spec.ForDecl binds to a declaration. A type is bound with spec.For[T], a struct field with spec.ForField[T].",
+			How:  "Use spec.For[" + obj.Name() + "](…) if you meant the type.",
+		})
+		return ir.Target{}, false
+	}
+
+	pkgPath := p.PkgPath()
+	if obj.Pkg() != nil {
+		pkgPath = obj.Pkg().Path()
+	}
+	return ir.Target{Kind: kind, Package: pkgPath, Name: qualified(obj)}, true
+}
+
+// targetKindOf maps a resolved object to its target kind.
+func targetKindOf(obj types.Object) (ir.TargetKind, bool) {
+	switch o := obj.(type) {
+	case *types.Func:
+		return ir.TargetFunc, true
+	case *types.Const:
+		return ir.TargetConst, true
+	case *types.Var:
+		// Struct fields are also *types.Var but are never package level, and
+		// they are bound with spec.ForField instead.
+		if o.IsField() {
+			return 0, false
+		}
+		return ir.TargetVar, true
+	}
+	return 0, false
+}
+
+// objectOf resolves an expression to the object it denotes, or nil when the
+// expression denotes no declaration.
+func (p *Package) objectOf(e ast.Expr) types.Object {
+	switch x := e.(type) {
+	case *ast.ParenExpr:
+		return p.objectOf(x.X)
+	case *ast.UnaryExpr:
+		// The address-of operator is rejected by the whitelist. Resolving
+		// through it anyway keeps that one mistake to one message instead of
+		// letting the unresolvable target pile a second finding on top.
+		return p.objectOf(x.X)
+	case *ast.Ident:
+		return p.lookup(x)
+	case *ast.SelectorExpr:
+		return p.lookup(x.Sel)
+	case *ast.IndexExpr:
+		return p.objectOf(x.X)
+	case *ast.IndexListExpr:
+		return p.objectOf(x.X)
+	}
+	return nil
+}
+
+func (p *Package) lookup(id *ast.Ident) types.Object {
+	if obj := p.pkg.TypesInfo.Uses[id]; obj != nil {
+		return obj
+	}
+	return p.pkg.TypesInfo.Defs[id]
+}
+
+func qualified(obj types.Object) string {
+	if obj.Pkg() != nil {
+		return obj.Pkg().Path() + "." + obj.Name()
+	}
+	return obj.Name()
 }

@@ -229,7 +229,6 @@ Die Sprache ist **nicht** Go. Sie ist eine explizit aufgezählte Teilmenge der `
 | `*ast.IndexExpr`, `*ast.IndexListExpr` | nur als Callee — generische Instanziierung (`spec.For[T]`) |
 | `*ast.SelectorExpr`, `*ast.Ident` | |
 | `*ast.BasicLit` | `STRING`, `INT` |
-| `*ast.UnaryExpr` | nur `&`, nur als Argument von `ForVar` |
 
 ### 3.2 Zusätzlich erlaubt in `*.spec.go`
 
@@ -420,7 +419,7 @@ type Glossary struct {
 
 ### 5.3 Bindungsterme
 
-Die **einzigen fünf Funktionen der Sprache mit Seiteneffekt.** Sie tragen den Term in das Laufzeitregister ein (§4.2) und erfassen dabei ihre Quellposition.
+Die **einzigen vier Funktionen der Sprache mit Seiteneffekt.** Sie tragen den Term in das Laufzeitregister ein (§4.2) und erfassen dabei ihre Quellposition.
 
 ```go
 // Binding ist der opake Rückgabetyp aller Bindungen. Er trägt keine Information
@@ -431,11 +430,16 @@ type Binding struct{}
 // Der Regelfall; das Ziel ist vom Go-Compiler geprüft.
 func For[T any](as ...Assertion) Binding
 
-// ForFunc bindet an eine Funktion. Das Argument ist der Funktionswert selbst.
-func ForFunc(fn any, as ...Assertion) Binding
-
-// ForVar bindet an eine Variable oder Konstante. Das Argument ist ihre Adresse.
-func ForVar(ptr any, as ...Assertion) Binding
+// ForDecl bindet an eine deklarierte Funktion, Variable oder Konstante.
+//
+// Das Argument benennt die Deklaration. Welcher Art sie ist — func, var oder
+// const — folgt aus dem Typechecker und wird nicht vom Autor behauptet; beide
+// können sich also nicht widersprechen.
+//
+// Generisch statt `any`, damit der Wert zur Init-Zeit nicht geboxt wird. Der
+// Wert selbst wird nie gelesen; er existiert nur, damit der Go-Compiler die
+// Existenz der Deklaration prüft.
+func ForDecl[T any](ref T, as ...Assertion) Binding
 
 // ForField bindet an ein Struct-Feld. Der Feldname ist ein String und damit
 // NICHT vom Go-Compiler geprüft; speclink prüft ihn gegen den Typ (§6.5).
@@ -448,7 +452,7 @@ func ForPackage(as ...Assertion) Binding
 Jede dieser Funktionen erfasst `runtime.Caller(1)`. Das ist nicht Beiwerk, sondern trägt zwei Dinge:
 
 1. **Die Kreuzprobe wird positionsbasiert** (§7.4) — statisches und Laufzeitmodell werden über `(datei, zeile, …)` verglichen.
-2. **Es umgeht einen sonst harten Verlust.** `ForVar(&PermSubmitQuote)` liefert zur Laufzeit nur einen Zeiger; der Variablenname ist weg. Über die Position ist der Eintrag trotzdem eindeutig zuzuordnen.
+2. **Es umgeht einen sonst harten Verlust.** `ForDecl(PermSubmitQuote)` bekommt zur Laufzeit nur einen Wert; der Bezeichner, der ihn benannte, ist weg. Über die Position ist der Eintrag trotzdem eindeutig zuzuordnen.
 
 Präzedenz im Zielumfeld: nagos `permission.register(permission, skip int)` existiert aus genau diesem Grund.
 
@@ -470,7 +474,7 @@ var _ = spec.For[SubmitQuoteUC](
 ```go
 // Assertion trägt ihre Nutzlast in unexportierten Feldern und ist für den
 // Benutzer opak. Aussageterme sind rein; die Seiteneffektfläche der gesamten
-// Sprache liegt bei den fünf Bindungsfunktionen aus §5.3.
+// Sprache liegt bei den vier Bindungsfunktionen aus §5.3.
 type Assertion struct {
 	kind assertionKind
 	reqs []Requirement
@@ -531,11 +535,11 @@ var _ = spec.For[QuoteSubmitted](
 	spec.Transition[QuoteSubmitted]("submitted"),
 )
 
-var _ = spec.ForFunc(NewSubmitQuote,
+var _ = spec.ForDecl(NewSubmitQuote,
 	spec.Satisfies(quote.R_NUMBERING_ALLOCATION),
 )
 
-var _ = spec.ForVar(&PermSubmitQuote,
+var _ = spec.ForDecl(PermSubmitQuote,
 	spec.Rationale(`Die Abgabe ist berechtigungspflichtig, weil sie eine Nummer
 aus dem lückenlosen Kreis zieht und damit nicht folgenlos wiederholbar ist.`),
 )
@@ -543,15 +547,17 @@ aus dem lückenlosen Kreis zieht und damit nicht folgenlos wiederholbar ist.`),
 
 ### 6.2 Zulässige Ziele je Aussage
 
-| Aussage | `For[T]` | `ForFunc` | `ForVar` | `ForField[T]` | `ForPackage` |
-|---|:-:|:-:|:-:|:-:|:-:|
-| `Satisfies` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `Transition[T]` | ✓ | ✓ | ✓ | | |
-| `External` | ✓ | | | | |
-| `Help` | ✓ | ✓ | ✓ | | |
-| `Term` | ✓ | | | | ✓ |
-| `Rationale` | ✓ | ✓ | ✓ | | ✓ |
-| `Waive` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Aussage | `For[T]` | `ForDecl` | `ForField[T]` | `ForPackage` |
+|---|:-:|:-:|:-:|:-:|
+| `Satisfies` | ✓ | ✓ | ✓ | ✓ |
+| `Transition[T]` | ✓ | ✓ | | |
+| `External` | ✓ | | | |
+| `Help` | ✓ | ✓ | | |
+| `Term` | ✓ | | | ✓ |
+| `Rationale` | ✓ | ✓ | | ✓ |
+| `Waive` | ✓ | ✓ | ✓ | ✓ |
+
+`ForDecl` deckt Funktion, Variable und Konstante ab. Die Unterscheidung steht im Zwischenmodell (`TargetFunc`, `TargetVar`, `TargetConst`) und wird aus `types.Info.Uses` **abgeleitet**, nicht aus der gewählten Direktive gelesen.
 
 ### 6.3 Wiederholbarkeit
 
@@ -624,8 +630,8 @@ Datei: sales/commands.annotation.go
   Bindung For     -> Ziel spike/sales.SubmitQuoteUC
     satisfies quote.R_QUOTE_SUBMIT  (deklariert: anforderungen/fun/quote/R-QUOTE-SUBMIT.spec.go:5:5)
     transition on spike/sales.QuoteSubmitted -> "submitted"
-  Bindung ForFunc -> Ziel NewSubmitQuote
-  Bindung ForVar  -> Ziel &PermSubmitQuote
+  Bindung ForDecl -> Ziel NewSubmitQuote
+  Bindung ForDecl -> Ziel PermSubmitQuote
   Bindung ForField-> Ziel spike/sales.SubmitQuoteCmd
 ```
 
@@ -709,7 +715,9 @@ Der Laufzeitpfad ist am selben Durchstich wie §7.3 geprüft. `spec` mit Registr
 {"File": ".../commands.annotation.go", "Line": "16", "TargetKind": "var",   "Target": "*string"}
 ```
 
-**`ForVar` verliert den Namen — bestätigt.** Das Ziel meldet sich als `*string`, nicht als `PermSubmitQuote`. Der Vergleich über die Position (§5.3) ist damit nicht Bequemlichkeit, sondern notwendig.
+**`ForDecl` verliert den Namen — bestätigt.** Zur Laufzeit kommt nur ein Wert an; der Bezeichner ist weg, und Reflexion kann eine Konstante nicht von einer Variablen gleichen Typs unterscheiden. Die Laufzeit meldet deshalb **eine** Zielart `decl` mit leerem Namen, während der statische Leser sie in `func`, `var` und `const` verfeinert.
+
+> Daraus folgt eine zweite Vorgabe für den Vergleich: **die Zielart ist eine rein statische Verfeinerung und darf nicht als Abweichung gewertet werden.** Verglichen wird über Position und Aussagen.
 
 **Die Init-Reihenfolge ist nicht die Quelltextreihenfolge.** Die Einträge erscheinen als `8, 15, 17, 16` — über drei Läufe identisch, also deterministisch, aber textlich verdreht. Go initialisiert Paketvariablen nach Abhängigkeit, nicht nach Zeile.
 

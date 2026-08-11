@@ -9,7 +9,7 @@ import (
 // exists so that bindings can be written as package level `var _ = …`.
 type Binding struct{}
 
-// The five functions below are the entire side effect surface of the language.
+// The four functions below are the entire side effect surface of the language.
 // Each records its term in the runtime registry and captures its own source
 // position via runtime.Caller.
 //
@@ -17,9 +17,9 @@ type Binding struct{}
 //
 //  1. It makes the cross check (speclink selfreport) position based, so the
 //     static and the runtime view of the model can be compared as sets.
-//  2. It works around a loss that cannot otherwise be avoided: ForVar receives
-//     a pointer, and the variable name is gone at runtime. Keyed by position
-//     the entry is still unambiguous.
+//  2. It works around a loss that cannot otherwise be avoided: ForDecl receives
+//     a value, and the identifier that named it is gone at runtime. Keyed by
+//     position the entry is still unambiguous.
 //
 // Comparison must be over sets keyed by position, never over sequences: Go
 // initialises package level variables in dependency order, which is
@@ -31,17 +31,17 @@ func For[T any](as ...Assertion) Binding {
 	return record(target{kind: targetType, typ: reflect.TypeFor[T]()}, as)
 }
 
-// ForFunc binds to a function. The argument is the function value itself.
-func ForFunc(fn any, as ...Assertion) Binding {
-	return record(target{kind: targetFunc, value: fn}, as)
-}
-
-// ForVar binds to a variable or constant. The argument is its address.
+// ForDecl binds to a declared function, variable or constant.
 //
-// The variable name is not recoverable at runtime; the recorded position
-// identifies the entry instead.
-func ForVar(ptr any, as ...Assertion) Binding {
-	return record(target{kind: targetVar, value: ptr}, as)
+// The argument names the declaration. Which kind it is — func, var or const —
+// follows from the type checker and is not asserted by the author, so the two
+// cannot disagree.
+//
+// Generic rather than any, so the value is not boxed at initialisation time.
+// The value itself is never read; it exists only so the Go compiler verifies
+// that the declaration exists.
+func ForDecl[T any](ref T, as ...Assertion) Binding {
+	return record(target{kind: targetDecl}, as)
 }
 
 // ForField binds to a struct field of T.
@@ -61,8 +61,7 @@ type targetKind int
 
 const (
 	targetType targetKind = iota + 1
-	targetFunc
-	targetVar
+	targetDecl
 	targetField
 	targetPackage
 )
@@ -71,10 +70,8 @@ func (k targetKind) String() string {
 	switch k {
 	case targetType:
 		return "type"
-	case targetFunc:
-		return "func"
-	case targetVar:
-		return "var"
+	case targetDecl:
+		return "decl"
 	case targetField:
 		return "field"
 	case targetPackage:
@@ -86,12 +83,18 @@ func (k targetKind) String() string {
 type target struct {
 	kind  targetKind
 	typ   reflect.Type
-	value any
 	field string
 }
 
 // record appends the term to the registry. skip is fixed at 2: record itself
 // and the exported binding function that called it.
+//
+// The runtime reports one kind "decl" for functions, variables and constants,
+// because reflection cannot tell a constant from a variable of the same type.
+// The static reader refines this into func, var and const from the type
+// checker. The cross check therefore compares positions and assertions; the
+// target kind is a static only enrichment and must not be treated as a
+// mismatch.
 func record(t target, as []Assertion) Binding {
 	_, file, line, _ := runtime.Caller(2)
 	appendEntry(entryOf(t, as, file, line))
@@ -102,23 +105,11 @@ func (t target) name() string {
 	switch t.kind {
 	case targetType:
 		return typeName(t.typ)
-	case targetFunc:
-		if t.value == nil {
-			return ""
-		}
-		pc := reflect.ValueOf(t.value).Pointer()
-		if fn := runtime.FuncForPC(pc); fn != nil {
-			return fn.Name()
-		}
-		return ""
-	case targetVar:
-		if t.value == nil {
-			return ""
-		}
-		return typeName(reflect.TypeOf(t.value))
 	case targetField:
 		return typeName(t.typ) + "." + t.field
 	}
+	// A declaration cannot name itself at runtime: the identifier is gone by
+	// the time the value arrives. The recorded position identifies the entry.
 	return ""
 }
 

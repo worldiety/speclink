@@ -184,11 +184,17 @@ func (p *Package) checkExpr(e ast.Expr, kind fileKind, out *diag.Set) {
 	case *ast.Ident, *ast.SelectorExpr, *ast.BasicLit:
 		// identifiers, qualified identifiers and literals are the leaves
 	case *ast.UnaryExpr:
-		if x.Op != token.AND {
-			p.reject(x, "operator "+x.Op.String(), out)
+		if x.Op == token.AND {
+			out.Add(diag.Finding{
+				Code: diag.Code(diag.PhaseWhitelist, 11),
+				Pos:  p.pos(x.Pos()),
+				What: "the address-of operator is not permitted.",
+				Why:  "spec.ForDecl names a declaration; its address adds nothing to that, and taking it would rule out constants, which cannot be addressed at all.",
+				How:  "Remove the &, e.g. spec.ForDecl(PermSubmitQuote, …).",
+			})
 			return
 		}
-		p.checkExpr(x.X, kind, out)
+		p.reject(x, "operator "+x.Op.String(), out)
 	case *ast.ArrayType:
 		// element type of a slice literal
 	case *ast.ParenExpr:

@@ -14,13 +14,13 @@ import (
 
 // allowedTargets lists the target kinds each assertion accepts.
 var allowedTargets = map[ir.AssertionKind][]ir.TargetKind{
-	ir.AssertSatisfies:  {ir.TargetType, ir.TargetFunc, ir.TargetVar, ir.TargetField, ir.TargetPackage},
-	ir.AssertTransition: {ir.TargetType, ir.TargetFunc, ir.TargetVar},
+	ir.AssertSatisfies:  {ir.TargetType, ir.TargetFunc, ir.TargetVar, ir.TargetConst, ir.TargetField, ir.TargetPackage},
+	ir.AssertTransition: {ir.TargetType, ir.TargetFunc, ir.TargetVar, ir.TargetConst},
 	ir.AssertExternal:   {ir.TargetType},
-	ir.AssertHelp:       {ir.TargetType, ir.TargetFunc, ir.TargetVar},
+	ir.AssertHelp:       {ir.TargetType, ir.TargetFunc, ir.TargetVar, ir.TargetConst},
 	ir.AssertTerm:       {ir.TargetType, ir.TargetPackage},
-	ir.AssertRationale:  {ir.TargetType, ir.TargetFunc, ir.TargetVar, ir.TargetPackage},
-	ir.AssertWaive:      {ir.TargetType, ir.TargetFunc, ir.TargetVar, ir.TargetField, ir.TargetPackage},
+	ir.AssertRationale:  {ir.TargetType, ir.TargetFunc, ir.TargetVar, ir.TargetConst, ir.TargetPackage},
+	ir.AssertWaive:      {ir.TargetType, ir.TargetFunc, ir.TargetVar, ir.TargetConst, ir.TargetField, ir.TargetPackage},
 }
 
 // repeatable lists the assertions that may appear more than once per target.
@@ -97,10 +97,8 @@ func targetHint(k ir.AssertionKind) string {
 		switch t {
 		case ir.TargetType:
 			names = append(names, "spec.For[T]")
-		case ir.TargetFunc:
-			names = append(names, "spec.ForFunc")
-		case ir.TargetVar:
-			names = append(names, "spec.ForVar")
+		case ir.TargetFunc, ir.TargetVar, ir.TargetConst:
+			names = appendUnique(names, "spec.ForDecl")
 		case ir.TargetField:
 			names = append(names, "spec.ForField[T]")
 		case ir.TargetPackage:
@@ -108,6 +106,17 @@ func targetHint(k ir.AssertionKind) string {
 		}
 	}
 	return join(names, " or ")
+}
+
+// appendUnique keeps the hint list free of duplicates: func, var and const all
+// map to the same binding form.
+func appendUnique(list []string, s string) []string {
+	for _, existing := range list {
+		if existing == s {
+			return list
+		}
+	}
+	return append(list, s)
 }
 
 func join(parts []string, sep string) string {
