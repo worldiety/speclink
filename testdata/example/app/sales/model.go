@@ -5,16 +5,8 @@ import (
 	"context"
 
 	"go.wdy.de/nago/application/evs"
-	"go.wdy.de/nago/application/permission"
 	"go.wdy.de/nago/auth"
 )
-
-// SubmitQuoteUC submits an approved quote and draws a quote number.
-type SubmitQuoteUC func(auth.Subject, SubmitQuoteCmd) (evs.SeqID, error)
-
-// PermSubmitQuote guards the submission use case.
-var PermSubmitQuote = permission.Declare[SubmitQuoteUC](
-	"sales.quote.submit", "Submit quote", "May submit an approved quote.")
 
 // QuoteAggregate is the consistency boundary of a quote.
 type QuoteAggregate struct {
@@ -53,3 +45,12 @@ func (e QuoteSubmitted) Evolve(_ context.Context, q *QuoteAggregate) error {
 
 // Discriminator is the stable serialisation tag.
 func (e QuoteSubmitted) Discriminator() evs.Discriminator { return "sales.quote.submitted.v1" }
+
+// ApproveQuoteCmd carries the input of an approval.
+type ApproveQuoteCmd struct {
+	QuoteID       string
+	LegalApproved bool
+}
+
+// Namespace is the ReBAC resource type of the quotation domain.
+const Namespace = "erp.sales.quote"

@@ -25,6 +25,29 @@ const (
 	ConstructQuery
 )
 
+// WithArticle renders the kind as a noun phrase for diagnostics.
+//
+// The article follows pronunciation, not spelling: "a use case", because "use"
+// begins with a consonant sound despite starting with a vowel letter. A generic
+// vowel test gets this wrong, so the phrase is stated per kind.
+func (k ConstructKind) WithArticle() string {
+	switch k {
+	case ConstructUseCase:
+		return "a use case"
+	case ConstructCommand:
+		return "a command"
+	case ConstructEvent:
+		return "an event"
+	case ConstructAggregate:
+		return "an aggregate"
+	case ConstructPermission:
+		return "a permission"
+	case ConstructQuery:
+		return "a query"
+	}
+	return "an unknown construct"
+}
+
 func (k ConstructKind) String() string {
 	switch k {
 	case ConstructUseCase:

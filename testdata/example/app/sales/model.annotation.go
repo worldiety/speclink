@@ -5,12 +5,6 @@ import (
 	"github.com/worldiety/speclink/spec"
 )
 
-var _ = spec.For[SubmitQuoteUC](
-	spec.Satisfies(quote.RQuoteSubmit),
-	spec.Help(`Submit the approved quote. The system draws the next quote
-number from the central registry.`),
-)
-
 var _ = spec.For[SubmitQuoteCmd](
 	spec.Satisfies(quote.RQuoteSubmit),
 )
@@ -20,10 +14,11 @@ var _ = spec.For[QuoteSubmitted](
 	spec.Transition[QuoteSubmitted]("submitted"),
 )
 
-var _ = spec.ForDecl(PermSubmitQuote,
-	spec.Rationale("Submission draws from a gapless registry and is therefore not repeatable without consequence."),
-)
-
 var _ = spec.ForField[SubmitQuoteCmd]("Title",
 	spec.Satisfies(quote.RQuoteSubmit),
+)
+
+var _ = spec.ForDecl(Namespace,
+	spec.Satisfies(quote.RQuoteApprove),
+	spec.Rationale("The resource type is the anchor of every access rule on a quote."),
 )

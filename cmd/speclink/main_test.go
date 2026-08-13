@@ -31,9 +31,9 @@ func TestInference(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected a clean run, got exit %d:\n%s", code, out)
 	}
-	// use case, query-free command, event, aggregate, permission, second use case
-	if !strings.Contains(out, "6 constructs") {
-		t.Errorf("expected 6 recognised constructs, got:\n%s", out)
+	// two use cases, one command, one event, one aggregate, two permissions
+	if !strings.Contains(out, "7 constructs") {
+		t.Errorf("expected 7 recognised constructs, got:\n%s", out)
 	}
 }
 
@@ -142,4 +142,55 @@ func asExitError(err error, target **exec.ExitError) bool {
 		*target = e
 	}
 	return ok
+}
+
+// TestArchitectureRules pins the five layout linters. The fixture violates each
+// rule exactly once, so a missing or duplicated finding shows up immediately.
+func TestArchitectureRules(t *testing.T) {
+	out, code := runVerify(t, "../../testdata/arch")
+	if code == 0 {
+		t.Fatalf("expected findings, got a clean run:\n%s", out)
+	}
+
+	want := []string{
+		"SPEC-V6-030", // main package outside cmd/
+		"SPEC-V6-032", // infrastructure imports a bounded context
+		"SPEC-V6-033", // infrastructure declares a use case
+		"SPEC-V6-040", // ui package misnamed
+		"SPEC-V6-041", // domain imports the presentation layer
+		"SPEC-V6-042", // context without a UseCases bundle
+		"SPEC-V6-051", // use case without a trailing error
+		"SPEC-V6-056", // use case without a permission
+		"SPEC-V6-057", // permission declared but never checked
+		"SPEC-V6-058", // use case reads package level state
+		"SPEC-V6-059", // permission with hardcoded texts
+	}
+	for _, code := range want {
+		if n := strings.Count(out, "["+code+"]"); n != 1 {
+			t.Errorf("expected %s exactly once, found %d times", code, n)
+		}
+	}
+
+	// Both use cases of the fixture violate file layout and authorisation.
+	for _, code := range []string{"SPEC-V6-050", "SPEC-V6-053", "SPEC-V6-055"} {
+		if n := strings.Count(out, "["+code+"]"); n != 2 {
+			t.Errorf("expected %s twice, found %d times", code, n)
+		}
+	}
+
+	// The wiring layer connects views to use cases and must stay exempt,
+	// otherwise every context becomes unfixable.
+	if strings.Contains(out, "app/billing/cfg") {
+		t.Errorf("the cfg wiring layer must not be reported:\n%s", out)
+	}
+}
+
+// TestConformantProject guards that a project following every convention
+// verifies clean. Without it the linters could drift into rules nothing can
+// satisfy.
+func TestConformantProject(t *testing.T) {
+	out, code := runVerify(t, "../../testdata/example")
+	if code != 0 {
+		t.Fatalf("the conformant fixture must verify clean, got exit %d:\n%s", code, out)
+	}
 }

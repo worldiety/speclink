@@ -5,6 +5,6 @@ import (
 	"github.com/worldiety/speclink/spec"
 )
 
-var _ = spec.For[ApproveQuoteUC](
+var _ = spec.For[ApproveQuote](
 	spec.Satisfies(quote.RQuoteApprove),
 )

@@ -112,6 +112,31 @@ Drei Übergänge, keiner davon die IR:
 
 **Befund: Phase V4 ist leer — und das ist ein gutes Zeichen.** Die Redundanzprüfung („annotierte Tatsache ist inferierbar") hat nichts zu prüfen, weil der Direktivenkatalog so entworfen wurde, dass alles Inferierbare gar nicht erst eine Direktive hat. Rolle, Permission, Aggregat, Kontext und Eventfluss kommen ausschließlich aus den Recognizern. V4 wird erst dann nicht-leer, wenn der Katalog wächst; bis dahin ist die Vorrangregel durch Abwesenheit erfüllt statt durch Prüfung.
 
+### S2 — Prüfungen und Diagnostik (teilweise umgesetzt)
+
+**Umgesetzt: die Architektur-Linter.** Fünf Regelgruppen über der Projektstruktur, gemessen am realen `werp`:
+
+| Regel | Befunde in werp |
+|---|---:|
+| `K5-UC-FILE` Use Case nicht in `uc_<name>.go` | 238 |
+| `K5-UC-CONSTRUCTOR` Konstruktor fehlt oder falsch platziert | 238 |
+| `K5-UC-PERMISSION` keine eigene Permission | 16 |
+| `K5-UC-PERMISSION-I18N` hartkodierte Texte | 10 |
+| `K6-CTX-USECASES` Use Case fehlt im Bündel | 10 |
+| `K6-CTX-NO-UI-IMPORT` Domäne importiert Präsentation | 9 |
+| `K6-CTX-UI-PKG` UI-Paket falsch benannt | 1 |
+| `K7`, `K8` | 0 |
+
+Die 238 Konstruktor-Befunde haben eine gemeinsame Ursache: werp nennt den Typ `DraftQuoteUC`, den Konstruktor aber `NewDraftQuote`. Die Regel verlangt `New` + exakter Typname. Entweder fällt das `UC`-Suffix, oder die Regel muss es tolerieren — offener Punkt 9.
+
+**Projektlayout als einzige Konfiguration.** `speclink.json` im Wurzelverzeichnis, nur bei Abweichung von der Konvention:
+
+```json
+{"contextRoot": ".", "cmdRoot": "cmd", "infraRoots": ["pkg", "kernel"]}
+```
+
+Das ist die bewusste Ausnahme zu §1.7: Regeln und Erkennung bleiben hartkodiert, aber ein Verzeichnislayout ist Projektwissen, das kein Framework-Verständnis erschließt.
+
 ### S2 — Prüfungen und Diagnostik
 
 **Inhalt**
@@ -193,6 +218,7 @@ Abhängigkeit: Der Strang kann parallel zu S1 laufen, muss aber vor S3 abgeschlo
 | 6 | Bildregionen als prüfbarer Verweis — derzeit bewusste Lücke | offen, evtl. nie |
 | 7 | Abnahme der Inferenzschicht gegen das reale `spec/`-Modell des ERP (146 Aggregate, 417 Events, 130 Use Cases) | vor S2 |
 | 8 | Weitere Recognizer: Eventfluss (`bus.Publish`, `events.SubscribeFor`), Routen (`cfg.RootView`, `admin.Card`), ReBAC-Namespaces | S2, nach Bedarf |
+| 9 | `New<Typname>` gegen werps `UC`-Suffix: 238 Befunde aus einer einzigen Namenskonvention | vor der Einführung im ERP |
 
 ---
 

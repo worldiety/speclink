@@ -82,7 +82,7 @@ func CoverConstructs(constructs []ir.Construct, bindings []ir.Binding, out *diag
 			Code: diag.Code(diag.PhaseSemantic, 20),
 			Pos:  c.Pos,
 			Rule: RuleConstructUnbound,
-			What: shortName(c.Name) + " is " + article(c.Kind.String()) + " but is bound to no requirement.",
+			What: shortName(c.Name) + " is " + c.Kind.WithArticle() + " but is bound to no requirement.",
 			Why:  "Recognised because it " + c.Evidence + ". A construct carrying business meaning must trace back to something that was asked for, otherwise nobody can tell whether it should exist.",
 			How:  "Add `var _ = spec.For[" + shortName(c.Name) + "](spec.Satisfies(…))` in " + annotationFileHint(c) + ", or waive the rule with a reason.",
 		})
@@ -101,19 +101,6 @@ func annotationFileHint(c ir.Construct) string {
 		return file[:len(file)-3] + ".annotation.go"
 	}
 	return "the annotation file next to it"
-}
-
-// article prefixes a noun with the right indefinite article, so diagnostics
-// read as sentences rather than as templates.
-func article(noun string) string {
-	if noun == "" {
-		return noun
-	}
-	switch noun[0] {
-	case 'a', 'e', 'i', 'o', 'u':
-		return "an " + noun
-	}
-	return "a " + noun
 }
 
 func shortName(qualified string) string {

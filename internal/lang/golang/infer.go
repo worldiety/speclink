@@ -12,6 +12,7 @@ package golang
 import (
 	"go/ast"
 	"go/types"
+	"strings"
 
 	"github.com/worldiety/speclink/internal/ir"
 )
@@ -19,6 +20,7 @@ import (
 // nago package paths the recognisers match on.
 const (
 	nagoAuth       = "go.wdy.de/nago/auth"
+	nagoUser       = "go.wdy.de/nago/application/user"
 	nagoPermission = "go.wdy.de/nago/application/permission"
 	nagoEvs        = "go.wdy.de/nago/application/evs"
 	nagoData       = "go.wdy.de/nago/pkg/data"
@@ -97,17 +99,17 @@ func (p *Package) inferType(ts *ast.TypeSpec) (ir.Construct, bool) {
 	switch {
 	case p.hasMethods(named, "Evolve", "Discriminator"):
 		base.Kind = ir.ConstructEvent
-		base.Evidence = "implements evs.Evt (Evolve plus Discriminator)"
+		base.Evidence = "implements evs.Evt, that is Evolve plus Discriminator"
 		return base, true
 
 	case p.hasMethods(named, "Decide"):
 		base.Kind = ir.ConstructCommand
-		base.Evidence = "implements evs.Cmd (Decide)"
+		base.Evidence = "implements evs.Cmd, that is Decide"
 		return base, true
 
 	case p.hasMethods(named, "Identity"):
 		base.Kind = ir.ConstructAggregate
-		base.Evidence = "implements data.Aggregate (Identity)"
+		base.Evidence = "implements data.Aggregate, that is Identity"
 		return base, true
 	}
 
@@ -121,10 +123,10 @@ func (p *Package) inferType(ts *ast.TypeSpec) (ir.Construct, bool) {
 		return ir.Construct{}, false
 	}
 	base.Kind = ir.ConstructUseCase
-	base.Evidence = "named func type with auth.Subject as first parameter"
+	base.Evidence = "is a named func type with auth.Subject as its first parameter"
 	if isReadOnly(sig) {
 		base.Kind = ir.ConstructQuery
-		base.Evidence = "named func type returning data, with auth.Subject as first parameter"
+		base.Evidence = "is a named func type returning data, with auth.Subject as its first parameter"
 	}
 	return base, true
 }
@@ -165,10 +167,17 @@ func (p *Package) firstParamIsSubject(sig *types.Signature) bool {
 	return isNagoSubject(sig.Params().At(0).Type())
 }
 
-// isNagoSubject matches auth.Subject and permission.Auditable, the two shapes
-// the framework accepts as an actor.
+// isNagoSubject matches the shapes the framework accepts as an actor.
+//
+// auth.Subject is a type alias for user.Subject, so the resolved type reports
+// the user package, not auth. Matching only auth would silently recognise no
+// use case at all in a real project — which is exactly what happened until a
+// run against the reference codebase found it.
 func isNagoSubject(t types.Type) bool {
-	named, ok := t.(*types.Named)
+	// Since Go 1.23 an alias is its own type node rather than the aliased
+	// named type, so auth.Subject arrives here as *types.Alias and a plain
+	// type assertion on *types.Named silently fails.
+	named, ok := types.Unalias(t).(*types.Named)
 	if !ok {
 		return false
 	}
@@ -177,7 +186,7 @@ func isNagoSubject(t types.Type) bool {
 		return false
 	}
 	switch obj.Pkg().Path() {
-	case nagoAuth:
+	case nagoAuth, nagoUser:
 		return obj.Name() == "Subject"
 	case nagoPermission:
 		return obj.Name() == "Auditable"
@@ -233,7 +242,11 @@ func (p *Package) inferPermissions() []ir.Construct {
 			if !ok {
 				return true
 			}
-			if !p.callsInto(call.Fun, nagoPermission, "Declare") {
+			// Every Declare variant counts, not just the plain one: the CRUD
+			// helpers such as DeclareCreate declare exactly one permission too,
+			// they merely derive its translated texts from an entity name.
+			fnName := p.specFuncNameIn(call.Fun, nagoPermission)
+			if !strings.HasPrefix(fnName, "Declare") {
 				return true
 			}
 			id, _ := p.stringArg(argAt(call, 0))
@@ -245,7 +258,7 @@ func (p *Package) inferPermissions() []ir.Construct {
 				Kind:     ir.ConstructPermission,
 				Name:     id,
 				Package:  p.PkgPath(),
-				Evidence: "permission.Declare bound to " + guarded,
+				Evidence: "is declared by permission." + fnName + ", bound to " + guarded,
 				Pos:      p.pos(call.Pos()),
 			})
 			return true

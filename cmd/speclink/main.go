@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 
 	"github.com/worldiety/speclink/internal/check"
+	"github.com/worldiety/speclink/internal/config"
 	"github.com/worldiety/speclink/internal/diag"
 	"github.com/worldiety/speclink/internal/ir"
 	"github.com/worldiety/speclink/internal/lang/golang"
@@ -77,6 +78,13 @@ func verify(args []string) error {
 		return fmt.Errorf("resolve root: %w", err)
 	}
 
+	// The layout is the only project knowledge speclink accepts. Without a
+	// speclink.json the convention applies.
+	layout, err := config.Load(absRoot)
+	if err != nil {
+		return err
+	}
+
 	pkgs, err := golang.Load(absRoot, fs.Args()...)
 	if err != nil {
 		return err
@@ -127,6 +135,13 @@ func verify(args []string) error {
 	}
 	str := check.CoverConstructs(constructs, bindings, findings)
 	cov := check.CoverRequirements(tree, bindings, findings)
+
+	// V6: the architecture rules. They read the project layout, which is the
+	// one thing speclink cannot infer and the only thing speclink.json states.
+	golang.CheckUseCases(pkgs, layout, absRoot, findings)
+	golang.CheckBoundedContexts(pkgs, layout, absRoot, findings)
+	golang.CheckInfrastructure(pkgs, layout, absRoot, findings)
+	golang.CheckMainPackages(pkgs, layout, absRoot, findings)
 
 	if err := report(*format, findings, cov, str, len(bindings)); err != nil {
 		return err
