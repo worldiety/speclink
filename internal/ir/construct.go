@@ -23,6 +23,12 @@ const (
 	ConstructPermission
 	// ConstructQuery is a read side function taking an auth subject.
 	ConstructQuery
+	// ConstructProjection is an event folded read model, built by
+	// evs.NewProjection and fed by evs.Project.
+	ConstructProjection
+	// ConstructRepository is a named type standing for data.Repository or
+	// data.ReadRepository over an aggregate.
+	ConstructRepository
 )
 
 // WithArticle renders the kind as a noun phrase for diagnostics.
@@ -44,6 +50,10 @@ func (k ConstructKind) WithArticle() string {
 		return "a permission"
 	case ConstructQuery:
 		return "a query"
+	case ConstructProjection:
+		return "a projection"
+	case ConstructRepository:
+		return "a repository"
 	}
 	return "an unknown construct"
 }
@@ -62,6 +72,10 @@ func (k ConstructKind) String() string {
 		return "permission"
 	case ConstructQuery:
 		return "query"
+	case ConstructProjection:
+		return "projection"
+	case ConstructRepository:
+		return "repository"
 	}
 	return "unknown"
 }
@@ -69,13 +83,17 @@ func (k ConstructKind) String() string {
 // NeedsRequirement reports whether a construct of this kind has to be bound to
 // a requirement (forward coverage, K1/K3).
 //
-// Use cases, commands and events carry business meaning and must trace back to
-// something that was asked for. Permissions and aggregates are structural: they
-// are covered transitively through the use case that guards or writes them, and
-// demanding a binding for each would only produce noise.
+// Use cases, commands, events and projections carry business meaning and must
+// trace back to something that was asked for. A projection is included because
+// it is aggregate crossing: it answers a question no single use case states, so
+// nothing else covers it transitively.
+//
+// Permissions, aggregates and repositories are structural. They are covered
+// through the use case that guards, writes or holds them, and demanding a
+// binding for each would only produce noise.
 func (k ConstructKind) NeedsRequirement() bool {
 	switch k {
-	case ConstructUseCase, ConstructCommand, ConstructEvent:
+	case ConstructUseCase, ConstructCommand, ConstructEvent, ConstructProjection:
 		return true
 	}
 	return false

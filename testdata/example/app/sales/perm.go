@@ -6,6 +6,7 @@ import "go.wdy.de/nago/application/permission"
 // through the type parameter, and each takes its texts from the translation
 // catalogue so the role editor can be read in the user's language.
 var (
-	PermSubmitQuote  = permission.DeclareCreate[SubmitQuote]("sales.quote.submit", "Quote")
-	PermApproveQuote = permission.DeclareFindByID[ApproveQuote]("sales.quote.approve", "Quote")
+	PermSubmitQuote       = permission.DeclareCreate[SubmitQuote]("sales.quote.submit", "Quote")
+	PermApproveQuote      = permission.DeclareFindByID[ApproveQuote]("sales.quote.approve", "Quote")
+	PermFindQuoteOverview = permission.DeclareFindAll[FindQuoteOverview]("sales.quote.overview", "Quote")
 )

@@ -41,6 +41,17 @@ const (
 // the whole design work: without type resolution an identifier in the AST is
 // just a name, and neither generic type arguments nor cross package references
 // could be resolved.
+//
+// NeedDeps is deliberately absent. It would apply this whole mode recursively
+// and make go/packages parse and type check every transitive dependency from
+// source; without it the dependencies arrive as export data, which is all that
+// is needed here. Nothing reads the syntax or the type info of a dependency —
+// only the keys of Imports, to decide whether a package imports a bounded
+// context or the presentation layer.
+//
+// The distinction is invisible against a small dependency tree and decisive
+// against a real one: the framework alone is several hundred packages, and
+// parsing it on every run would be paid on every single invocation.
 const loadMode = packages.NeedName |
 	packages.NeedFiles |
 	packages.NeedCompiledGoFiles |
@@ -49,7 +60,6 @@ const loadMode = packages.NeedName |
 	packages.NeedTypesInfo |
 	packages.NeedTypesSizes |
 	packages.NeedImports |
-	packages.NeedDeps |
 	packages.NeedModule
 
 // Package is a loaded Go package together with the classification of its files.

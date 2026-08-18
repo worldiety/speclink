@@ -24,9 +24,14 @@ const (
 	nagoPermission = "go.wdy.de/nago/application/permission"
 	nagoEvs        = "go.wdy.de/nago/application/evs"
 	nagoData       = "go.wdy.de/nago/pkg/data"
+	nagoNdb        = "go.wdy.de/nago/pkg/ndb"
 	nagoEnt        = "go.wdy.de/nago/application/ent"
 	nagoEntCfg     = "go.wdy.de/nago/application/ent/cfg"
-	nagoUIEnt      = "go.wdy.de/nago/presentation/ui/ent"
+	// nagoUIEnt is the generic CRUD user interface. It lives under the ent
+	// module rather than under presentation/, which is easy to get wrong: the
+	// path was presentation/ui/ent in earlier versions and a stale constant
+	// here would silently disable the rule instead of failing loudly.
+	nagoUIEnt = "go.wdy.de/nago/application/ent/ui"
 )
 
 // Infer walks the ordinary source files of the package and returns the
@@ -57,6 +62,7 @@ func (p *Package) Infer() []ir.Construct {
 		}
 	}
 	out = append(out, p.inferPermissions()...)
+	out = append(out, p.inferProjections()...)
 	return out
 }
 
@@ -96,6 +102,15 @@ func (p *Package) inferType(ts *ast.TypeSpec) (ir.Construct, bool) {
 		Pos:     p.pos(ts.Pos()),
 	}
 
+	// A repository is a named type standing for the framework interface, the
+	// idiom being `type Repository data.Repository[Quote, ID]`. Both the
+	// defined type and the alias form are matched, because both occur.
+	if inst, ok := p.repositoryInstance(ts, named); ok {
+		base.Kind = ir.ConstructRepository
+		base.Evidence = "stands for data." + inst
+		return base, true
+	}
+
 	switch {
 	case p.hasMethods(named, "Evolve", "Discriminator"):
 		base.Kind = ir.ConstructEvent
@@ -129,6 +144,54 @@ func (p *Package) inferType(ts *ast.TypeSpec) (ir.Construct, bool) {
 		base.Evidence = "is a named func type returning data, with auth.Subject as its first parameter"
 	}
 	return base, true
+}
+
+// repositoryInstance reports whether the type declaration stands for an
+// instantiation of data.Repository or data.ReadRepository, and returns the name
+// of that interface.
+//
+// The framework idiom is to name the repository of an aggregate once and pass
+// that name around:
+//
+//	type Repository data.Repository[Quote, ID]
+//	type StagingRepository = data.Repository[Staging, SID]
+//
+// Both forms are recognised. The defined type is the common one; the alias is
+// used where the interface must stay assignable from the framework's own.
+//
+// The right hand side is read from the syntax rather than from the underlying
+// type, because a defined interface type erases where it came from: its
+// underlying type is a plain *types.Interface with no trace of data.Repository.
+func (p *Package) repositoryInstance(ts *ast.TypeSpec, named *types.Named) (string, bool) {
+	idx, ok := ts.Type.(*ast.IndexListExpr)
+	if !ok {
+		// A single type argument arrives as IndexExpr rather than
+		// IndexListExpr; data.Repository always takes two, but a project may
+		// wrap a one parameter alias, so both shapes are accepted.
+		if one, isOne := ts.Type.(*ast.IndexExpr); isOne {
+			return p.repositoryName(one.X)
+		}
+		return "", false
+	}
+	return p.repositoryName(idx.X)
+}
+
+// repositoryName resolves the generic type being instantiated and reports
+// whether it is one of the repository interfaces of the framework.
+func (p *Package) repositoryName(x ast.Expr) (string, bool) {
+	sel, ok := x.(*ast.SelectorExpr)
+	if !ok {
+		return "", false
+	}
+	obj := p.pkg.TypesInfo.Uses[sel.Sel]
+	if obj == nil || obj.Pkg() == nil || obj.Pkg().Path() != nagoData {
+		return "", false
+	}
+	switch obj.Name() {
+	case "Repository", "ReadRepository":
+		return obj.Name(), true
+	}
+	return "", false
 }
 
 // hasMethods reports whether the named type carries all the given methods,
@@ -205,14 +268,36 @@ func isReadOnly(sig *types.Signature) bool {
 		if isErrorType(res.At(i).Type()) {
 			continue
 		}
-		if named, ok := res.At(i).Type().(*types.Named); ok {
-			obj := named.Obj()
-			// A commit sequence is not data; it identifies the write.
-			if obj.Pkg() != nil && obj.Pkg().Path() == nagoEvs && obj.Name() == "SeqID" {
-				continue
-			}
+		// A commit sequence is not data; it identifies the write.
+		if isCommitSequence(res.At(i).Type()) {
+			continue
 		}
 		return true
+	}
+	return false
+}
+
+// isCommitSequence reports whether the type is the sequence number a write
+// returns.
+//
+// evs.SeqID is an alias of the engine's ndb.Seq, so the resolved type reports
+// the ndb package and matching evs alone recognises nothing. That is the same
+// trap auth.Subject sets, and it is worse here: an unmatched sequence makes
+// every writing use case look like a query, silently and without a finding.
+func isCommitSequence(t types.Type) bool {
+	named, ok := types.Unalias(t).(*types.Named)
+	if !ok {
+		return false
+	}
+	obj := named.Obj()
+	if obj.Pkg() == nil {
+		return false
+	}
+	switch obj.Pkg().Path() {
+	case nagoEvs:
+		return obj.Name() == "SeqID"
+	case nagoNdb:
+		return obj.Name() == "Seq"
 	}
 	return false
 }
@@ -265,6 +350,90 @@ func (p *Package) inferPermissions() []ir.Construct {
 		})
 	}
 	return out
+}
+
+// inferProjections finds the read models built with evs.NewProjection or
+// evs.NewSingleton and reports the state type each of them folds into.
+//
+// The construct is the state type, not the projection value: the state is what
+// a requirement talks about ("the overview shows open quotes per customer"),
+// and it is the thing a binding can name with spec.For[T].
+//
+// A projection cannot be recognised from its type declaration the way an
+// aggregate can. The state type carries only Clone, which every cloneable value
+// carries, so the fact that it is a read model exists solely at the point of
+// construction. That is why this is call driven.
+//
+// Each state type is reported once even when several constructors or several
+// evs.Project registrations mention it, because the construct is the read
+// model, not the number of ways it is fed.
+func (p *Package) inferProjections() []ir.Construct {
+	var out []ir.Construct
+	seen := map[string]bool{}
+
+	for _, f := range p.pkg.Syntax {
+		if p.isGeneratedByUs(f) {
+			continue
+		}
+		ast.Inspect(f, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			fnName := p.specFuncNameIn(call.Fun, nagoEvs)
+
+			// NewProjection[K, S] carries the state second, NewSingleton[S]
+			// first: the singleton fixes the key type and drops it.
+			var arg int
+			switch fnName {
+			case "NewProjection":
+				arg = 1
+			case "NewSingleton":
+				arg = 0
+			default:
+				return true
+			}
+
+			t, ok := p.typeArg(call, arg)
+			if !ok {
+				return true
+			}
+			named, ok := stateNamed(t)
+			if !ok {
+				return true
+			}
+			// A read model folded in one package may well be declared in
+			// another; only the local one is this package's construct.
+			if named.Obj().Pkg() == nil || named.Obj().Pkg().Path() != p.PkgPath() {
+				return true
+			}
+			name := p.PkgPath() + "." + named.Obj().Name()
+			if seen[name] {
+				return true
+			}
+			seen[name] = true
+
+			out = append(out, ir.Construct{
+				Kind:     ir.ConstructProjection,
+				Name:     name,
+				Package:  p.PkgPath(),
+				Evidence: "is the state of an evs." + fnName + " read model",
+				Pos:      p.pos(named.Obj().Pos()),
+			})
+			return true
+		})
+	}
+	return out
+}
+
+// stateNamed unwraps the projection state type, which is always a pointer: the
+// fold mutates it in place, so a value type could not be folded at all.
+func stateNamed(t types.Type) (*types.Named, bool) {
+	if ptr, ok := types.Unalias(t).(*types.Pointer); ok {
+		t = ptr.Elem()
+	}
+	named, ok := types.Unalias(t).(*types.Named)
+	return named, ok
 }
 
 // callsInto reports whether fun resolves to the named function of the given

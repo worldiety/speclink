@@ -81,7 +81,7 @@ func (p *Package) checkForbiddenImports(out *diag.Set) {
 				Rule: RuleNoGenericCRUD,
 				What: "the generic CRUD user interface is not permitted.",
 				Why:  shortPkg(nagoUIEnt) + " renders views whose routes, permissions and read models are assembled at run time, so no view can be traced back to a requirement.",
-				How:  "Declare the views explicitly and bind them with spec.Satisfies(…).",
+				How:  "Write the views explicitly and bind them with spec.Satisfies(…). Their look and feel may follow " + shortPkg(nagoUIEnt) + " closely, and may be lifted into a template; only the generic wiring is out.",
 			})
 		}
 	}
@@ -89,6 +89,12 @@ func (p *Package) checkForbiddenImports(out *diag.Set) {
 
 // shortPkg renders an import path as the package name a reader would type.
 func shortPkg(path string) string {
+	// The generic CRUD user interface lives at application/ent/ui but is
+	// imported as uient everywhere, so the last path segment is not the name a
+	// reader would recognise.
+	if path == nagoUIEnt {
+		return "uient"
+	}
 	if i := lastIndexByte(path, '/'); i >= 0 {
 		name := path[i+1:]
 		// nago names its wiring packages cfg<domain>, e.g. application/ent/cfg
@@ -98,9 +104,6 @@ func shortPkg(path string) string {
 			if j := lastIndexByte(rest, '/'); j >= 0 {
 				return "cfg" + rest[j+1:]
 			}
-		}
-		if name == "ent" && path == nagoUIEnt {
-			return "uient"
 		}
 		return name
 	}

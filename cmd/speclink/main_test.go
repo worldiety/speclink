@@ -31,9 +31,10 @@ func TestInference(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected a clean run, got exit %d:\n%s", code, out)
 	}
-	// two use cases, one command, one event, one aggregate, two permissions
-	if !strings.Contains(out, "7 constructs") {
-		t.Errorf("expected 7 recognised constructs, got:\n%s", out)
+	// two use cases, one query, one command, one event, one aggregate,
+	// one projection, one repository, three permissions
+	if !strings.Contains(out, "11 constructs") {
+		t.Errorf("expected 11 recognised constructs, got:\n%s", out)
 	}
 }
 
@@ -75,6 +76,8 @@ func TestVerifyBad(t *testing.T) {
 		"SPEC-V5-033", // directory contradicts Kind
 		"SPEC-V5-035", // domain directory contradicts the ID prefix
 		"SPEC-V6-001", // normative requirement covered by nothing
+		"SPEC-V6-011", // import of the generic CRUD user interface
+		"SPEC-V6-020", // a projection bound to no requirement
 	}
 	// The generic CRUD ban fires once per forbidden factory.
 	if n := strings.Count(out, "[SPEC-V6-010]"); n != 3 {

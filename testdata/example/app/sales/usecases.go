@@ -5,15 +5,17 @@ package sales
 // Callers depend on this bundle rather than on the internals, and NewUseCases
 // is the single place where the shared dependencies are threaded through.
 type UseCases struct {
-	SubmitQuote  SubmitQuote
-	ApproveQuote ApproveQuote
+	SubmitQuote       SubmitQuote
+	ApproveQuote      ApproveQuote
+	FindQuoteOverview FindQuoteOverview
 }
 
 // NewUseCases wires the quotation use cases.
-func NewUseCases() UseCases {
+func NewUseCases(view QuoteOverviewReader) UseCases {
 	return UseCases{
-		SubmitQuote:  NewSubmitQuote(nopRegistry{}),
-		ApproveQuote: NewApproveQuote(),
+		SubmitQuote:       NewSubmitQuote(nopRegistry{}),
+		ApproveQuote:      NewApproveQuote(),
+		FindQuoteOverview: NewFindQuoteOverview(view),
 	}
 }
 
