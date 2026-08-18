@@ -50,16 +50,35 @@ func TestInferKinds(t *testing.T) {
 	}
 }
 
-// TestProjectionNeedsRequirement guards the one coverage decision that is not
-// obvious: a projection is aggregate crossing, so nothing covers it
-// transitively and it must name the requirement it answers. A repository is
-// structural and must not, or every context would carry noise.
-func TestProjectionNeedsRequirement(t *testing.T) {
-	if !ir.ConstructProjection.NeedsRequirement() {
-		t.Error("a projection must be bound to a requirement")
+// TestCoverageObligations pins which construct kinds have to name a
+// requirement. The set is a policy decision, and the one it replaces was never
+// argued: a query fell out of it by omission, although every architecture rule
+// already treats a query as a use case. Reading is a promise too.
+func TestCoverageObligations(t *testing.T) {
+	must := []ir.ConstructKind{
+		ir.ConstructUseCase,
+		ir.ConstructQuery,
+		ir.ConstructCommand,
+		ir.ConstructEvent,
+		ir.ConstructProjection,
 	}
-	if ir.ConstructRepository.NeedsRequirement() {
-		t.Error("a repository must not demand a requirement of its own")
+	for _, k := range must {
+		if !k.NeedsRequirement() {
+			t.Errorf("%v carries business meaning and must name a requirement", k)
+		}
+	}
+
+	// Structural kinds are covered through the use case that guards, writes or
+	// holds them; demanding a binding for each would only produce noise.
+	mustNot := []ir.ConstructKind{
+		ir.ConstructAggregate,
+		ir.ConstructPermission,
+		ir.ConstructRepository,
+	}
+	for _, k := range mustNot {
+		if k.NeedsRequirement() {
+			t.Errorf("%v is structural and must not demand a requirement of its own", k)
+		}
 	}
 }
 

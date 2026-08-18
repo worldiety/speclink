@@ -83,17 +83,23 @@ func (k ConstructKind) String() string {
 // NeedsRequirement reports whether a construct of this kind has to be bound to
 // a requirement (forward coverage, K1/K3).
 //
-// Use cases, commands, events and projections carry business meaning and must
-// trace back to something that was asked for. A projection is included because
-// it is aggregate crossing: it answers a question no single use case states, so
-// nothing else covers it transitively.
+// Use cases, queries, commands, events and projections carry business meaning
+// and must trace back to something that was asked for.
+//
+// A query is included for the same reason a use case is. Reading is a promise
+// too — that someone may see a thing — and every architecture rule already
+// treats a query as a use case: it needs its own uc_ file, its constructor, its
+// permission and its place in the bundle. Exempting it from coverage alone was
+// an omission rather than a decision, and it made a recogniser defect
+// expensive: while evs.SeqID went unrecognised, every writing use case was
+// classified as a query and silently left the denominator.
 //
 // Permissions, aggregates and repositories are structural. They are covered
 // through the use case that guards, writes or holds them, and demanding a
 // binding for each would only produce noise.
 func (k ConstructKind) NeedsRequirement() bool {
 	switch k {
-	case ConstructUseCase, ConstructCommand, ConstructEvent, ConstructProjection:
+	case ConstructUseCase, ConstructQuery, ConstructCommand, ConstructEvent, ConstructProjection:
 		return true
 	}
 	return false
