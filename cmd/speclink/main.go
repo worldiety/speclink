@@ -43,6 +43,8 @@ func run(args []string) error {
 	switch args[0] {
 	case "verify":
 		return verify(args[1:])
+	case "requirements":
+		return requirements(args[1:])
 	case "help", "-h", "--help":
 		usage()
 		return nil
@@ -56,12 +58,14 @@ func usage() {
 	fmt.Fprint(os.Stderr, `speclink - annotation compiler
 
 usage:
-  speclink verify [flags] [packages]
+  speclink verify       [flags] [packages]
+  speclink requirements [flags] [packages]
 
 commands:
-  verify    check requirements, annotations and architecture rules
+  verify        check requirements, annotations and architecture rules
+  requirements  check the requirement tree on its own, before any code binds to it
 
-run "speclink verify -h" for the flags of a command.
+run "speclink <command> -h" for the flags of a command.
 `)
 }
 
@@ -150,6 +154,104 @@ func verify(args []string) error {
 		return errFindings
 	}
 	return nil
+}
+
+// requirements checks the requirement tree on its own: identity, the derivation
+// graph, the layout and the outer edge to the source documents.
+//
+// It exists for the transition. Building a requirement tree for an existing
+// system is a long piece of work, and until the last requirement is in place
+// there is no point asking whether the code covers it — `verify` would drown
+// the tree's own defects under one finding per unbound construct, and the tree
+// is what has to be right first.
+//
+// It is therefore not a reduced verify but a different question: is this tree
+// sound in itself? Nothing here reads an annotation, infers a construct or
+// measures coverage in either direction, so the tree can be grown in a package
+// that no implementation references yet.
+func requirements(args []string) error {
+	fs := flag.NewFlagSet("requirements", flag.ExitOnError)
+	format := fs.String("format", "text", "output format: text or json")
+	root := fs.String("root", ".", "repository root, used to resolve source documents")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	absRoot, err := filepath.Abs(*root)
+	if err != nil {
+		return fmt.Errorf("resolve root: %w", err)
+	}
+
+	patterns := fs.Args()
+	pkgs, err := golang.Load(absRoot, patterns...)
+	if err != nil {
+		return err
+	}
+
+	// Only the loaded packages have to compile. That is the point of narrowing
+	// the patterns: the tree can be checked while the implementation around it
+	// is still in pieces.
+	if errs := golang.TypeErrors(pkgs); len(errs) > 0 {
+		fmt.Fprintln(os.Stderr, "the Go build is broken; fix it before speclink can check anything:")
+		for _, e := range errs {
+			fmt.Fprintln(os.Stderr, "  "+e.Error())
+		}
+		return errFindings
+	}
+
+	findings := &diag.Set{}
+
+	// V1 still applies. A requirement file is written in the same closed subset
+	// as an annotation file, and the whitelist is what keeps it readable
+	// without evaluating it.
+	for _, p := range pkgs {
+		p.CheckWhitelist(findings)
+	}
+
+	var reqs []*ir.Requirement
+	for _, p := range pkgs {
+		reqs = append(reqs, p.ReadRequirements(findings)...)
+	}
+
+	tree := reqtree.Build(absRoot, reqs, findings)
+	tree.CheckLayout(findings)
+	tree.CheckSources(findings)
+
+	if err := reportRequirements(*format, findings, tree); err != nil {
+		return err
+	}
+	if !findings.Empty() {
+		return errFindings
+	}
+	return nil
+}
+
+// reportRequirements writes the tree summary. It counts by status because that
+// is the number a migration is steered by: only normative requirements will
+// later have to be covered, and everything else is an explicit, justified
+// exemption.
+func reportRequirements(format string, findings *diag.Set, tree *reqtree.Tree) error {
+	switch format {
+	case "json":
+		return findings.WriteJSON(os.Stdout)
+	case "text":
+		if err := findings.WriteText(os.Stdout); err != nil {
+			return err
+		}
+		all := tree.All()
+		normative := 0
+		for _, r := range all {
+			if r.Status == ir.Normative {
+				normative++
+			}
+		}
+		fmt.Fprintf(os.Stderr, "\n%s (%d normative), %s\n",
+			plural(len(all), "requirement", "requirements"), normative,
+			plural(findings.Len(), "finding", "findings"))
+		return nil
+	default:
+		return fmt.Errorf("unknown format %q, expected text or json", format)
+	}
 }
 
 func report(format string, findings *diag.Set, cov check.Coverage, str check.Structure, bindings int) error {

@@ -37,7 +37,8 @@ also enforces the architecture of a nago project.
 ## 2. Running the tool
 
 ```
-speclink verify [flags] [packages]
+speclink verify       [flags] [packages]
+speclink requirements [flags] [packages]
 
   -format text|json   text is the default
   -root <dir>         repository root, default "."
@@ -60,6 +61,26 @@ Two numbers, two directions. *Bound* is the forward direction: does every
 construct that carries business meaning name a requirement? *Covered* is the
 backward direction: is every normative requirement satisfied by at least one
 construct? Both must reach 100%.
+
+### Checking the requirement tree on its own
+
+```
+speclink requirements -root . ./requirements/...
+```
+
+This asks a different question: is the tree sound in itself? It checks identity,
+the derivation graph, the layout and the outer edge to the source documents, and
+it reads no annotation, infers no construct and measures no coverage.
+
+Use it while a tree is being built. Until the last requirement is in place there
+is no point asking whether the code covers it — `verify` would drown the tree's
+own defects under one finding per unbound construct, and the tree is what has to
+be right first. Only the packages you name have to compile, so the tree can be
+grown while the implementation around it is still in pieces.
+
+```
+343 requirements (298 normative), 0 findings
+```
 
 ### Diagnostic format
 
@@ -274,7 +295,7 @@ either.
 | You write | speclink infers | Must name a requirement? |
 |---|---|---|
 | named func type, first param `auth.Subject` | **use case** | yes |
-| the same, but returning data | **query** | no |
+| the same, but returning data | **query** | yes |
 | type with `Decide(auth.Subject, *Agg) ([]Evt, error)` | **command** | yes |
 | type with `Evolve(ctx, *Agg) error` **and** `Discriminator()` | **event** | yes |
 | type with `Identity() ID` | **aggregate** | no |
@@ -283,9 +304,14 @@ either.
 | `type X data.Repository[E, ID]` or `= data.ReadRepository[…]` | **repository** | no |
 
 Aggregates, permissions and repositories are structural: they are covered
-through the use case that guards, writes or holds them. A projection is not —
-it crosses aggregates and answers a question no single use case states, so it
-must name its requirement itself.
+through the use case that guards, writes or holds them. Everything else names
+its own requirement.
+
+A query is no exception. Reading is a promise too — that someone may see a
+thing — and every architecture rule already treats a query as a use case: its
+own `uc_` file, its constructor, its permission, its place in the bundle. A
+projection likewise: it crosses aggregates and answers a question no single use
+case states, so nothing covers it transitively.
 
 ### Two type aliases that will bite you
 

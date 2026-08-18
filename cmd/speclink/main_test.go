@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -110,20 +111,36 @@ func TestVerifyJSON(t *testing.T) {
 	}
 }
 
-// runVerify builds and runs the command against a fixture, returning combined
-// output and exit code.
-func runVerify(t *testing.T, root string, extra ...string) (string, int) {
-	t.Helper()
+// speclinkBin is the command under test, built once for the whole package.
+// Every test drives the real binary rather than calling run() in process,
+// because the exit code is part of the contract a loop runner depends on.
+var speclinkBin string
 
-	bin := filepath.Join(t.TempDir(), "speclink")
-	build := exec.Command("go", "build", "-o", bin, ".")
-	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build speclink: %v\n%s", err, out)
+func TestMain(m *testing.M) {
+	dir, err := os.MkdirTemp("", "speclink-test")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "create temp dir:", err)
+		os.Exit(1)
+	}
+	speclinkBin = filepath.Join(dir, "speclink")
+	if out, err := exec.Command("go", "build", "-o", speclinkBin, ".").CombinedOutput(); err != nil {
+		fmt.Fprintf(os.Stderr, "build speclink: %v\n%s", err, out)
+		os.RemoveAll(dir)
+		os.Exit(1)
 	}
 
-	args := append([]string{"verify", "-root", root}, extra...)
-	args = append(args, "./...")
-	cmd := exec.Command(bin, args...)
+	code := m.Run()
+	os.RemoveAll(dir)
+	os.Exit(code)
+}
+
+// runSpeclink runs a command against a fixture, returning combined output and
+// exit code.
+func runSpeclink(t *testing.T, command, root string, extra ...string) (string, int) {
+	t.Helper()
+
+	args := append([]string{command, "-root", root}, extra...)
+	cmd := exec.Command(speclinkBin, args...)
 	cmd.Env = os.Environ()
 	out, err := cmd.CombinedOutput()
 
@@ -137,6 +154,12 @@ func runVerify(t *testing.T, root string, extra ...string) (string, int) {
 		}
 	}
 	return string(out), code
+}
+
+// runVerify is runSpeclink for the common case: verify over the whole fixture.
+func runVerify(t *testing.T, root string, extra ...string) (string, int) {
+	t.Helper()
+	return runSpeclink(t, "verify", root, append(extra, "./...")...)
 }
 
 func asExitError(err error, target **exec.ExitError) bool {
