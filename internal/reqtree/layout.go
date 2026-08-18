@@ -18,11 +18,11 @@ import (
 //
 // Layout:
 //
-//	anforderungen/dec/R-DEC-EVENTSOURCING.spec.go        Kind = Decision
-//	anforderungen/nfr/R-NFR-AUDIT.spec.go                Kind = NonFunctional
-//	anforderungen/con/R-CON-TENANT.spec.go               Kind = Constraint
-//	anforderungen/fun/quote/R-QUOTE-SUBMIT.spec.go       Kind = Functional
-//	anforderungen/fun/quote/R-QUOTE-SUBMIT/              attachments, no .go
+//	requirements/dec/R-DEC-EVENTSOURCING.spec.go        Kind = Decision
+//	requirements/nfr/R-NFR-AUDIT.spec.go                Kind = NonFunctional
+//	requirements/con/R-CON-TENANT.spec.go               Kind = Constraint
+//	requirements/fun/quote/R-QUOTE-SUBMIT.spec.go       Kind = Functional
+//	requirements/fun/quote/R-QUOTE-SUBMIT/              attachments, no .go
 //
 // Cross cutting kinds are grouped by kind because they have no domain home by
 // definition. Functional requirements are the majority and are grouped by

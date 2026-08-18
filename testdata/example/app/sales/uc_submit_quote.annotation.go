@@ -1,7 +1,7 @@
 package sales
 
 import (
-	"example.com/erp/anforderungen/fun/quote"
+	"example.com/erp/requirements/fun/quote"
 	"github.com/worldiety/speclink/spec"
 )
 

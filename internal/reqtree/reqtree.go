@@ -175,7 +175,7 @@ func (t *Tree) CheckSources(out *diag.Set) {
 				Pos:  r.Pos,
 				What: "normative requirement " + r.ID + " names no source.",
 				Why:  "Without a source the requirement cannot be traced back to what was actually asked for. This is the outer edge that is traditionally free text and unverified.",
-				How:  "Add a Source with Doc pointing into anforderungen/_quellen/, or Extern naming the law or standard.",
+				How:  "Add a Source with Doc pointing into requirements/_sources/, or Extern naming the law or standard.",
 			})
 		}
 		for _, s := range r.Sources {
@@ -192,7 +192,7 @@ func (t *Tree) checkSource(r *ir.Requirement, s ir.Source, out *diag.Set) {
 			Pos:  s.Pos,
 			What: "source of " + r.ID + " names neither Doc nor Extern.",
 			Why:  "A source must point somewhere; an empty one is exactly the unverified free text reference this design removes.",
-			How:  "Set Doc to a path below anforderungen/_quellen/, or Extern to the law or standard.",
+			How:  "Set Doc to a path below requirements/_sources/, or Extern to the law or standard.",
 		})
 		return
 	case s.Doc != "" && s.Extern != "":
@@ -216,7 +216,7 @@ func (t *Tree) checkSource(r *ir.Requirement, s ir.Source, out *diag.Set) {
 			Pos:  s.Pos,
 			What: "source document " + s.Doc + " of " + r.ID + " does not exist.",
 			Why:  "The path is repository relative and must name a file. A reference into nothing is worse than none, because it looks verified.",
-			How:  "Correct the path, or move the document into anforderungen/_quellen/.",
+			How:  "Correct the path, or move the document into requirements/_sources/.",
 		})
 		return
 	}

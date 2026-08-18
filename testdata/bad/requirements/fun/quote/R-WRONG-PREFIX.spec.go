@@ -11,7 +11,7 @@ var RWrongPrefix = spec.Requirement{
 	Status:     spec.Normative,
 	Text:       "Something is required.",
 	Sources: []spec.Source{
-		{Doc: "anforderungen/_quellen/missing.md", Anchor: "nope"},
+		{Doc: "requirements/_sources/missing.md", Anchor: "nope"},
 	},
 }
 

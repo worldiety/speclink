@@ -6,7 +6,7 @@ package spec
 //
 // Exactly one of Doc and Extern must be set.
 //
-// Doc is a repository-relative path below anforderungen/_quellen/ and must
+// Doc is a repository-relative path below requirements/_sources/ and must
 // exist. The raw source itself is never modified; requirements point at it.
 //
 // Anchor is the slug of a heading in the target document: lower case, spaces

@@ -10,6 +10,6 @@ var RQuoteApprove = spec.Requirement{
 	Title:      "Approval gate",
 	Text:       "A quote MUST pass an approval gate including legal sign-off before it can be submitted.",
 	Sources: []spec.Source{
-		{Doc: "anforderungen/_quellen/sales/quoteflow.md", Anchor: "9-versand"},
+		{Doc: "requirements/_sources/sales/quoteflow.md", Anchor: "9-versand"},
 	},
 }

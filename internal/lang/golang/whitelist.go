@@ -155,7 +155,7 @@ func (p *Package) checkExpr(e ast.Expr, kind fileKind, out *diag.Set) {
 				Pos:  p.pos(x.Pos()),
 				What: "declarations are not permitted in an annotation file.",
 				Why:  "A requirement is owned by the domain side and outlives the implementation; it must not come into being at an arbitrary code location.",
-				How:  "Declare it under anforderungen/ as <ID>.spec.go and reference it here with spec.Satisfies(…).",
+				How:  "Declare it under requirements/ as <ID>.spec.go and reference it here with spec.Satisfies(…).",
 			})
 			return
 		}
@@ -214,7 +214,7 @@ func (p *Package) reject(e ast.Expr, what string, out *diag.Set) {
 		Pos:  p.pos(e.Pos()),
 		What: what + " are not permitted in annotation files.",
 		Why:  "The annotation language is closed and declarative (P4): it states what holds, not how it is computed. Anything computed would be invisible to the verifier.",
-		How:  "State the fact directly, or express the condition as a requirement of its own under anforderungen/ and bind it with spec.Satisfies(…).",
+		How:  "State the fact directly, or express the condition as a requirement of its own under requirements/ and bind it with spec.Satisfies(…).",
 	})
 }
 

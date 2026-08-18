@@ -153,7 +153,7 @@ type Attachment struct {
 // references are legal and order is irrelevant.
 type Requirement struct {
 	ID          string
-	GoIdent     string // qualified Go identifier, e.g. "…/anforderungen/fun/quote.RQuoteSubmit"
+	GoIdent     string // qualified Go identifier, e.g. "…/requirements/fun/quote.RQuoteSubmit"
 	Kind        Kind
 	Discipline  Discipline
 	Status      Status
