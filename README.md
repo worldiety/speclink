@@ -99,6 +99,7 @@ the previous one is clean:
 | `V1` | The annotation file uses a Go construct that the subset forbids |
 | `V2` | The Go compilation itself (reported by the Go compiler, not by speclink) |
 | `V3` | A binding attaches to an illegal target |
+| `V4` | An annotation states a fact that is already established elsewhere |
 | `V5` | Requirement tree: sources, anchors, IDs, directory layout, the DAG |
 | `V6` | The specification and architecture rules |
 
@@ -282,6 +283,7 @@ Assertions are pure and are passed into a binding. They are never standalone.
 | `spec.Term(g)` | anchors a glossary entry at the construct that defines it |
 | `spec.Rationale(text)` | justifies a decision at the construct implementing it |
 | `spec.Waive(rule, reason)` | suspends one rule here; the reason is mandatory |
+| `spec.Proposal()` | this persisted shape is not promised yet; see section 6 |
 
 A field binding satisfies a requirement for that field, not for the type it
 belongs to — annotating one field does not make the whole command covered.
@@ -340,13 +342,65 @@ go.wdy.de/nago/pkg/cloner                Cloner, required by a projection state
 
 ---
 
-## 6. Choosing a persistence pattern
+## 6. Promising a shape
+
+An event struct is the wire format. It is written into a log that is replayed
+forever, so every field name and every field type is a promise from the moment
+the first message is stored. The same holds for anything a repository
+serialises.
+
+**Everything persisted is frozen by default.** `spec.Proposal()` is the
+exception, and promoting something to production is not an act of writing
+anything — it is deleting that term.
+
+The inversion is deliberate. The number of proposals in a system shrinks over
+its lifetime, so marking the exception costs less than marking the rule. And
+forgetting fails safe: an unmarked newcomer is frozen at once, which surfaces as
+an error the first time somebody changes it, rather than as unreadable data a
+year later.
+
+### The cascade
+
+```go
+var _ = spec.ForPackage(spec.Proposal())        // every persisted type in it
+var _ = spec.For[QuoteWithdrawn](spec.Proposal()) // every field of the type
+var _ = spec.ForField[Quote]("Note", spec.Proposal())
+```
+
+Attach it at the level that is actually true. Marking a level that is already
+covered from above states nothing new and is reported (`K9-PROPOSAL-REDUNDANT`,
+phase V4) — a field term only means something once the type itself is frozen.
+
+Working on a new context? One `spec.ForPackage(spec.Proposal())` covers it, and
+it is deleted once when the context goes live.
+
+### What you may still change
+
+While something is a proposal: anything. Add fields, remove them, retype them,
+delete the event outright. The framework can purge every message of a type, so
+nothing is stranded.
+
+Once it is frozen, the rules below apply. They are not yet implemented — this
+section states the contract they will enforce, and you are expected to follow it
+now.
+
+- The **discriminator must never change**. It is the key the log is decoded by.
+- A field must not be **removed** or **renamed** on the wire.
+- A field's **memory shape** must not change incompatibly. Changing `string` to
+  a named type with underlying `string` is fine, and so is any change between
+  integer widths. Changing `int` to `string`, or a scalar to a slice, is not.
+- **New fields are always allowed**, but must be marked optional, because
+  messages written before they existed do not carry them.
+
+---
+
+## 7. Choosing a persistence pattern
 
 This is a decision you make **per aggregate**, driven by the requirements — not
 once for the project, and not by habit. The three patterns below are meant to be
 combined.
 
-### 6.1 Decide / Evolve — event sourcing
+### 7.1 Decide / Evolve — event sourcing
 
 The write side. A command decides, an event records, the aggregate folds.
 
@@ -401,7 +455,7 @@ then `RegisterEvents(…)` before any other call.
 - **Cost:** every schema change becomes an event version, and the whole log is
   replayed at start.
 
-### 6.2 Projection — the read side of 6.1
+### 7.2 Projection — the read side of 7.1
 
 `Evolve` targets exactly one aggregate. A read model must fold the same event
 into an arbitrary target, possibly under a different key. That is why a
@@ -465,10 +519,10 @@ then follows live writes through the same code path — and read with `Get(k)` o
   feeds a list or dashboard. Never answer a query by replaying the log inside
   the request.
 
-If you chose 6.1 you will almost always need 6.2 as well. They are one pattern
+If you chose 7.1 you will almost always need 7.2 as well. They are one pattern
 in two halves.
 
-### 6.3 Repository — document and relational storage
+### 7.3 Repository — document and relational storage
 
 Current-state storage of an aggregate. The framework idiom is to name the
 instantiation once:
@@ -498,7 +552,7 @@ Things that are easy to get wrong:
 **Choose this when** the aggregate is current-state, history is not a
 requirement, or the data is unbounded or owned by someone else.
 
-### 6.4 Mixing them
+### 7.4 Mixing them
 
 Legitimate, and common in one project:
 
@@ -520,7 +574,7 @@ with a `Rationale`, bound at the construct that implements it with
 
 ---
 
-## 7. Writing a use case
+## 8. Writing a use case
 
 Every rule below is checked. This template satisfies all of them.
 
@@ -619,7 +673,7 @@ func NewFindQuoteOverview(view QuoteOverviewReader) FindQuoteOverview {
 
 ---
 
-## 8. Bounded contexts and layering
+## 9. Bounded contexts and layering
 
 - A bounded context under `app/<ctx>/` defines what the system does. The user
   interface is one way of reaching it, and there may be others.
@@ -640,7 +694,7 @@ func NewFindQuoteOverview(view QuoteOverviewReader) FindQuoteOverview {
 
 ---
 
-## 9. Generic CRUD is not available
+## 10. Generic CRUD is not available
 
 These are rejected by `K4-NO-GENERIC-CRUD`:
 
@@ -665,7 +719,7 @@ wrong, it is merely too inflexible to carry a specification.
 
 ---
 
-## 10. Rule index
+## 11. Rule index
 
 Every rule ID is stable and may be used in `spec.Waive`.
 
@@ -689,6 +743,7 @@ Every rule ID is stable and may be used in `spec.Waive`.
 | `K7-INFRA-DOMAIN-FREE` | `V6-032`, `V6-033` | infrastructure imports a context or declares a use case |
 | `K8-MAIN-LOCATION` | `V6-030` | a `main` package outside `cmd/` |
 | `K8-MAIN-EXISTS` | `V6-031` | the module has no entry point |
+| `K9-PROPOSAL-REDUNDANT` | `V4-001`, `V4-002` | a proposal term at a level the cascade already covers |
 
 Requirement-tree findings (`V5`) are not waivable per construct, because they
 concern the requirement, not the code: `V5-001` missing ID, `V5-002` missing
@@ -703,18 +758,21 @@ directly in `fun/`, `V5-035` domain directory contradicts the ID prefix.
 
 ---
 
-## 11. Not implemented yet
+## 12. Not implemented yet
 
 Do not invoke or assume these; they do not exist:
 
 - `speclink generate` and the documentation backends
 - `speclink selfreport` and `verify --check-generated`
+- the evolution rules of section 6 beyond `K9-PROPOSAL-REDUNDANT`: nothing yet
+  checks that a discriminator, a field name or a field shape stayed put. The
+  contract holds regardless; it is simply not enforced yet.
 - any rule that checks a projection is not persisted, or that a repository is
   not reached from `ui*` beyond the existing import ban
 
 ---
 
-## 12. Worked example
+## 13. Worked example
 
 A complete, verifying slice lives in `testdata/example`. It is the reference to
 imitate and it is guaranteed to be correct, because the test suite requires it

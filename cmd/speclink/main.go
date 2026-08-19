@@ -134,6 +134,11 @@ func verify(args []string) error {
 		constructs = append(constructs, p.Infer()...)
 	}
 
+	// V4: reject annotations that state a fact already established elsewhere.
+	// The freeze status is the first thing the language can say twice, because
+	// it cascades: package, then type, then field.
+	check.Proposals(constructs, bindings, findings)
+
 	// V5: resolve identity, layout, the derivation graph and the outer edge.
 	tree := reqtree.Build(absRoot, reqs, findings)
 	tree.CheckLayout(findings)

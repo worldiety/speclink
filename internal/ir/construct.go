@@ -105,6 +105,21 @@ func (k ConstructKind) NeedsRequirement() bool {
 	return false
 }
 
+// Persisted reports whether the shape of this construct outlives the code that
+// declares it, and is therefore subject to the evolution rules.
+//
+// An event is the clear case: the struct is the wire format. It is written into
+// a log that is replayed forever, so every field name and every field shape is
+// a promise from the moment the first message is stored.
+//
+// An aggregate is not included here. In an event sourced context it is folded
+// from the log and never stored; where it is stored, it is stored through a
+// repository, and the repository is what says so. That distinction is made
+// where the repository is recognised, not here.
+func (k ConstructKind) Persisted() bool {
+	return k == ConstructEvent
+}
+
 // Construct is an architectural fact recognised in the host language.
 type Construct struct {
 	Kind ConstructKind

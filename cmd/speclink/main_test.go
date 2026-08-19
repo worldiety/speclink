@@ -32,10 +32,10 @@ func TestInference(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected a clean run, got exit %d:\n%s", code, out)
 	}
-	// two use cases, one query, one command, one event, one aggregate,
+	// two use cases, one query, one command, two events, one aggregate,
 	// one projection, one repository, three permissions
-	if !strings.Contains(out, "11 constructs") {
-		t.Errorf("expected 11 recognised constructs, got:\n%s", out)
+	if !strings.Contains(out, "12 constructs") {
+		t.Errorf("expected 12 recognised constructs, got:\n%s", out)
 	}
 }
 
@@ -76,13 +76,23 @@ func TestVerifyBad(t *testing.T) {
 		"SPEC-V5-032", // ID prefix contradicts Kind
 		"SPEC-V5-033", // directory contradicts Kind
 		"SPEC-V5-035", // domain directory contradicts the ID prefix
+		"SPEC-V4-001", // proposal on a type whose package already is one
 		"SPEC-V6-001", // normative requirement covered by nothing
 		"SPEC-V6-011", // import of the generic CRUD user interface
-		"SPEC-V6-020", // a projection bound to no requirement
+	}
+	// The redundant field term fires once per covering level: the package in
+	// one fixture, the type in the other.
+	if n := strings.Count(out, "[SPEC-V4-002]"); n != 2 {
+		t.Errorf("expected the redundant field proposal twice, got %d", n)
 	}
 	// The generic CRUD ban fires once per forbidden factory.
 	if n := strings.Count(out, "[SPEC-V6-010]"); n != 3 {
 		t.Errorf("expected the generic CRUD ban to fire 3 times, got %d", n)
+	}
+	// One projection and three events, none of them naming a requirement. A
+	// proposal is free to change its shape, not free to exist for no reason.
+	if n := strings.Count(out, "[SPEC-V6-020]"); n != 4 {
+		t.Errorf("expected four unbound constructs, got %d", n)
 	}
 	for _, code := range want {
 		if n := strings.Count(out, "["+code+"]"); n != 1 {

@@ -95,6 +95,8 @@ func (k assertionKind) String() string {
 		return "rationale"
 	case kindWaive:
 		return "waive"
+	case kindProposal:
+		return "proposal"
 	}
 	return "unknown"
 }

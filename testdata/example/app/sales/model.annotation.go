@@ -18,6 +18,13 @@ var _ = spec.ForField[SubmitQuoteCmd]("Title",
 	spec.Satisfies(quote.RQuoteSubmit),
 )
 
+// The withdrawal is not promised yet: the shape may still change in any way,
+// and the event may be dropped again. Promotion is the deletion of this term.
+var _ = spec.For[QuoteWithdrawn](
+	spec.Satisfies(quote.RQuoteApprove),
+	spec.Proposal(),
+)
+
 var _ = spec.ForDecl(Namespace,
 	spec.Satisfies(quote.RQuoteApprove),
 	spec.Rationale("The resource type is the anchor of every access rule on a quote."),

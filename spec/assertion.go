@@ -13,6 +13,7 @@ const (
 	kindTerm
 	kindRationale
 	kindWaive
+	kindProposal
 )
 
 // Assertion states one fact about the construct named by the surrounding
@@ -85,4 +86,29 @@ func Rationale(text string) Assertion {
 // tolerance mode: a finding is an error (see docs/annotations.md §1.8).
 func Waive(rule RuleID, reason string) Assertion {
 	return Assertion{kind: kindWaive, rule: rule, text: reason}
+}
+
+// Proposal marks a persisted shape as not yet promised: it may still change in
+// any way, and it may be deleted outright.
+//
+// Everything persisted is frozen by default. That inversion is deliberate. The
+// number of proposals in a system shrinks over its lifetime, so marking the
+// exception costs less than marking the rule, and forgetting to mark fails
+// safe: an unmarked newcomer is frozen at once, which shows up as an error on
+// the first attempt to change it rather than as silent data loss later.
+//
+// Promoting to production is therefore not an act of writing something, but of
+// deleting this term.
+//
+// It cascades downwards, and may be attached at the level that is actually
+// true:
+//
+//	ForPackage  every persisted type in the package is a proposal
+//	For[T]      every field of T is a proposal
+//	ForField    only meaningful once the type itself is frozen
+//
+// Repeating it at a level that is already covered states nothing new and is
+// reported as redundant.
+func Proposal() Assertion {
+	return Assertion{kind: kindProposal}
 }
