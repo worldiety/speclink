@@ -221,6 +221,27 @@ func reflectTag(tag, key string) string {
 	return ""
 }
 
+// basicShape renders a basic type, collapsing every integer width into one
+// token.
+//
+// A change of width is not a change of shape: on the wire an integer is a JSON
+// number either way, and the promise made about such a field is that it holds a
+// whole number, not that it holds sixty-four bits of one. Recording the class
+// rather than the width means int64 and int32 produce the same fingerprint and
+// no comparison rule is needed at all — the same trick as expanding named
+// types, and for the same reason: a difference that cannot be observed in
+// stored data should not be representable in the record.
+//
+// Floating point is deliberately not collapsed. Narrowing a float64 to a
+// float32 loses precision silently, which is exactly the kind of change that
+// deserves to be stopped.
+func basicShape(b *types.Basic) string {
+	if b.Info()&types.IsInteger != 0 {
+		return "int"
+	}
+	return b.Name()
+}
+
 // shapeOf renders the underlying structure of a type as a stable fingerprint.
 //
 // Named types are expanded to what they are made of, because that is what a
@@ -240,7 +261,7 @@ func shapeOf(t types.Type, seen map[*types.Named]bool) string {
 		return shapeOf(u.Underlying(), seen)
 
 	case *types.Basic:
-		return u.Name()
+		return basicShape(u)
 
 	case *types.Pointer:
 		// A pointer is absence on the wire, not a different shape.

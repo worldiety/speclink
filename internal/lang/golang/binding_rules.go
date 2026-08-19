@@ -25,6 +25,9 @@ var allowedTargets = map[ir.AssertionKind][]ir.TargetKind{
 	// the package holding the types, the type itself, or a single field of it.
 	// A function or a variable has no shape on the wire.
 	ir.AssertProposal: {ir.TargetType, ir.TargetField, ir.TargetPackage},
+	// Optional is a statement about one field and has no meaning anywhere else:
+	// a whole type cannot be absent from a message, it simply is the message.
+	ir.AssertOptional: {ir.TargetField},
 }
 
 // repeatable lists the assertions that may appear more than once per target.
@@ -92,6 +95,8 @@ func exportedName(k ir.AssertionKind) string {
 		return "Waive"
 	case ir.AssertProposal:
 		return "Proposal"
+	case ir.AssertOptional:
+		return "Optional"
 	}
 	return "unknown"
 }

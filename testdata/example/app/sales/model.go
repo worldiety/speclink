@@ -32,9 +32,13 @@ func (c SubmitQuoteCmd) Decide(s auth.Subject, q *QuoteAggregate) ([]QuoteSubmit
 }
 
 // QuoteSubmitted is the fact recorded on submission.
+//
+// Channel was added after the shape had been promised, so it is declared
+// optional: the messages stored until then do not carry it.
 type QuoteSubmitted struct {
 	QuoteID     string
 	QuoteNumber string
+	Channel     string
 }
 
 // Evolve folds the fact into the aggregate.

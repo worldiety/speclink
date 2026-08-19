@@ -14,6 +14,7 @@ const (
 	kindRationale
 	kindWaive
 	kindProposal
+	kindOptional
 )
 
 // Assertion states one fact about the construct named by the surrounding
@@ -111,4 +112,18 @@ func Waive(rule RuleID, reason string) Assertion {
 // reported as redundant.
 func Proposal() Assertion {
 	return Assertion{kind: kindProposal}
+}
+
+// Optional marks a field that may be absent from stored data.
+//
+// It is required of every field added to a type whose shape has already been
+// promised: messages written before the field existed do not carry it, and no
+// amount of care in the writer changes that. Declaring it says the reader has
+// to cope, which it has to anyway.
+//
+// It cannot be taken back. Once a field is recorded as optional, the data that
+// lacks it exists, and a later claim that the field is always present would be
+// false about messages nobody can rewrite.
+func Optional() Assertion {
+	return Assertion{kind: kindOptional}
 }

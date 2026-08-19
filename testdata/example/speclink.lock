@@ -13,6 +13,12 @@
           "name": "QuoteNumber",
           "wire": "QuoteNumber",
           "shape": "string"
+        },
+        {
+          "name": "Channel",
+          "wire": "Channel",
+          "shape": "string",
+          "optional": true
         }
       ]
     }

@@ -35,6 +35,22 @@
           "shape": "string"
         }
       ]
+    },
+    "example.com/bad/billing.Reconciled": {
+      "discriminator": "bad.billing.reconciled.v1",
+      "fields": [
+        {
+          "name": "Total",
+          "wire": "Total",
+          "shape": "string"
+        },
+        {
+          "name": "Note",
+          "wire": "Note",
+          "shape": "string",
+          "optional": true
+        }
+      ]
     }
   }
 }

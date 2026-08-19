@@ -286,6 +286,7 @@ Assertions are pure and are passed into a binding. They are never standalone.
 | `spec.Rationale(text)` | justifies a decision at the construct implementing it |
 | `spec.Waive(rule, reason)` | suspends one rule here; the reason is mandatory |
 | `spec.Proposal()` | this persisted shape is not promised yet; see section 6 |
+| `spec.Optional()` | this field may be absent from stored data; see section 6 |
 
 A field binding satisfies a requirement for that field, not for the type it
 belongs to — annotating one field does not make the whole command covered.
@@ -389,8 +390,9 @@ Once it is frozen:
 | **The discriminator must never change** | It is the key stored messages are decoded by. Changing it does not rename anything, it orphans every message written under the old tag. |
 | A field must not be **removed** | Readers cannot tell an absent value from one that was never written. |
 | A field must not be **renamed on the wire** | The Go field name may change freely; the json tag is what is promised. |
-| A field's **shape** must not change incompatibly | `string` to a named type with underlying `string` is fine, and so is any change between integer widths. `int` to `string`, or a scalar to a slice, is not. *(not enforced yet)* |
-| **New fields are allowed** | but must be marked optional, because messages written before they existed do not carry them. *(not enforced yet)* |
+| A field's **shape** must not change incompatibly | `string` to a named type with underlying `string` is fine, and so is any change between integer widths. `int` to `string`, or a scalar to a slice, is not. |
+| **New fields are allowed** | but must be marked `spec.Optional()`, because messages written before they existed do not carry them. |
+| **Optionality cannot be withdrawn** | those messages still lack the field, and no release can reach them. |
 
 ### speclink.lock
 
@@ -410,6 +412,40 @@ speclink freeze ./...       # record it
 `freeze` refuses to record anything that already breaks a promise. Otherwise it
 would be the one command that makes a break official, and every rule reading the
 file would be worthless.
+
+### Growing a promised type
+
+```go
+type QuoteSubmitted struct {
+	QuoteID     string
+	QuoteNumber string
+	Channel     string // added later
+}
+```
+
+```go
+var _ = spec.ForField[QuoteSubmitted]("Channel",
+	spec.Optional(),
+)
+```
+
+Then `speclink freeze` to record it. Without the term the field is reported
+(`K9-FIELD-ADDED-REQUIRED`): the shape was promised before it existed, so every
+message stored until then lacks it, and nothing the writer does from here on
+changes that.
+
+Two shape changes are free and need no term at all, because the record cannot
+tell them apart from no change:
+
+```go
+QuoteID string   →  QuoteID QuoteRef   // named type, underlying string
+Count   int32    →  Count   int64      // any integer width
+```
+
+The fingerprint records the underlying structure and collapses every integer
+width into one token. A promise about an integer field is that it holds a whole
+number, not that it holds thirty-two bits of one. Floating point is not
+collapsed: narrowing a `float64` to a `float32` loses precision silently.
 
 A frozen type that has never been recorded is reported
 (`K9-BASELINE-MISSING`). That finding is the point at which somebody has to
@@ -775,6 +811,9 @@ Every rule ID is stable and may be used in `spec.Waive`.
 | `K9-FIELD-RENAMED` | `V6-093` | a promised field changed its stored name |
 | `K9-TYPE-REMOVED` | `V6-094` | a promised type is gone; waive it on the package |
 | `K9-PROPOSAL-FROZEN` | `V6-095` | a promise taken back by marking it a proposal |
+| `K9-FIELD-SHAPE` | `V6-096` | a promised field changed its stored shape |
+| `K9-OPTIONAL-REVOKED` | `V6-097` | a field stopped being optional |
+| `K9-FIELD-ADDED-REQUIRED` | `V6-098` | a field added to a promised type without `spec.Optional()` |
 
 Requirement-tree findings (`V5`) are not waivable per construct, because they
 concern the requirement, not the code: `V5-001` missing ID, `V5-002` missing
@@ -795,10 +834,8 @@ Do not invoke or assume these; they do not exist:
 
 - `speclink generate` and the documentation backends
 - `speclink selfreport` and `verify --check-generated`
-- the shape and optionality rules of section 6. Identity is enforced —
-  discriminator, field presence, stored names — but a field whose type changes
-  from `int` to `string` still passes, and a new field need not be marked
-  optional yet. The contract holds regardless; follow it now.
+- the evolution rules for anything other than events. A type persisted through
+  a repository is not yet part of the promised set.
 - any rule that checks a projection is not persisted, or that a repository is
   not reached from `ui*` beyond the existing import ban
 

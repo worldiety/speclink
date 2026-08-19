@@ -49,8 +49,9 @@ var scope = map[string]bool{evPkg: true}
 // the guard something people switch off.
 func TestEvolutionHolds(t *testing.T) {
 	tests := []struct {
-		name   string
-		schema []ir.SchemaType
+		name     string
+		schema   []ir.SchemaType
+		optional map[string]bool
 	}{
 		{
 			name:   "unchanged",
@@ -63,26 +64,35 @@ func TestEvolutionHolds(t *testing.T) {
 			schema: current(field("QuoteID", "quoteID", "string"), field("QuoteNumber", "number", "string")),
 		},
 		{
-			// A field added later is not yet a promise of its own; it only has
-			// to be readable in messages that predate it.
-			name: "field added",
+			// Growing a persisted model is normal; saying that old messages
+			// lack the new field is the whole obligation.
+			name: "field added and declared optional",
 			schema: current(
 				field("QuoteID", "quoteID", "string"),
 				field("Number", "number", "string"),
 				field("Reason", "reason", "string"),
 			),
+			optional: map[string]bool{"Reason": true},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			out := &diag.Set{}
-			Evolution(tt.schema, nil, promised(), scope, nil, out)
+			Evolution(tt.schema, freezeWith(tt.optional), promised(), scope, nil, out)
 			if !out.Empty() {
 				t.Errorf("expected no finding, got:\n%s", render(out))
 			}
 		})
 	}
+}
+
+// freezeWith builds the resolved status for the event under test.
+func freezeWith(optional map[string]bool) map[string]Freeze {
+	if optional == nil {
+		optional = map[string]bool{}
+	}
+	return map[string]Freeze{evName: {Type: evName, OptionalFields: optional}}
 }
 
 // TestEvolutionBreaks pins what must never pass. Each of these silently
@@ -115,6 +125,22 @@ func TestEvolutionBreaks(t *testing.T) {
 			name:   "type gone",
 			schema: nil,
 			want:   RuleTypeRemoved,
+		},
+		{
+			// The value written yesterday is a string; a reader expecting a
+			// number either fails on it or coerces it into something wrong.
+			name:   "shape changed",
+			schema: current(field("QuoteID", "quoteID", "string"), field("Number", "number", "int")),
+			want:   RuleFieldShape,
+		},
+		{
+			name: "field added without saying it may be absent",
+			schema: current(
+				field("QuoteID", "quoteID", "string"),
+				field("Number", "number", "string"),
+				field("Reason", "reason", "string"),
+			),
+			want: RuleFieldAddedRequired,
 		},
 	}
 
@@ -189,4 +215,58 @@ func render(s *diag.Set) string {
 		b.WriteString(f.Rule + ": " + f.What + "\n")
 	}
 	return b.String()
+}
+
+// TestOptionalCannotBeRevoked pins the one property of optionality that is not
+// symmetric. A field may become optional at any time, because that only widens
+// what a reader must cope with. It can never stop being optional, because the
+// messages that lack it are already written and no release can reach them.
+func TestOptionalCannotBeRevoked(t *testing.T) {
+	base := &baseline.File{
+		Version: baseline.Version,
+		Types: map[string]baseline.Entry{
+			evName: {
+				Discriminator: "sales.quote.submitted.v1",
+				Fields: []baseline.Field{
+					{Name: "QuoteID", Wire: "quoteID", Shape: "string"},
+					{Name: "Reason", Wire: "reason", Shape: "string", Optional: true},
+				},
+			},
+		},
+	}
+	schema := current(field("QuoteID", "quoteID", "string"), field("Reason", "reason", "string"))
+
+	out := &diag.Set{}
+	Evolution(schema, freezeWith(nil), base, scope, nil, out)
+	if !strings.Contains(render(out), RuleOptionalRevoked) {
+		t.Errorf("expected %s, got:\n%s", RuleOptionalRevoked, render(out))
+	}
+
+	// Still declared: nothing to report.
+	out = &diag.Set{}
+	Evolution(schema, freezeWith(map[string]bool{"Reason": true}), base, scope, nil, out)
+	if !out.Empty() {
+		t.Errorf("a field that keeps its optionality is fine:\n%s", render(out))
+	}
+}
+
+// TestIntegerWidthIsNotAShapeChange guards a decision that is easy to get wrong
+// in the other direction. On the wire an integer is a JSON number whatever its
+// width, so the fingerprint records the class and a widening never reaches this
+// comparison at all.
+func TestIntegerWidthIsNotAShapeChange(t *testing.T) {
+	base := &baseline.File{
+		Version: baseline.Version,
+		Types: map[string]baseline.Entry{
+			evName: {
+				Discriminator: "sales.quote.submitted.v1",
+				Fields:        []baseline.Field{{Name: "Count", Wire: "count", Shape: "int"}},
+			},
+		},
+	}
+	out := &diag.Set{}
+	Evolution(current(field("Count", "count", "int")), freezeWith(nil), base, scope, nil, out)
+	if !out.Empty() {
+		t.Errorf("an integer stays an integer:\n%s", render(out))
+	}
 }

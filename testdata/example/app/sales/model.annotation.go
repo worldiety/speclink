@@ -29,3 +29,9 @@ var _ = spec.ForDecl(Namespace,
 	spec.Satisfies(quote.RQuoteApprove),
 	spec.Rationale("The resource type is the anchor of every access rule on a quote."),
 )
+
+// Added after the promise, so old messages lack it. Optionality cannot be
+// withdrawn later, because those messages cannot be rewritten.
+var _ = spec.ForField[QuoteSubmitted]("Channel",
+	spec.Optional(),
+)

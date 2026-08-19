@@ -29,6 +29,9 @@ type Freeze struct {
 	// is frozen. It is empty whenever Proposal is true, because then every
 	// field is one anyway.
 	ProposalFields map[string]bool
+	// OptionalFields names the fields declared as possibly absent from stored
+	// data, which every field added after the promise has to be.
+	OptionalFields map[string]bool
 }
 
 // Frozen reports whether the field has been promised.
@@ -49,11 +52,19 @@ func Proposals(constructs []ir.Construct, bindings []ir.Binding, out *diag.Set) 
 		packages = map[string]ir.Assertion{}
 		types    = map[string]ir.Assertion{}
 		fields   = map[string]map[string]ir.Assertion{}
+		optional = map[string]map[string]bool{}
 	)
 
 	for _, b := range bindings {
 		for _, a := range b.Assertions {
-			if a.Kind != ir.AssertProposal {
+			switch {
+			case a.Kind == ir.AssertOptional && b.Target.Kind == ir.TargetField:
+				if optional[b.Target.Name] == nil {
+					optional[b.Target.Name] = map[string]bool{}
+				}
+				optional[b.Target.Name][b.Target.Field] = true
+				continue
+			case a.Kind != ir.AssertProposal:
 				continue
 			}
 			switch b.Target.Kind {
@@ -86,6 +97,10 @@ func Proposals(constructs []ir.Construct, bindings []ir.Binding, out *diag.Set) 
 			Type:           c.Name,
 			Proposal:       packages[c.Package].Kind == ir.AssertProposal || types[c.Name].Kind == ir.AssertProposal,
 			ProposalFields: map[string]bool{},
+			OptionalFields: optional[c.Name],
+		}
+		if f.OptionalFields == nil {
+			f.OptionalFields = map[string]bool{}
 		}
 		if !f.Proposal {
 			for field := range fields[c.Name] {

@@ -107,17 +107,27 @@ func freeze(args []string) error {
 }
 
 // merge folds the current shapes into the baseline and reports what changed.
+//
+// Optionality is an annotation rather than something the type states, so it is
+// applied here on the way into the record. Everything else comes from the type
+// itself.
 func merge(base *baseline.File, schema []ir.SchemaType, status map[string]check.Freeze) (added, updated []string) {
 	for _, t := range schema {
-		if f, ok := status[t.Name]; ok && f.Proposal {
+		f, known := status[t.Name]
+		if known && f.Proposal {
 			continue
 		}
+		if known {
+			for i := range t.Fields {
+				t.Fields[i].Optional = f.OptionalFields[t.Fields[i].Name]
+			}
+		}
 		entry := baseline.EntryOf(t)
-		old, existed := base.Types[t.Name]
+		previous, existed := base.Types[t.Name]
 		switch {
 		case !existed:
 			added = append(added, t.Name)
-		case len(old.Fields) != len(entry.Fields):
+		case !sameEntry(previous, entry):
 			updated = append(updated, t.Name)
 		default:
 			continue
@@ -127,6 +137,21 @@ func merge(base *baseline.File, schema []ir.SchemaType, status map[string]check.
 	sort.Strings(added)
 	sort.Strings(updated)
 	return added, updated
+}
+
+// sameEntry reports whether two records describe the same promise. Comparing
+// the field count alone would miss a newly optional field, and an update that
+// is not written is a promise the next run cannot see.
+func sameEntry(a, b baseline.Entry) bool {
+	if a.Discriminator != b.Discriminator || len(a.Fields) != len(b.Fields) {
+		return false
+	}
+	for i := range a.Fields {
+		if a.Fields[i] != b.Fields[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // withoutMissing drops the findings that freeze is there to answer. A shape

@@ -24,6 +24,13 @@ const (
 	// RuleProposalFrozen fires when something already promised is marked as a
 	// proposal again.
 	RuleProposalFrozen = "K9-PROPOSAL-FROZEN"
+	// RuleFieldShape fires when a promised field changed its stored shape.
+	RuleFieldShape = "K9-FIELD-SHAPE"
+	// RuleFieldAddedRequired fires when a field was added to a promised type
+	// without declaring that it may be absent.
+	RuleFieldAddedRequired = "K9-FIELD-ADDED-REQUIRED"
+	// RuleOptionalRevoked fires when a field stops being optional.
+	RuleOptionalRevoked = "K9-OPTIONAL-REVOKED"
 )
 
 // Evolution compares the current shapes against what has been promised.
@@ -56,7 +63,7 @@ func Evolution(schema []ir.SchemaType, freeze map[string]Freeze, base *baseline.
 			reportBaselineMissing(t, waived, out)
 			continue
 		}
-		compare(t, entry, waived, out)
+		compare(t, entry, optionalOf(freeze, t.Name), waived, out)
 	}
 
 	reportRemoved(base, current, scope, waived, out)
@@ -101,8 +108,16 @@ func reportBaselineMissing(t ir.SchemaType, waived map[waiverKey]bool, out *diag
 	})
 }
 
+// optionalOf returns the fields declared as possibly absent for one type.
+func optionalOf(freeze map[string]Freeze, name string) map[string]bool {
+	if f, ok := freeze[name]; ok && f.OptionalFields != nil {
+		return f.OptionalFields
+	}
+	return map[string]bool{}
+}
+
 // compare checks one type against its record.
-func compare(t ir.SchemaType, e baseline.Entry, waived map[waiverKey]bool, out *diag.Set) {
+func compare(t ir.SchemaType, e baseline.Entry, optional map[string]bool, waived map[waiverKey]bool, out *diag.Set) {
 	if t.Discriminator != e.Discriminator && !waived[waiverKey{target: t.Name, rule: RuleDiscriminatorFrozen}] {
 		out.Add(diag.Finding{
 			Code: diag.Code(diag.PhaseSemantic, 91),
@@ -145,6 +160,59 @@ func compare(t ir.SchemaType, e baseline.Entry, waived map[waiverKey]bool, out *
 				How:  "Restore the json tag `json:\"" + f.Wire + "\"`. The Go field name may be changed freely; only the stored name is promised.",
 			})
 		}
+		if cur.Shape != f.Shape && !waived[waiverKey{target: t.Name + "." + f.Name, rule: RuleFieldShape}] {
+			out.Add(diag.Finding{
+				Code: diag.Code(diag.PhaseSemantic, 96),
+				Pos:  t.Pos,
+				Rule: RuleFieldShape,
+				What: "field " + f.Name + " of " + shortName(t.Name) + " changed its stored shape from " + f.Shape + " to " + cur.Shape + ".",
+				Why:  "Every value already written has the old shape. A reader expecting the new one either fails on them or, worse, coerces them into something that looks plausible and is wrong.",
+				How:  "Restore the old shape. A named type over the same underlying type is free, and so is any integer width; a genuinely different shape needs a new field beside this one.",
+			})
+		}
+		if f.Optional && !optional[f.Name] && !waived[waiverKey{target: t.Name + "." + f.Name, rule: RuleOptionalRevoked}] {
+			out.Add(diag.Finding{
+				Code: diag.Code(diag.PhaseSemantic, 97),
+				Pos:  t.Pos,
+				Rule: RuleOptionalRevoked,
+				What: "field " + f.Name + " of " + shortName(t.Name) + " was promised as optional and no longer says so.",
+				Why:  "Messages written before the field existed do not carry it. Claiming it is always present is a statement about data that cannot be rewritten.",
+				How:  "Put `spec.Optional()` back on the field. Optionality is not something a later release can withdraw.",
+			})
+		}
+	}
+
+	reportAdded(t, e, optional, waived, out)
+}
+
+// reportAdded requires a field that is new to a promised type to say that it
+// may be absent.
+//
+// This is the one rule of the family that does not stop a change but shapes it.
+// Adding a field is always allowed and is how a persisted model grows; what is
+// not allowed is pretending that the messages written yesterday contain it.
+func reportAdded(t ir.SchemaType, e baseline.Entry, optional map[string]bool, waived map[waiverKey]bool, out *diag.Set) {
+	for _, cur := range t.Fields {
+		if _, promised := e.ByWire(cur.Wire); promised {
+			continue
+		}
+		// A field whose Go name is recorded is not a new field, whatever its
+		// stored name says. That case is a rename and is reported as one;
+		// saying it twice would make one mistake look like two.
+		if _, known := e.Field(cur.Name); known {
+			continue
+		}
+		if optional[cur.Name] || waived[waiverKey{target: t.Name + "." + cur.Name, rule: RuleFieldAddedRequired}] {
+			continue
+		}
+		out.Add(diag.Finding{
+			Code: diag.Code(diag.PhaseSemantic, 98),
+			Pos:  t.Pos,
+			Rule: RuleFieldAddedRequired,
+			What: "field " + cur.Name + " was added to " + shortName(t.Name) + " without being declared optional.",
+			Why:  "The shape of this type was promised before the field existed, so every message stored until now lacks it. Nothing the writer does from here on changes that.",
+			How:  "Add `var _ = spec.ForField[" + shortName(t.Name) + "](\"" + cur.Name + "\", spec.Optional())`, then record it with `speclink freeze`.",
+		})
 	}
 }
 

@@ -21,7 +21,10 @@ func TestFreezeRefusesToLaunderABreak(t *testing.T) {
 	if !strings.Contains(out, "nothing was recorded") {
 		t.Errorf("the refusal must say that nothing was written:\n%s", out)
 	}
-	for _, code := range []string{"SPEC-V6-091", "SPEC-V6-092", "SPEC-V6-093", "SPEC-V6-094", "SPEC-V6-095"} {
+	for _, code := range []string{
+		"SPEC-V6-091", "SPEC-V6-092", "SPEC-V6-093", "SPEC-V6-094",
+		"SPEC-V6-095", "SPEC-V6-096", "SPEC-V6-097", "SPEC-V6-098",
+	} {
 		if !strings.Contains(out, code) {
 			t.Errorf("the refusal must name %s:\n%s", code, out)
 		}
@@ -68,6 +71,11 @@ func TestFreezeSkipsProposals(t *testing.T) {
 	}
 	if strings.Contains(text, "QuoteWithdrawn") {
 		t.Error("a proposal must not be recorded; nothing about it has been promised")
+	}
+	// A field added after the promise is recorded as optional, and that is what
+	// makes withdrawing the optionality detectable later.
+	if !strings.Contains(text, `"optional": true`) {
+		t.Error("optionality must be part of the record")
 	}
 }
 
