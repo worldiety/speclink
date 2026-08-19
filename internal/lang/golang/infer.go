@@ -24,6 +24,7 @@ const (
 	nagoPermission = "go.wdy.de/nago/application/permission"
 	nagoEvs        = "go.wdy.de/nago/application/evs"
 	nagoData       = "go.wdy.de/nago/pkg/data"
+	nagoDataJSON   = "go.wdy.de/nago/pkg/data/json"
 	nagoNdb        = "go.wdy.de/nago/pkg/ndb"
 	nagoEnt        = "go.wdy.de/nago/application/ent"
 	nagoEntCfg     = "go.wdy.de/nago/application/ent/cfg"
@@ -448,4 +449,58 @@ func (p *Package) callsInto(fun ast.Expr, pkgPath, name string) bool {
 		return false
 	}
 	return obj.Pkg().Path() == pkgPath && obj.Name() == name
+}
+
+// PersistedModels returns the fully qualified names of the types this package
+// stores through a repository.
+//
+// A repository interface says that something is kept somewhere; it does not say
+// in what form, and a type may be declared far from the place that decides to
+// store it. The construction is where the decision is made and where the form
+// is fixed, so that is what is read here.
+//
+// The framework offers the choice explicitly, and the two halves mean different
+// things:
+//
+//	NewJSONRepository[Domain, DomainID, Persistence, PersistenceID]
+//	NewSloppyJSONRepository[Domain, DomainID]
+//
+// The first separates the two models and maps between them, so only the
+// persistence model is promised and the domain model stays free. The second
+// serialises the domain model directly; the framework's own documentation
+// calls it a shorthand for throw-away prototypes where neither model has been
+// stabilised. Choosing it ties the domain to the wire, and from then on every
+// rename in the domain is a change to stored data.
+func (p *Package) PersistedModels() map[string]bool {
+	out := map[string]bool{}
+
+	for _, f := range p.pkg.Syntax {
+		if p.isGeneratedByUs(f) {
+			continue
+		}
+		ast.Inspect(f, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			var arg int
+			switch p.specFuncNameIn(call.Fun, nagoDataJSON) {
+			case "NewJSONRepository":
+				arg = 2 // the persistence model
+			case "NewSloppyJSONRepository":
+				arg = 0 // domain and persistence are the same type
+			default:
+				return true
+			}
+			t, ok := p.typeArg(call, arg)
+			if !ok {
+				return true
+			}
+			if named, ok := stateNamed(t); ok && named.Obj().Pkg() != nil {
+				out[named.Obj().Pkg().Path()+"."+named.Obj().Name()] = true
+			}
+			return true
+		})
+	}
+	return out
 }

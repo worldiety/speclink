@@ -51,20 +51,24 @@ func freeze(args []string) error {
 	}
 
 	var (
-		bindings   []ir.Binding
-		constructs []ir.Construct
-		schema     []ir.SchemaType
-		scope      = map[string]bool{}
+		bindings []ir.Binding
+		schema   []ir.SchemaType
+		scope    = map[string]bool{}
 	)
 	discard := &diag.Set{}
+	models := map[string]bool{}
 	for _, p := range pkgs {
 		bindings = append(bindings, p.ReadBindings(discard)...)
-		constructs = append(constructs, p.Infer()...)
-		schema = append(schema, p.ReadSchema()...)
 		scope[p.PkgPath()] = true
+		for name := range p.PersistedModels() {
+			models[name] = true
+		}
+	}
+	for _, p := range pkgs {
+		schema = append(schema, p.ReadSchema(models)...)
 	}
 	check.SortSchema(schema)
-	status := check.Proposals(constructs, bindings, discard)
+	status := check.Proposals(schema, bindings, discard)
 
 	base, err := baseline.Load(absRoot)
 	if err != nil {

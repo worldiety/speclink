@@ -349,8 +349,31 @@ go.wdy.de/nago/pkg/cloner                Cloner, required by a projection state
 
 An event struct is the wire format. It is written into a log that is replayed
 forever, so every field name and every field type is a promise from the moment
-the first message is stored. The same holds for anything a repository
-serialises.
+the first message is stored.
+
+Two things are persisted, and only two:
+
+| | |
+|---|---|
+| **an event** | it implements `Evolve` and carries a discriminator, so the struct *is* the stored form |
+| **a persistence model** | the type a repository was built over, wherever that happened |
+
+The second is not visible in the declaration. Nothing about a struct says it is
+stored; the construction says it, and the framework makes the choice explicit:
+
+```go
+// Two models, mapped. Only CustomerEntity is promised; Customer stays free.
+json.NewJSONRepository[Customer, CustomerID, CustomerEntity, CustomerID](
+	store, intoDomain, intoPersistence)
+
+// One model. The domain type IS the stored form, and is promised as it stands.
+json.NewSloppyJSONRepository[Ledger, LedgerID](store)
+```
+
+Prefer the first for anything that will outlive a prototype. The framework's own
+documentation calls the sloppy form a shorthand for throw-away code where
+neither model has been stabilised — and it is exactly that: from the moment you
+choose it, every rename in your domain is a change to stored data.
 
 **Everything persisted is frozen by default.** `spec.Proposal()` is the
 exception, and promoting something to production is not an act of writing
@@ -834,8 +857,8 @@ Do not invoke or assume these; they do not exist:
 
 - `speclink generate` and the documentation backends
 - `speclink selfreport` and `verify --check-generated`
-- the evolution rules for anything other than events. A type persisted through
-  a repository is not yet part of the promised set.
+- the evolution rules for storage other than the JSON repository and the event
+  log. A type written through some other store is not part of the promised set.
 - any rule that checks a projection is not persisted, or that a repository is
   not reached from `ui*` beyond the existing import ban
 

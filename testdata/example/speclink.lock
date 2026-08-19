@@ -1,6 +1,21 @@
 {
   "version": 1,
   "types": {
+    "example.com/erp/app/sales.CustomerEntity": {
+      "discriminator": "",
+      "fields": [
+        {
+          "name": "ID",
+          "wire": "id",
+          "shape": "string"
+        },
+        {
+          "name": "Name",
+          "wire": "name",
+          "shape": "string"
+        }
+      ]
+    },
     "example.com/erp/app/sales.QuoteSubmitted": {
       "discriminator": "sales.quote.submitted.v1",
       "fields": [

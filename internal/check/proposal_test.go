@@ -13,8 +13,8 @@ import (
 func TestProposalCascade(t *testing.T) {
 	const pkg = "example.com/m/sales"
 
-	event := func(name string) ir.Construct {
-		return ir.Construct{Kind: ir.ConstructEvent, Name: pkg + "." + name, Package: pkg}
+	event := func(name string) ir.SchemaType {
+		return ir.SchemaType{Name: pkg + "." + name, Package: pkg}
 	}
 	proposal := func(target ir.Target) ir.Binding {
 		return ir.Binding{Target: target, Assertions: []ir.Assertion{{Kind: ir.AssertProposal}}}
@@ -60,7 +60,7 @@ func TestProposalCascade(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := Proposals([]ir.Construct{event("Opened")}, tt.bindings, &diag.Set{})
+			got := Proposals([]ir.SchemaType{event("Opened")}, tt.bindings, &diag.Set{})
 			f, ok := got[pkg+".Opened"]
 			if !ok {
 				t.Fatal("the event carries no freeze status at all")
@@ -77,23 +77,24 @@ func TestProposalCascade(t *testing.T) {
 	}
 }
 
-// TestProposalOnlyForPersisted guards the scope. A use case has no shape on the
-// wire, so nothing about it can be promised and it must not appear here.
-func TestProposalOnlyForPersisted(t *testing.T) {
-	constructs := []ir.Construct{
-		{Kind: ir.ConstructEvent, Name: "m.Opened", Package: "m"},
-		{Kind: ir.ConstructUseCase, Name: "m.SubmitQuote", Package: "m"},
-		{Kind: ir.ConstructAggregate, Name: "m.Quote", Package: "m"},
-		{Kind: ir.ConstructProjection, Name: "m.Overview", Package: "m"},
-	}
-	got := Proposals(constructs, nil, &diag.Set{})
+// TestProposalScopeIsTheSchema guards where the persisted set comes from.
+//
+// It is the schema, not the construct list. An event is persisted because of
+// what it is, a persistence model because somewhere a repository was built over
+// it; a use case has no shape on the wire at all. Deriving the set from the
+// schema keeps that one decision in one place.
+func TestProposalScopeIsTheSchema(t *testing.T) {
+	got := Proposals([]ir.SchemaType{
+		{Name: "m.Opened", Package: "m"},
+		{Name: "m.PersonEntity", Package: "m"},
+	}, nil, &diag.Set{})
 
-	if _, ok := got["m.Opened"]; !ok {
-		t.Error("an event is persisted and must carry a freeze status")
-	}
-	for _, name := range []string{"m.SubmitQuote", "m.Quote", "m.Overview"} {
-		if _, ok := got[name]; ok {
-			t.Errorf("%s has no shape on the wire and must not be frozen", name)
+	for _, name := range []string{"m.Opened", "m.PersonEntity"} {
+		if _, ok := got[name]; !ok {
+			t.Errorf("%s is in the schema and must carry a freeze status", name)
 		}
+	}
+	if _, ok := got["m.SubmitQuote"]; ok {
+		t.Error("a type outside the schema has no shape to promise")
 	}
 }

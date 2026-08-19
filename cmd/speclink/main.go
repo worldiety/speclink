@@ -136,18 +136,27 @@ func verify(args []string) error {
 	for _, p := range pkgs {
 		reqs = append(reqs, p.ReadRequirements(findings)...)
 	}
+	models := map[string]bool{}
 	for _, p := range pkgs {
 		bindings = append(bindings, p.ReadBindings(findings)...)
 		constructs = append(constructs, p.Infer()...)
-		schema = append(schema, p.ReadSchema()...)
 		scope[p.PkgPath()] = true
+		for name := range p.PersistedModels() {
+			models[name] = true
+		}
+	}
+	// The persisted set has to be complete before any shape is read: a
+	// repository is usually built in the wiring package, far from the type it
+	// stores.
+	for _, p := range pkgs {
+		schema = append(schema, p.ReadSchema(models)...)
 	}
 	check.SortSchema(schema)
 
 	// V4: reject annotations that state a fact already established elsewhere.
 	// The freeze status is the first thing the language can say twice, because
 	// it cascades: package, then type, then field.
-	status := check.Proposals(constructs, bindings, findings)
+	status := check.Proposals(schema, bindings, findings)
 
 	// V5: resolve identity, layout, the derivation graph and the outer edge.
 	tree := reqtree.Build(absRoot, reqs, findings)

@@ -32,10 +32,10 @@ func TestInference(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected a clean run, got exit %d:\n%s", code, out)
 	}
-	// two use cases, one query, one command, two events, one aggregate,
-	// one projection, one repository, three permissions
-	if !strings.Contains(out, "12 constructs") {
-		t.Errorf("expected 12 recognised constructs, got:\n%s", out)
+	// two use cases, one query, one command, two events, three aggregates,
+	// one projection, two repositories, three permissions
+	if !strings.Contains(out, "15 constructs") {
+		t.Errorf("expected 15 recognised constructs, got:\n%s", out)
 	}
 }
 
@@ -79,7 +79,6 @@ func TestVerifyBad(t *testing.T) {
 		"SPEC-V4-001", // proposal on a type whose package already is one
 		"SPEC-V6-001", // normative requirement covered by nothing
 		"SPEC-V6-011", // import of the generic CRUD user interface
-		"SPEC-V6-090", // frozen shape that was never recorded
 		"SPEC-V6-091", // discriminator changed
 		"SPEC-V6-092", // promised field removed
 		"SPEC-V6-093", // promised field renamed on the wire
@@ -97,6 +96,11 @@ func TestVerifyBad(t *testing.T) {
 	// The generic CRUD ban fires once per forbidden factory.
 	if n := strings.Count(out, "[SPEC-V6-010]"); n != 3 {
 		t.Errorf("expected the generic CRUD ban to fire 3 times, got %d", n)
+	}
+	// Two shapes are persisted without ever having been recorded: an event and
+	// a domain model tied to the wire by the sloppy repository.
+	if n := strings.Count(out, "[SPEC-V6-090]"); n != 2 {
+		t.Errorf("expected two unrecorded shapes, got %d", n)
 	}
 	// One projection and seven events, none of them naming a requirement. A
 	// proposal is free to change its shape, not free to exist for no reason.

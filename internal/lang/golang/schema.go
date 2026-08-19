@@ -20,12 +20,19 @@ import (
 // that preserves it produces an identical fingerprint — no comparison rule
 // needed, because there is nothing to compare.
 
-// ReadSchema returns the persisted shape of every event type of the package.
+// ReadSchema returns the persisted shape of every type of this package whose
+// form outlives the code.
+//
+// Two things qualify. An event is self evident: it implements Evolve and
+// carries a discriminator, so the struct is the wire format by definition.
+// A persistence model is not, because nothing in its declaration says it is
+// stored — that is decided where a repository is built over it, possibly in
+// another package, so the names are collected beforehand and passed in.
 //
 // Only the wire relevant facts are collected: the discriminator, and per field
 // its Go name, the name it carries in JSON and its underlying shape. Everything
 // else about the type may change freely.
-func (p *Package) ReadSchema() []ir.SchemaType {
+func (p *Package) ReadSchema(models map[string]bool) []ir.SchemaType {
 	var out []ir.SchemaType
 
 	for _, f := range p.pkg.Syntax {
@@ -47,20 +54,32 @@ func (p *Package) ReadSchema() []ir.SchemaType {
 					continue
 				}
 				named, ok := obj.Type().(*types.Named)
-				if !ok || !p.hasMethods(named, "Evolve", "Discriminator") {
+				if !ok {
 					continue
 				}
 				st, ok := named.Underlying().(*types.Struct)
 				if !ok {
 					continue
 				}
-				out = append(out, ir.SchemaType{
-					Name:          p.PkgPath() + "." + ts.Name.Name,
-					Package:       p.PkgPath(),
-					Discriminator: p.discriminatorOf(ts.Name.Name),
-					Fields:        p.readFields(st),
-					Pos:           p.pos(ts.Pos()),
-				})
+
+				name := p.PkgPath() + "." + ts.Name.Name
+				event := p.hasMethods(named, "Evolve", "Discriminator")
+				if !event && !models[name] {
+					continue
+				}
+
+				entry := ir.SchemaType{
+					Name:    name,
+					Package: p.PkgPath(),
+					Fields:  p.readFields(st),
+					Pos:     p.pos(ts.Pos()),
+				}
+				// Only an event is decoded by a tag. A persistence model is
+				// found by its key, so it has none and none is expected.
+				if event {
+					entry.Discriminator = p.discriminatorOf(ts.Name.Name)
+				}
+				out = append(out, entry)
 			}
 		}
 	}

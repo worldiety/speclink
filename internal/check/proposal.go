@@ -39,15 +39,21 @@ func (f Freeze) Frozen(field string) bool {
 	return !f.Proposal && !f.ProposalFields[field]
 }
 
-// Proposals resolves the cascade for every persisted construct and reports the
+// Proposals resolves the cascade for every persisted shape and reports the
 // terms that state nothing new.
+//
+// The schema is what defines the persisted set, not the construct list. An
+// event is persisted because of what it is; a persistence model is persisted
+// because somewhere a repository was built over it, which is a fact about
+// another package entirely. Reading both from the schema keeps that decision in
+// one place.
 //
 // The redundancy check is phase V4, which had no rule until now. That was not
 // an oversight but a property of the directive catalogue: everything inferable
 // was deliberately given no directive at all, so there was nothing to be
 // redundant with. The cascade is the first place where the language can state
 // the same fact twice, and it is therefore the first place the phase has work.
-func Proposals(constructs []ir.Construct, bindings []ir.Binding, out *diag.Set) map[string]Freeze {
+func Proposals(schema []ir.SchemaType, bindings []ir.Binding, out *diag.Set) map[string]Freeze {
 	var (
 		packages = map[string]ir.Assertion{}
 		types    = map[string]ir.Assertion{}
@@ -89,25 +95,22 @@ func Proposals(constructs []ir.Construct, bindings []ir.Binding, out *diag.Set) 
 	}
 
 	result := map[string]Freeze{}
-	for _, c := range constructs {
-		if !c.Kind.Persisted() {
-			continue
-		}
+	for _, t := range schema {
 		f := Freeze{
-			Type:           c.Name,
-			Proposal:       packages[c.Package].Kind == ir.AssertProposal || types[c.Name].Kind == ir.AssertProposal,
+			Type:           t.Name,
+			Proposal:       packages[t.Package].Kind == ir.AssertProposal || types[t.Name].Kind == ir.AssertProposal,
 			ProposalFields: map[string]bool{},
-			OptionalFields: optional[c.Name],
+			OptionalFields: optional[t.Name],
 		}
 		if f.OptionalFields == nil {
 			f.OptionalFields = map[string]bool{}
 		}
 		if !f.Proposal {
-			for field := range fields[c.Name] {
+			for field := range fields[t.Name] {
 				f.ProposalFields[field] = true
 			}
 		}
-		result[c.Name] = f
+		result[t.Name] = f
 	}
 	return result
 }

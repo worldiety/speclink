@@ -25,7 +25,7 @@ func TestReadSchemaShapes(t *testing.T) {
 	shapes := map[string]map[string]string{}
 	discs := map[string]string{}
 	for _, p := range pkgs {
-		for _, st := range p.ReadSchema() {
+		for _, st := range p.ReadSchema(nil) {
 			name := st.Name[len(st.Package)+1:]
 			discs[name] = st.Discriminator
 			shapes[name] = map[string]string{}
@@ -55,7 +55,7 @@ func TestBasicShapeCollapsesIntegers(t *testing.T) {
 		t.Fatalf("load fixture: %v", err)
 	}
 	for _, p := range pkgs {
-		for _, st := range p.ReadSchema() {
+		for _, st := range p.ReadSchema(nil) {
 			for _, f := range st.Fields {
 				// Amount is declared int; the record must say so as a class.
 				if f.Name == "Amount" && f.Shape != "int" {
@@ -64,4 +64,71 @@ func TestBasicShapeCollapsesIntegers(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestPersistedModelsSeparatesDomainFromStorage pins the distinction the
+// framework offers and most projects get wrong.
+//
+// NewJSONRepository maps between two models, so only the persistence model is
+// promised and the domain model stays free to be renamed or restructured.
+// NewSloppyJSONRepository serialises the domain model directly; the framework's
+// own documentation calls it a shorthand for throw-away prototypes. Choosing it
+// makes every rename in the domain a change to stored data, and the check has
+// to say so rather than quietly treat the two as equivalent.
+func TestPersistedModelsSeparatesDomainFromStorage(t *testing.T) {
+	tests := []struct {
+		fixture  string
+		pattern  string
+		promised string
+		free     string
+	}{
+		// Two models, mapped: the entity is stored, the domain type is not.
+		{"../../../testdata/example", "./app/...", "CustomerEntity", "Customer"},
+		// One model, serialised as it stands: the domain type is stored.
+		{"../../../testdata/bad", "./billing/...", "Ledger", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.promised, func(t *testing.T) {
+			root, err := filepath.Abs(tt.fixture)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pkgs, err := Load(root, tt.pattern)
+			if err != nil {
+				t.Fatalf("load fixture: %v", err)
+			}
+
+			models := map[string]bool{}
+			for _, p := range pkgs {
+				for name := range p.PersistedModels() {
+					models[name] = true
+				}
+			}
+
+			if !hasSuffixIn(models, "."+tt.promised) {
+				t.Errorf("%s is stored and must be part of the promised set, got %v", tt.promised, keysOf(models))
+			}
+			if tt.free != "" && hasSuffixIn(models, "."+tt.free) {
+				t.Errorf("%s is only a domain model and must stay free of the promise", tt.free)
+			}
+		})
+	}
+}
+
+func hasSuffixIn(set map[string]bool, suffix string) bool {
+	for name := range set {
+		if len(name) >= len(suffix) && name[len(name)-len(suffix):] == suffix {
+			return true
+		}
+	}
+	return false
+}
+
+func keysOf(set map[string]bool) []string {
+	out := make([]string, 0, len(set))
+	for k := range set {
+		out = append(out, k)
+	}
+	return out
 }
