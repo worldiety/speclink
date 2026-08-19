@@ -216,43 +216,126 @@ Abhängigkeit: Der Strang kann parallel zu S1 laufen, muss aber vor S3 abgeschlo
 | 4 | F8 Reviewmodell: wird der Code-Diff noch reviewt oder nur der von Annotationen und Anforderungen? | vor S4 |
 | 5 | Verdrahtungswahrheit als eigener Befehl (braucht Eingriff im Zielprojekt) | nach S3 |
 | 6 | Bildregionen als prüfbarer Verweis — derzeit bewusste Lücke | offen, evtl. nie |
-| 7 | Abnahme der Inferenzschicht gegen das reale `spec/`-Modell des ERP (146 Aggregate, 417 Events, 130 Use Cases) — erste Messung liegt vor, siehe unten | vor S2 |
+| 7 | Abnahme der Inferenzschicht gegen das reale `spec/`-Modell des ERP — **für Events erledigt** (185 von 412 implementiert, 0 unspezifiziert); Aggregate und Use Cases offen, brauchen ein Inventar | vor S2 |
 | 8 | Weitere Recognizer: Eventfluss (`bus.Publish`, `events.SubscribeFor`), Routen (`cfg.RootView`, `admin.Card`), ReBAC-Namespaces | S2, nach Bedarf |
-| 9 | `New<Typname>` gegen werps `UC`-Suffix: 238 Befunde aus einer einzigen Namenskonvention | vor der Einführung im ERP |
+| 9 | `New<Typname>` gegen werps `UC`-Suffix — zerfällt in 193 Namenskonvention, 45 Dateikonvention, 9 echte Dublette | vor der Einführung im ERP |
 | 10 | Projektgenerierter Code: 226 der 644 anforderungspflichtigen Konstrukte liegen in `*_gen.go` mit `DO NOT EDIT` | vor S4 |
+| 11 | Welcher Eventbezeichner gilt: `EventMeta.Type` (versioniert) oder der Diskriminator (Go-Typname)? Überschneidung derzeit leer | vor S3 |
+| 12 | `speclink inventory`: `verify` gibt nur Befunde aus, das Inferierte ist nicht auflistbar — ohne das ist Punkt 7 nicht abschließbar | vor S2 |
 
-### Zu Punkt 7 — erste Messung gegen werp
+### Zu Punkt 7 — Abnahme gegen werp, durchgeführt
 
-`speclink verify` über `werp/` (rein lesend, ohne `speclink.json`):
+`speclink verify` über `werp/`, rein lesend, mit dem Layout über `-config`
+(`contextRoot: "."`, `cmdRoot: "cmd"`, `infraRoots: ["pkg","kernel"]`), ohne
+Eingriff im Zielprojekt:
 
 ```
-802 constructs (0% bound), 0 normative requirements (100% covered), 0 bindings, 644 findings
+802 constructs (0% bound), 0 normative requirements (100% covered), 0 bindings, 1174 findings
 ```
 
-| inferiert aus `werp/` | Anzahl | im normativen `spec/`-Modell |
+**Die Inferenzschicht ist abgenommen — für Events sogar exakt.** Verglichen über
+die Go-Typnamen der Eventdeklarationen:
+
+| | Anzahl |
+|---|---:|
+| Eventtypen im Modell (`EventMeta()`) | 412 |
+| Eventtypen im Code (`Discriminator()`) | 185 |
+| in beiden | **185** |
+| nur im Modell, also unimplementiert | 227 |
+| nur im Code, also unspezifiziert | **0** |
+
+Jedes Event im Code steht im Modell, und speclink findet jedes davon. Die
+Differenz 185 ↔ 412 ist kein Recognizer-Defekt, sondern spezifizierter, noch
+nicht gebauter Umfang. Damit ist Punkt 7 für Events erledigt; Aggregate und Use
+Cases stehen noch aus, weil `verify` kein Inventar ausgibt und nur die
+anforderungspflichtigen Arten in der Diagnostik erscheinen.
+
+Übrige inferierte Arten: 165 Use Cases, 163 Commands, 73 Queries, 58
+Projections. Zusammen 644 anforderungspflichtige Konstrukte von 802.
+
+**Die Architektur-Linter reproduzieren die S2-Tabelle fast exakt:**
+
+| Regel | S2 | jetzt |
 |---|---:|---:|
-| Events | 185 | **417** (`spec.EventMeta{}`) |
-| Use Cases | 165 | — |
-| Commands | 163 | — |
-| Queries | 73 | — |
-| Projections | 58 | — |
-| Anforderungen | — | **343** (`spec.Requirement{}`) |
+| `K5-UC-FILE` | 238 | 238 |
+| `K5-UC-CONSTRUCTOR` | 238 | 238 (212 fehlend + 26 fehlplatziert) |
+| `K5-UC-PERMISSION` | 16 | 16 |
+| `K5-UC-PERMISSION-I18N` | 10 | 10 |
+| `K6-CTX-USECASES` | 10 | 10 |
+| `K6-CTX-UI-PKG` | 1 | 1 |
+| `K6-CTX-NO-UI-IMPORT` | 9 | **17** |
+| `K7`, `K8` | 0 | 0 |
 
-**Die Lücke 185 ↔ 417 ist der eigentliche Befund** und muss vor jedem Umbau
-geklärt sein: entweder Recognizer-Defekt oder echter Drift.
+Die 17 UI-Importe liegen in `shell`, `assistant` und `docgen`. Mit
+`contextRoot: "."` gilt jedes Verzeichnis der Modulwurzel als Bounded Context,
+und diese drei sind keine Fachkontexte. Das ist ein Konfigurationsartefakt, kein
+Architekturbefund: sie gehören in `exclude` oder unter einen anderen Wurzelpfad.
+Die Regel meldet außerdem je Import statt je Paket — `shell/render.go` allein
+erzeugt fünf Befunde.
 
-Zwei Einschränkungen dieser Zahl:
+### Neuer Befund — der Diskriminator trägt die Spezifikation nicht
 
-- Die Architektur-Linter feuern **null** mal, weil `contextRoot` per Vorgabe
-  `app/` ist und werps Kontexte im Modulwurzelverzeichnis liegen. Die
-  238er-Tabelle aus S2 stammt aus einem Lauf mit einer `speclink.json`, die
-  nicht im Repository liegt. Ohne sie ist K5–K8 an werp ungemessen.
-- Alle früheren Abdeckungsmessungen waren systematisch zu gut. `evs.SeqID` ist
-  ein Alias von `ndb.Seq`; die Erkennung prüfte auf `*types.Named` im
-  `evs`-Paket und griff dadurch nicht mehr, sodass jeder schreibende Use Case
-  als Query galt — und Queries waren von der Anforderungspflicht befreit. Beides
-  ist behoben: der Alias wird aufgelöst, und eine Query ist anforderungspflichtig
-  wie jeder andere Use Case auch.
+`spec.EventMeta.Type` ist laut eigenem Kommentar *„der vollqualifizierte
+Event-Typ inkl. Version, z. B. `comment.thread.opened.v1`"*. `evs.Discriminator`
+ist nagos stabiler Serialisierungstag: der Wert, der im Log steht und über den
+beim Replay dekodiert wird.
+
+`spec/genwerp` erzeugt daraus nicht den Modelltyp, sondern den Go-Typnamen:
+
+```go
+// Modell: spec.EventMeta{Type: "access.relation.granted.v1", …}
+func (RelationGranted) Discriminator() evs.Discriminator { return "RelationGranted" }
+```
+
+Gemessen: **168 von 168** eindeutig extrahierbaren Diskriminatoren sind exakt der
+Go-Typname, **null** tragen die punktierte, versionierte Form. Die Überschneidung
+der beiden Bezeichnersysteme ist leer.
+
+Folgen:
+
+- Die Version im Modell ist dekorativ. Es gibt keinen `.v2`-Pfad, weil `.v1` nie
+  auf die Leitung kommt.
+- Ein Umbenennen des Go-Typs verwaist stillschweigend jedes gespeicherte Event.
+  Der Bezeichner, der ewig stabil bleiben muss, ist damit an den Bezeichner
+  gekoppelt, der sich beim Refactoring am leichtesten ändert.
+- Ein Fakt, zwei Quellen, bereits vollständig auseinandergelaufen — Fehlermuster
+  M1 in Reinform, und speclink kann es derzeit nicht melden, weil keine Regel
+  den Diskriminator gegen etwas prüft.
+
+Zu entscheiden ist, welcher der beiden Bezeichner gilt. Erst danach lohnt eine
+Regel, die den Diskriminator gegen die Anforderungsseite bindet.
+
+### Zu Punkt 9 — die 238 Befunde zerfallen in drei Ursachen
+
+Die ursprüngliche Vermutung („werp nennt den Typ `DraftQuoteUC`, den Konstruktor
+aber `NewDraftQuote`") trifft nur den größten Teil:
+
+| Ursache | Anzahl | Bewertung |
+|---|---:|---|
+| Typ `XUC`, Konstruktor `NewX` | 193 | reine Namenskonvention |
+| Typ ohne eigenes `uc_`-File, in `usecases.go` deklariert | 45 | echter Konventionskonflikt |
+| `XUC` existiert nur als Träger von `permission.Declare` | 9 | echter Befund |
+
+Der dritte Fall ist der interessante. In `access` stehen zwei Deklarationen für
+dieselbe Fähigkeit:
+
+```go
+// usecases.go — die echte Fähigkeit samt Konstruktor
+GrantRelation func(s auth.Subject, req GrantRequest) (RelationID, evs.SeqID, error)
+
+// relation_commands.go — nur, um die Permission zu tragen
+GrantRelationUC func(auth.Subject, GrantRelationCmd) (evs.SeqID, error)
+```
+
+Die Signaturen sind bereits auseinandergelaufen. Diese neun Befunde sind keine
+Falschmeldungen, sondern genau das, wofür speclink gebaut ist — die Regel darf
+dafür nicht gelockert werden.
+
+Für die 193 ist zu entscheiden: entweder toleriert `K5-UC-CONSTRUCTOR` ein
+optionales `UC`-Suffix, oder werp lässt es fallen. Für die 45 steht die Regel
+„ein Use Case je Datei" gegen werps `usecases.go`-Konvention; hier ist die
+Begründung der Regel — die Dateiliste ist die Fähigkeitsliste — gegen den
+Umstellungsaufwand abzuwägen.
 
 ### Zu Punkt 10 — projektgenerierter Code
 

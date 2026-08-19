@@ -73,6 +73,7 @@ func verify(args []string) error {
 	fs := flag.NewFlagSet("verify", flag.ExitOnError)
 	format := fs.String("format", "text", "output format: text or json")
 	root := fs.String("root", ".", "repository root, used to resolve source documents")
+	cfgPath := fs.String("config", "", "layout configuration; defaults to "+config.FileName+" in the root")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -84,7 +85,12 @@ func verify(args []string) error {
 
 	// The layout is the only project knowledge speclink accepts. Without a
 	// speclink.json the convention applies.
-	layout, err := config.Load(absRoot)
+	//
+	// The explicit path exists so a project can be measured without being
+	// modified. Trying speclink on an unfamiliar codebase should not require a
+	// commit to it, and the first run is exactly where the layout is least
+	// likely to match the convention.
+	layout, err := loadLayout(absRoot, *cfgPath)
 	if err != nil {
 		return err
 	}
@@ -252,6 +258,15 @@ func reportRequirements(format string, findings *diag.Set, tree *reqtree.Tree) e
 	default:
 		return fmt.Errorf("unknown format %q, expected text or json", format)
 	}
+}
+
+// loadLayout resolves the layout configuration, from an explicit path when one
+// was given and from the conventional location otherwise.
+func loadLayout(absRoot, explicit string) (config.Config, error) {
+	if explicit == "" {
+		return config.Load(absRoot)
+	}
+	return config.LoadFile(explicit, false)
 }
 
 func report(format string, findings *diag.Set, cov check.Coverage, str check.Structure, bindings int) error {

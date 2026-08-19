@@ -42,6 +42,7 @@ speclink requirements [flags] [packages]
 
   -format text|json   text is the default
   -root <dir>         repository root, default "."
+  -config <file>      layout configuration; defaults to speclink.json in the root
 ```
 
 Typical invocation:
@@ -122,6 +123,10 @@ these defaults apply.
 - `cmdRoot` — where `main` packages live.
 - `infraRoots` — packages that must stay free of domain knowledge.
 - `exclude` — path patterns, `dir/**` supported.
+
+`-config <file>` reads the layout from somewhere else, which is how a project
+can be measured without being modified. A file named this way must exist; only
+the conventional location may be absent.
 
 ---
 

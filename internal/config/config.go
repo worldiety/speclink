@@ -54,20 +54,31 @@ func Default() Config {
 // Load reads speclink.json from root. A missing file is not an error: it means
 // the project follows the convention.
 func Load(root string) (Config, error) {
+	return LoadFile(filepath.Join(root, FileName), true)
+}
+
+// LoadFile reads a configuration from an explicit path.
+//
+// optional says whether a missing file is acceptable. It is for the
+// conventional location, where absence means "the convention applies", and it
+// is not for a path the caller named: asking for a file that is not there is a
+// mistake worth reporting rather than silently falling back to defaults that
+// were deliberately being overridden.
+func LoadFile(path string, optional bool) (Config, error) {
 	cfg := Default()
 
-	data, err := os.ReadFile(filepath.Join(root, FileName))
-	if errors.Is(err, fs.ErrNotExist) {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) && optional {
 		return cfg, nil
 	}
 	if err != nil {
-		return cfg, fmt.Errorf("read %s: %w", FileName, err)
+		return cfg, fmt.Errorf("read %s: %w", path, err)
 	}
 
 	// Decode into the defaults so an omitted field keeps its conventional
 	// value and a project only states what it deviates in.
 	if err := json.Unmarshal(data, &cfg); err != nil {
-		return cfg, fmt.Errorf("parse %s: %w", FileName, err)
+		return cfg, fmt.Errorf("parse %s: %w", path, err)
 	}
 	cfg.normalise()
 	return cfg, nil

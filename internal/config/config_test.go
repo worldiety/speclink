@@ -99,3 +99,39 @@ func write(t *testing.T, dir, content string) {
 		t.Fatalf("write config: %v", err)
 	}
 }
+
+// TestLoadFileExplicit guards the path that lets a project be measured without
+// being modified. Trying speclink on an unfamiliar codebase should not require
+// a commit to it, and the first run is exactly where the layout is least likely
+// to match the convention.
+func TestLoadFileExplicit(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "elsewhere.json")
+	if err := os.WriteFile(path, []byte(`{"contextRoot": ".", "infraRoots": ["pkg", "kernel"]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadFile(path, false)
+	if err != nil {
+		t.Fatalf("LoadFile: %v", err)
+	}
+	if cfg.ContextRoot != "." {
+		t.Errorf("contextRoot = %q, want %q", cfg.ContextRoot, ".")
+	}
+	if cfg.CmdRoot != "cmd" {
+		t.Errorf("an omitted field must keep its conventional value, got %q", cfg.CmdRoot)
+	}
+}
+
+// TestLoadFileMissingIsAnError separates the two cases. A missing file at the
+// conventional location means the convention applies; a missing file the caller
+// named is a mistake, and falling back to the very defaults that were being
+// overridden would produce a measurement nobody asked for.
+func TestLoadFileMissingIsAnError(t *testing.T) {
+	if _, err := LoadFile(filepath.Join(t.TempDir(), "absent.json"), false); err == nil {
+		t.Error("naming a configuration that does not exist must fail")
+	}
+	if _, err := LoadFile(filepath.Join(t.TempDir(), "absent.json"), true); err != nil {
+		t.Errorf("the conventional location may be absent: %v", err)
+	}
+}
