@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "types": {
+    "example.com/bad/billing.Settled": {
+      "discriminator": "bad.billing.settled.v1",
+      "fields": [
+        {
+          "name": "ID",
+          "wire": "ID",
+          "shape": "string"
+        },
+        {
+          "name": "Amount",
+          "wire": "amount",
+          "shape": "int"
+        }
+      ]
+    },
+    "example.com/bad/billing.Vanished": {
+      "discriminator": "bad.billing.vanished.v1",
+      "fields": [
+        {
+          "name": "ID",
+          "wire": "ID",
+          "shape": "string"
+        }
+      ]
+    },
+    "example.com/bad/billing.Demoted": {
+      "discriminator": "bad.billing.demoted.v1",
+      "fields": [
+        {
+          "name": "ID",
+          "wire": "ID",
+          "shape": "string"
+        }
+      ]
+    }
+  }
+}

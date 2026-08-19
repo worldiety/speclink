@@ -79,6 +79,12 @@ func TestVerifyBad(t *testing.T) {
 		"SPEC-V4-001", // proposal on a type whose package already is one
 		"SPEC-V6-001", // normative requirement covered by nothing
 		"SPEC-V6-011", // import of the generic CRUD user interface
+		"SPEC-V6-090", // frozen shape that was never recorded
+		"SPEC-V6-091", // discriminator changed
+		"SPEC-V6-092", // promised field removed
+		"SPEC-V6-093", // promised field renamed on the wire
+		"SPEC-V6-094", // promised type gone from the source
+		"SPEC-V6-095", // promise taken back by marking it a proposal
 	}
 	// The redundant field term fires once per covering level: the package in
 	// one fixture, the type in the other.
@@ -89,10 +95,10 @@ func TestVerifyBad(t *testing.T) {
 	if n := strings.Count(out, "[SPEC-V6-010]"); n != 3 {
 		t.Errorf("expected the generic CRUD ban to fire 3 times, got %d", n)
 	}
-	// One projection and three events, none of them naming a requirement. A
+	// One projection and six events, none of them naming a requirement. A
 	// proposal is free to change its shape, not free to exist for no reason.
-	if n := strings.Count(out, "[SPEC-V6-020]"); n != 4 {
-		t.Errorf("expected four unbound constructs, got %d", n)
+	if n := strings.Count(out, "[SPEC-V6-020]"); n != 7 {
+		t.Errorf("expected seven unbound constructs, got %d", n)
 	}
 	for _, code := range want {
 		if n := strings.Count(out, "["+code+"]"); n != 1 {

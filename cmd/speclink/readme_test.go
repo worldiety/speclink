@@ -42,6 +42,12 @@ func TestReadmeListsEveryRule(t *testing.T) {
 		"K8-MAIN-EXISTS",
 		"K8-MAIN-LOCATION",
 		"K9-PROPOSAL-REDUNDANT",
+		"K9-BASELINE-MISSING",
+		"K9-DISCRIMINATOR-FROZEN",
+		"K9-FIELD-REMOVED",
+		"K9-FIELD-RENAMED",
+		"K9-TYPE-REMOVED",
+		"K9-PROPOSAL-FROZEN",
 	}
 	for _, rule := range rules {
 		if !strings.Contains(text, rule) {

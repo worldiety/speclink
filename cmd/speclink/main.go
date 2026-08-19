@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/worldiety/speclink/internal/baseline"
 	"github.com/worldiety/speclink/internal/check"
 	"github.com/worldiety/speclink/internal/config"
 	"github.com/worldiety/speclink/internal/diag"
@@ -45,6 +46,8 @@ func run(args []string) error {
 		return verify(args[1:])
 	case "requirements":
 		return requirements(args[1:])
+	case "freeze":
+		return freeze(args[1:])
 	case "help", "-h", "--help":
 		usage()
 		return nil
@@ -60,10 +63,12 @@ func usage() {
 usage:
   speclink verify       [flags] [packages]
   speclink requirements [flags] [packages]
+  speclink freeze       [flags] [packages]
 
 commands:
   verify        check requirements, annotations and architecture rules
   requirements  check the requirement tree on its own, before any code binds to it
+  freeze        record the shape of every persisted type that is no longer a proposal
 
 run "speclink <command> -h" for the flags of a command.
 `)
@@ -125,6 +130,8 @@ func verify(args []string) error {
 		reqs       []*ir.Requirement
 		bindings   []ir.Binding
 		constructs []ir.Construct
+		schema     []ir.SchemaType
+		scope      = map[string]bool{}
 	)
 	for _, p := range pkgs {
 		reqs = append(reqs, p.ReadRequirements(findings)...)
@@ -132,12 +139,15 @@ func verify(args []string) error {
 	for _, p := range pkgs {
 		bindings = append(bindings, p.ReadBindings(findings)...)
 		constructs = append(constructs, p.Infer()...)
+		schema = append(schema, p.ReadSchema()...)
+		scope[p.PkgPath()] = true
 	}
+	check.SortSchema(schema)
 
 	// V4: reject annotations that state a fact already established elsewhere.
 	// The freeze status is the first thing the language can say twice, because
 	// it cascades: package, then type, then field.
-	check.Proposals(constructs, bindings, findings)
+	status := check.Proposals(constructs, bindings, findings)
 
 	// V5: resolve identity, layout, the derivation graph and the outer edge.
 	tree := reqtree.Build(absRoot, reqs, findings)
@@ -150,6 +160,15 @@ func verify(args []string) error {
 	}
 	str := check.CoverConstructs(constructs, bindings, findings)
 	cov := check.CoverRequirements(tree, bindings, findings)
+
+	// V6: what has already been promised must still hold. A shape that outlives
+	// the code declaring it cannot be checked against the code alone, so this
+	// is the one rule family that reads a record of the past.
+	base, err := baseline.Load(absRoot)
+	if err != nil {
+		return err
+	}
+	check.Evolution(schema, status, base, scope, bindings, findings)
 
 	// V6: the architecture rules. They read the project layout, which is the
 	// one thing speclink cannot infer and the only thing speclink.json states.

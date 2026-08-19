@@ -11,3 +11,8 @@ var _ = spec.For[Invoiced](
 var _ = spec.ForField[Invoiced]("Amount",
 	spec.Proposal(),
 )
+
+// Taking a promise back: Demoted is already recorded.
+var _ = spec.For[Demoted](
+	spec.Proposal(),
+)

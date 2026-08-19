@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "types": {
+    "example.com/erp/app/sales.QuoteSubmitted": {
+      "discriminator": "sales.quote.submitted.v1",
+      "fields": [
+        {
+          "name": "QuoteID",
+          "wire": "QuoteID",
+          "shape": "string"
+        },
+        {
+          "name": "QuoteNumber",
+          "wire": "QuoteNumber",
+          "shape": "string"
+        }
+      ]
+    }
+  }
+}

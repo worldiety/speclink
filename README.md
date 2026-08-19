@@ -39,10 +39,12 @@ also enforces the architecture of a nago project.
 ```
 speclink verify       [flags] [packages]
 speclink requirements [flags] [packages]
+speclink freeze       [flags] [packages]
 
   -format text|json   text is the default
   -root <dir>         repository root, default "."
   -config <file>      layout configuration; defaults to speclink.json in the root
+  -n                  freeze only: report what would be recorded, write nothing
 ```
 
 Typical invocation:
@@ -380,17 +382,40 @@ While something is a proposal: anything. Add fields, remove them, retype them,
 delete the event outright. The framework can purge every message of a type, so
 nothing is stranded.
 
-Once it is frozen, the rules below apply. They are not yet implemented — this
-section states the contract they will enforce, and you are expected to follow it
-now.
+Once it is frozen:
 
-- The **discriminator must never change**. It is the key the log is decoded by.
-- A field must not be **removed** or **renamed** on the wire.
-- A field's **memory shape** must not change incompatibly. Changing `string` to
-  a named type with underlying `string` is fine, and so is any change between
-  integer widths. Changing `int` to `string`, or a scalar to a slice, is not.
-- **New fields are always allowed**, but must be marked optional, because
-  messages written before they existed do not carry them.
+| | |
+|---|---|
+| **The discriminator must never change** | It is the key stored messages are decoded by. Changing it does not rename anything, it orphans every message written under the old tag. |
+| A field must not be **removed** | Readers cannot tell an absent value from one that was never written. |
+| A field must not be **renamed on the wire** | The Go field name may change freely; the json tag is what is promised. |
+| A field's **shape** must not change incompatibly | `string` to a named type with underlying `string` is fine, and so is any change between integer widths. `int` to `string`, or a scalar to a slice, is not. *(not enforced yet)* |
+| **New fields are allowed** | but must be marked optional, because messages written before they existed do not carry them. *(not enforced yet)* |
+
+### speclink.lock
+
+None of this is decidable from the current source. Nothing in a working tree
+says what a field used to be, so the promise is recorded in `speclink.lock`.
+
+The file is written by `speclink freeze` and **never edited by hand**. It is not
+a second place to state intent — intent stays in the code, where the field type
+says the shape and `spec.Proposal` says the status. It records what has already
+been committed to, the same relation `go.sum` has to `go.mod`.
+
+```
+speclink freeze -n ./...    # what would be recorded
+speclink freeze ./...       # record it
+```
+
+`freeze` refuses to record anything that already breaks a promise. Otherwise it
+would be the one command that makes a break official, and every rule reading the
+file would be worthless.
+
+A frozen type that has never been recorded is reported
+(`K9-BASELINE-MISSING`). That finding is the point at which somebody has to
+decide: promise it, or mark it a proposal. And once a shape is recorded, marking
+it a proposal again is refused — a promise cannot be taken back by editing
+source, because the stored messages do not read it.
 
 ---
 
@@ -744,6 +769,12 @@ Every rule ID is stable and may be used in `spec.Waive`.
 | `K8-MAIN-LOCATION` | `V6-030` | a `main` package outside `cmd/` |
 | `K8-MAIN-EXISTS` | `V6-031` | the module has no entry point |
 | `K9-PROPOSAL-REDUNDANT` | `V4-001`, `V4-002` | a proposal term at a level the cascade already covers |
+| `K9-BASELINE-MISSING` | `V6-090` | a frozen shape that was never recorded |
+| `K9-DISCRIMINATOR-FROZEN` | `V6-091` | the serialisation tag of a promised type changed |
+| `K9-FIELD-REMOVED` | `V6-092` | a promised field is gone |
+| `K9-FIELD-RENAMED` | `V6-093` | a promised field changed its stored name |
+| `K9-TYPE-REMOVED` | `V6-094` | a promised type is gone; waive it on the package |
+| `K9-PROPOSAL-FROZEN` | `V6-095` | a promise taken back by marking it a proposal |
 
 Requirement-tree findings (`V5`) are not waivable per construct, because they
 concern the requirement, not the code: `V5-001` missing ID, `V5-002` missing
@@ -764,9 +795,10 @@ Do not invoke or assume these; they do not exist:
 
 - `speclink generate` and the documentation backends
 - `speclink selfreport` and `verify --check-generated`
-- the evolution rules of section 6 beyond `K9-PROPOSAL-REDUNDANT`: nothing yet
-  checks that a discriminator, a field name or a field shape stayed put. The
-  contract holds regardless; it is simply not enforced yet.
+- the shape and optionality rules of section 6. Identity is enforced —
+  discriminator, field presence, stored names — but a field whose type changes
+  from `int` to `string` still passes, and a new field need not be marked
+  optional yet. The contract holds regardless; follow it now.
 - any rule that checks a projection is not persisted, or that a repository is
   not reached from `ui*` beyond the existing import ban
 
