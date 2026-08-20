@@ -42,6 +42,7 @@ const (
 // about constructs, not constructs themselves.
 func (p *Package) Infer() []ir.Construct {
 	var out []ir.Construct
+	folded := p.evolveTargets()
 	for _, f := range p.pkg.Syntax {
 		if p.isGeneratedByUs(f) {
 			continue
@@ -56,7 +57,7 @@ func (p *Package) Infer() []ir.Construct {
 				if !ok {
 					continue
 				}
-				if c, ok := p.inferType(ts); ok {
+				if c, ok := p.inferType(ts, folded); ok {
 					out = append(out, c)
 				}
 			}
@@ -87,7 +88,7 @@ func (p *Package) isGeneratedByUs(f *ast.File) bool {
 //
 // Order matters: a command is also a struct, and an event is also a struct, so
 // the more specific interface satisfaction is tested before the shape rules.
-func (p *Package) inferType(ts *ast.TypeSpec) (ir.Construct, bool) {
+func (p *Package) inferType(ts *ast.TypeSpec, folded map[string]bool) (ir.Construct, bool) {
 	obj := p.pkg.TypesInfo.Defs[ts.Name]
 	if obj == nil {
 		return ir.Construct{}, false
@@ -126,6 +127,11 @@ func (p *Package) inferType(ts *ast.TypeSpec) (ir.Construct, bool) {
 	case p.hasMethods(named, "Identity"):
 		base.Kind = ir.ConstructAggregate
 		base.Evidence = "implements data.Aggregate, that is Identity"
+		return base, true
+
+	case folded[ts.Name.Name]:
+		base.Kind = ir.ConstructAggregate
+		base.Evidence = "is the state an event folds into through Evolve"
 		return base, true
 	}
 
@@ -501,6 +507,54 @@ func (p *Package) PersistedModels() map[string]bool {
 			}
 			return true
 		})
+	}
+	return out
+}
+
+// evolveTargets returns the names of the types this package's events fold into.
+//
+// An event sourced aggregate carries no marker of its own. It is a plain struct
+// rebuilt by replaying events, so nothing in its declaration says what it is —
+// data.Aggregate with its Identity method describes the stored kind, not this
+// one. What does say it is the framework's own event contract: evs.Evt is
+// generic over the aggregate, and Evolve names it in the signature.
+//
+// Recognising it any other way would mean guessing from a name or a directory.
+// This reads the framework instead, which is the rule everywhere else here.
+//
+// Only targets declared in the same package are collected. The framework keeps
+// an event union and the aggregate it folds together, so a cross package fold
+// would be unusual enough that inventing support for it before seeing one would
+// be speculation.
+func (p *Package) evolveTargets() map[string]bool {
+	out := map[string]bool{}
+
+	for _, f := range p.pkg.Syntax {
+		if p.isGeneratedByUs(f) {
+			continue
+		}
+		for _, decl := range f.Decls {
+			fd, ok := decl.(*ast.FuncDecl)
+			if !ok || fd.Name.Name != "Evolve" || fd.Recv == nil {
+				continue
+			}
+			obj := p.pkg.TypesInfo.Defs[fd.Name]
+			fn, ok := obj.(*types.Func)
+			if !ok {
+				continue
+			}
+			sig, ok := fn.Type().(*types.Signature)
+			if !ok || sig.Params().Len() != 2 {
+				continue
+			}
+			named, ok := stateNamed(sig.Params().At(1).Type())
+			if !ok || named.Obj().Pkg() == nil {
+				continue
+			}
+			if named.Obj().Pkg().Path() == p.PkgPath() {
+				out[named.Obj().Name()] = true
+			}
+		}
 	}
 	return out
 }

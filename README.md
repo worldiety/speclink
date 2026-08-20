@@ -40,11 +40,13 @@ also enforces the architecture of a nago project.
 speclink verify       [flags] [packages]
 speclink requirements [flags] [packages]
 speclink freeze       [flags] [packages]
+speclink inventory    [flags] [packages]
 
   -format text|json   text is the default
   -root <dir>         repository root, default "."
   -config <file>      layout configuration; defaults to speclink.json in the root
   -n                  freeze only: report what would be recorded, write nothing
+  -kind <kind>        inventory only: restrict to one kind, e.g. event
 ```
 
 Typical invocation:
@@ -84,6 +86,22 @@ grown while the implementation around it is still in pieces.
 ```
 343 requirements (298 normative), 0 findings
 ```
+
+### Listing what was recognised
+
+```
+speclink inventory -root . ./...
++ event        example.com/erp/app/sales.QuoteSubmitted
+  repository   example.com/erp/app/sales.CustomerRepository
+
+event           2  2 bound
+repository      2  0 bound
+```
+
+`verify` reports what it objects to, which is right for a build step and wrong
+for the question "does the tool see the same system the specification
+describes?" — a construct recognised correctly produces no output at all. The
+inventory answers that one. `+` marks a construct that names a requirement.
 
 ### Diagnostic format
 
@@ -308,7 +326,7 @@ either.
 | the same, but returning data | **query** | yes |
 | type with `Decide(auth.Subject, *Agg) ([]Evt, error)` | **command** | yes |
 | type with `Evolve(ctx, *Agg) error` **and** `Discriminator()` | **event** | yes |
-| type with `Identity() ID` | **aggregate** | no |
+| type with `Identity() ID`, or the type an event's `Evolve` folds into | **aggregate** | no |
 | `permission.Declare…[UseCase](id, …)` | **permission**, bound to that use case | no |
 | state type of `evs.NewProjection` / `evs.NewSingleton` | **projection** | yes |
 | `type X data.Repository[E, ID]` or `= data.ReadRepository[…]` | **repository** | no |

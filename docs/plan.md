@@ -216,12 +216,12 @@ Abhängigkeit: Der Strang kann parallel zu S1 laufen, muss aber vor S3 abgeschlo
 | 4 | F8 Reviewmodell: wird der Code-Diff noch reviewt oder nur der von Annotationen und Anforderungen? | vor S4 |
 | 5 | Verdrahtungswahrheit als eigener Befehl (braucht Eingriff im Zielprojekt) | nach S3 |
 | 6 | Bildregionen als prüfbarer Verweis — derzeit bewusste Lücke | offen, evtl. nie |
-| 7 | Abnahme der Inferenzschicht gegen das reale `spec/`-Modell des ERP — **für Events erledigt** (185 von 412 implementiert, 0 unspezifiziert); Aggregate und Use Cases offen, brauchen ein Inventar | vor S2 |
+| 7 | Abnahme der Inferenzschicht gegen das reale `spec/`-Modell des ERP — **erledigt**, siehe unten | ✅ |
 | 8 | Weitere Recognizer: Eventfluss (`bus.Publish`, `events.SubscribeFor`), Routen (`cfg.RootView`, `admin.Card`), ReBAC-Namespaces | S2, nach Bedarf |
 | 9 | `New<Typname>` gegen werps `UC`-Suffix — zerfällt in 193 Namenskonvention, 45 Dateikonvention, 9 echte Dublette | vor der Einführung im ERP |
 | 10 | Projektgenerierter Code: 226 der 644 anforderungspflichtigen Konstrukte liegen in `*_gen.go` mit `DO NOT EDIT` | vor S4 |
 | 11 | Welcher Eventbezeichner gilt: `EventMeta.Type` (versioniert) oder der Diskriminator (Go-Typname)? Überschneidung derzeit leer | bevor der erste Kontext eingefroren wird |
-| 12 | `speclink inventory`: `verify` gibt nur Befunde aus, das Inferierte ist nicht auflistbar — ohne das ist Punkt 7 nicht abschließbar | vor S2 |
+| 12 | `speclink inventory`: `verify` gibt nur Befunde aus, das Inferierte ist nicht auflistbar | ✅ umgesetzt |
 
 ### Zu Punkt 7 — Abnahme gegen werp, durchgeführt
 
@@ -336,6 +336,33 @@ optionales `UC`-Suffix, oder werp lässt es fallen. Für die 45 steht die Regel
 „ein Use Case je Datei" gegen werps `usecases.go`-Konvention; hier ist die
 Begründung der Regel — die Dateiliste ist die Fähigkeitsliste — gegen den
 Umstellungsaufwand abzuwägen.
+
+### Zu Punkt 7 — abgeschlossen
+
+Mit `speclink inventory` ist die Inferenzschicht gegen das Modell abgleichbar.
+Ergebnis an werp:
+
+| Art | im Modell | im Code | von speclink erkannt |
+|---|---:|---:|---:|
+| Aggregate | 147 (`RegisterAggregate`) | 60 | **60** |
+| Events | 412 (`EventMeta`) | 185 | **185** |
+| Use Cases | — | 165 | 165 |
+| Commands | — | 163 | 163 |
+| Queries | — | 73 | 73 |
+| Projections | — | 58 | 58 |
+| Permissions | — | 158 | 158 |
+
+**Die Erkennung ist vollständig.** Kein Konstrukt im Code bleibt unerkannt, und
+kein Event im Code fehlt im Modell. Die Differenz zwischen Modell und Code ist
+spezifizierter, noch nicht gebauter Umfang — rund 40 % sind implementiert, in
+beiden Dimensionen gleichermaßen.
+
+**Ein Recognizer fehlte dabei vollständig.** Aggregate wurden ausschließlich
+über `data.Aggregate` (Methode `Identity`) erkannt. Ein event-sourced Aggregat
+hat die nicht: es ist ein nacktes Struct, das durch Faltung rekonstruiert wird.
+An werp bedeutete das **null von 60**. Erkannt wird es jetzt über den
+Framework-Vertrag selbst — `evs.Evt` ist generisch über das Aggregat, und
+`Evolve` nennt es in der Signatur.
 
 ### Zu Punkt 11 — kein Termin, eine Reihenfolge
 

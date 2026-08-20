@@ -36,7 +36,10 @@ func TestInferKinds(t *testing.T) {
 		"FindQuoteOverview": ir.ConstructQuery,
 		"SubmitQuoteCmd":    ir.ConstructCommand,
 		"QuoteSubmitted":    ir.ConstructEvent,
-		"QuoteAggregate":    ir.ConstructAggregate,
+		// Recognised through Evolve rather than Identity: an event sourced
+		// aggregate is a plain struct rebuilt by replaying events, and carries
+		// no marker of its own.
+		"QuoteAggregate": ir.ConstructAggregate,
 		// The read model is call driven: its type carries only Clone, so the
 		// fact that it is a projection exists solely at construction.
 		"QuoteOverview": ir.ConstructProjection,
@@ -90,4 +93,40 @@ func identOf(qualified string) string {
 		}
 	}
 	return qualified
+}
+
+// TestAggregateWithoutIdentity guards the recogniser that closed the largest
+// blind spot found so far.
+//
+// data.Aggregate describes a stored entity and announces itself with Identity.
+// An event sourced aggregate announces nothing: it is a plain struct rebuilt by
+// folding events, and against the reference ERP that meant every single one of
+// its sixty aggregates went unseen. What does state the relationship is the
+// framework's own event contract — evs.Evt is generic over the aggregate, and
+// Evolve names it in the signature.
+func TestAggregateWithoutIdentity(t *testing.T) {
+	root, err := filepath.Abs("../../../testdata/bad")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkgs, err := Load(root, "./billing/...")
+	if err != nil {
+		t.Fatalf("load fixture: %v", err)
+	}
+
+	var kinds []ir.ConstructKind
+	for _, p := range pkgs {
+		for _, c := range p.Infer() {
+			if identOf(c.Name) == "Aggregate" {
+				kinds = append(kinds, c.Kind)
+			}
+		}
+	}
+
+	if len(kinds) != 1 {
+		t.Fatalf("expected the fold target to be recognised once, got %d", len(kinds))
+	}
+	if kinds[0] != ir.ConstructAggregate {
+		t.Errorf("the type an event folds into is an aggregate, got %v", kinds[0])
+	}
 }
