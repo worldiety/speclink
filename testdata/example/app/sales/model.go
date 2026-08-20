@@ -61,7 +61,7 @@ const Namespace = "erp.sales.quote"
 
 // QuoteWithdrawn is the fact recorded when a submitted quote is taken back.
 //
-// It is still a proposal: the shape has not been promised, so fields may be
+// It is still a draft: the shape has not been promised, so fields may be
 // added, removed or retyped freely, and the whole event may be dropped again.
 type QuoteWithdrawn struct {
 	QuoteID string

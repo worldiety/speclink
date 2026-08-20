@@ -68,7 +68,7 @@ func freeze(args []string) error {
 		schema = append(schema, p.ReadSchema(models)...)
 	}
 	check.SortSchema(schema)
-	status := check.Proposals(schema, bindings, discard)
+	status := check.Drafts(schema, bindings, discard)
 
 	base, err := baseline.Load(absRoot)
 	if err != nil {
@@ -118,7 +118,7 @@ func freeze(args []string) error {
 func merge(base *baseline.File, schema []ir.SchemaType, status map[string]check.Freeze) (added, updated []string) {
 	for _, t := range schema {
 		f, known := status[t.Name]
-		if known && f.Proposal {
+		if known && f.Draft {
 			continue
 		}
 		if known {

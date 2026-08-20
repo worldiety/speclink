@@ -21,10 +21,10 @@ var allowedTargets = map[ir.AssertionKind][]ir.TargetKind{
 	ir.AssertTerm:       {ir.TargetType, ir.TargetPackage},
 	ir.AssertRationale:  {ir.TargetType, ir.TargetFunc, ir.TargetVar, ir.TargetConst, ir.TargetPackage},
 	ir.AssertWaive:      {ir.TargetType, ir.TargetFunc, ir.TargetVar, ir.TargetConst, ir.TargetField, ir.TargetPackage},
-	// Proposal is about a persisted shape, so it attaches where a shape lives:
+	// Draft is about a persisted shape, so it attaches where a shape lives:
 	// the package holding the types, the type itself, or a single field of it.
 	// A function or a variable has no shape on the wire.
-	ir.AssertProposal: {ir.TargetType, ir.TargetField, ir.TargetPackage},
+	ir.AssertDraft: {ir.TargetType, ir.TargetField, ir.TargetPackage},
 	// Optional is a statement about one field and has no meaning anywhere else:
 	// a whole type cannot be absent from a message, it simply is the message.
 	ir.AssertOptional: {ir.TargetField},
@@ -93,8 +93,8 @@ func exportedName(k ir.AssertionKind) string {
 		return "Rationale"
 	case ir.AssertWaive:
 		return "Waive"
-	case ir.AssertProposal:
-		return "Proposal"
+	case ir.AssertDraft:
+		return "Draft"
 	case ir.AssertOptional:
 		return "Optional"
 	}

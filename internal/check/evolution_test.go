@@ -155,30 +155,30 @@ func TestEvolutionBreaks(t *testing.T) {
 	}
 }
 
-// TestEvolutionIgnoresProposals guards the purpose of the marker. A proposal
+// TestEvolutionIgnoresDrafts guards the purpose of the marker. A draft
 // that was never recorded has promised nothing, so nothing about it can break.
-func TestEvolutionIgnoresProposals(t *testing.T) {
-	status := map[string]Freeze{evName: {Type: evName, Proposal: true}}
+func TestEvolutionIgnoresDrafts(t *testing.T) {
+	status := map[string]Freeze{evName: {Type: evName, Draft: true}}
 	empty := &baseline.File{Version: baseline.Version, Types: map[string]baseline.Entry{}}
 
 	out := &diag.Set{}
 	Evolution(current(field("Totally", "different", "int")), status, empty, scope, nil, out)
 	if !out.Empty() {
-		t.Errorf("a proposal must not be held to a promise:\n%s", render(out))
+		t.Errorf("a draft must not be held to a promise:\n%s", render(out))
 	}
 }
 
-// TestEvolutionCannotUnpromise is the other half. Marking something a proposal
+// TestEvolutionCannotUnpromise is the other half. Marking something a draft
 // after it was recorded claims that nothing was committed to, which is untrue
 // the moment the first message is stored. Allowing it would turn the baseline
 // from a record into a suggestion.
 func TestEvolutionCannotUnpromise(t *testing.T) {
-	status := map[string]Freeze{evName: {Type: evName, Proposal: true}}
+	status := map[string]Freeze{evName: {Type: evName, Draft: true}}
 	out := &diag.Set{}
 	Evolution(current(field("QuoteID", "quoteID", "string")), status, promised(), scope, nil, out)
 
-	if !strings.Contains(render(out), RuleProposalFrozen) {
-		t.Errorf("expected %s, got:\n%s", RuleProposalFrozen, render(out))
+	if !strings.Contains(render(out), RuleDraftFrozen) {
+		t.Errorf("expected %s, got:\n%s", RuleDraftFrozen, render(out))
 	}
 	// And it must not be mistaken for a deletion; the type is right there.
 	if strings.Contains(render(out), RuleTypeRemoved) {

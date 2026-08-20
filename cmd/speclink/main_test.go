@@ -76,14 +76,14 @@ func TestVerifyBad(t *testing.T) {
 		"SPEC-V5-032", // ID prefix contradicts Kind
 		"SPEC-V5-033", // directory contradicts Kind
 		"SPEC-V5-035", // domain directory contradicts the ID prefix
-		"SPEC-V4-001", // proposal on a type whose package already is one
+		"SPEC-V4-001", // draft on a type whose package already is one
 		"SPEC-V6-001", // normative requirement covered by nothing
 		"SPEC-V6-011", // import of the generic CRUD user interface
 		"SPEC-V6-091", // discriminator changed
 		"SPEC-V6-092", // promised field removed
 		"SPEC-V6-093", // promised field renamed on the wire
 		"SPEC-V6-094", // promised type gone from the source
-		"SPEC-V6-095", // promise taken back by marking it a proposal
+		"SPEC-V6-095", // promise taken back by marking it a draft
 		"SPEC-V6-096", // promised field changed its stored shape
 		"SPEC-V6-097", // optionality withdrawn
 		"SPEC-V6-098", // field added without being declared optional
@@ -91,7 +91,7 @@ func TestVerifyBad(t *testing.T) {
 	// The redundant field term fires once per covering level: the package in
 	// one fixture, the type in the other.
 	if n := strings.Count(out, "[SPEC-V4-002]"); n != 2 {
-		t.Errorf("expected the redundant field proposal twice, got %d", n)
+		t.Errorf("expected the redundant field draft twice, got %d", n)
 	}
 	// The generic CRUD ban fires once per forbidden factory.
 	if n := strings.Count(out, "[SPEC-V6-010]"); n != 3 {
@@ -103,7 +103,7 @@ func TestVerifyBad(t *testing.T) {
 		t.Errorf("expected two unrecorded shapes, got %d", n)
 	}
 	// One projection and seven events, none of them naming a requirement. A
-	// proposal is free to change its shape, not free to exist for no reason.
+	// draft is free to change its shape, not free to exist for no reason.
 	if n := strings.Count(out, "[SPEC-V6-020]"); n != 8 {
 		t.Errorf("expected eight unbound constructs, got %d", n)
 	}

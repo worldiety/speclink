@@ -13,7 +13,7 @@ const (
 	kindTerm
 	kindRationale
 	kindWaive
-	kindProposal
+	kindDraft
 	kindOptional
 )
 
@@ -89,29 +89,41 @@ func Waive(rule RuleID, reason string) Assertion {
 	return Assertion{kind: kindWaive, rule: rule, text: reason}
 }
 
-// Proposal marks a persisted shape as not yet promised: it may still change in
+// Draft marks a persisted shape as not yet promised: it may still change in
 // any way, and it may be deleted outright.
 //
+// What the term claims is precise, and it is not a statement about deployment.
+// It says: we are willing to delete every stored message of this type. The
+// framework can do exactly that — ndb.DeleteType removes them all — which is
+// what makes the state real rather than aspirational.
+//
+// The term is therefore removed at the moment nobody would purge any more. That
+// moment has nothing to do with going live: a development database can hold
+// data somebody minds losing, and from then on the shape is promised whatever
+// the source says. Conversely a deployed system whose data may be thrown away
+// at will is still a draft. As long as you would call DeleteType without
+// hesitating, the term is honest.
+//
 // Everything persisted is frozen by default. That inversion is deliberate. The
-// number of proposals in a system shrinks over its lifetime, so marking the
+// number of drafts in a system shrinks over its lifetime, so marking the
 // exception costs less than marking the rule, and forgetting to mark fails
 // safe: an unmarked newcomer is frozen at once, which shows up as an error on
 // the first attempt to change it rather than as silent data loss later.
 //
-// Promoting to production is therefore not an act of writing something, but of
-// deleting this term.
+// Committing to a shape is therefore not an act of writing something, but of
+// deleting this term and recording what remains.
 //
 // It cascades downwards, and may be attached at the level that is actually
 // true:
 //
-//	ForPackage  every persisted type in the package is a proposal
-//	For[T]      every field of T is a proposal
+//	ForPackage  every persisted type in the package is a draft
+//	For[T]      every field of T is a draft
 //	ForField    only meaningful once the type itself is frozen
 //
 // Repeating it at a level that is already covered states nothing new and is
 // reported as redundant.
-func Proposal() Assertion {
-	return Assertion{kind: kindProposal}
+func Draft() Assertion {
+	return Assertion{kind: kindDraft}
 }
 
 // Optional marks a field that may be absent from stored data.

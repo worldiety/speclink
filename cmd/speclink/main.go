@@ -68,7 +68,7 @@ usage:
 commands:
   verify        check requirements, annotations and architecture rules
   requirements  check the requirement tree on its own, before any code binds to it
-  freeze        record the shape of every persisted type that is no longer a proposal
+  freeze        record the shape of every persisted type that is no longer a draft
 
 run "speclink <command> -h" for the flags of a command.
 `)
@@ -156,7 +156,7 @@ func verify(args []string) error {
 	// V4: reject annotations that state a fact already established elsewhere.
 	// The freeze status is the first thing the language can say twice, because
 	// it cascades: package, then type, then field.
-	status := check.Proposals(schema, bindings, findings)
+	status := check.Drafts(schema, bindings, findings)
 
 	// V5: resolve identity, layout, the derivation graph and the outer edge.
 	tree := reqtree.Build(absRoot, reqs, findings)

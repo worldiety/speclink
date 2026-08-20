@@ -102,7 +102,7 @@ const (
 	AssertTerm
 	AssertRationale
 	AssertWaive
-	AssertProposal
+	AssertDraft
 	AssertOptional
 )
 
@@ -122,8 +122,8 @@ func (k AssertionKind) String() string {
 		return "rationale"
 	case AssertWaive:
 		return "waive"
-	case AssertProposal:
-		return "proposal"
+	case AssertDraft:
+		return "draft"
 	case AssertOptional:
 		return "optional"
 	}

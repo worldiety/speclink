@@ -166,8 +166,8 @@ func (p *Package) readAssertion(call *ast.CallExpr, out *diag.Set) (ir.Assertion
 		}
 		return ir.Assertion{Kind: ir.AssertWaive, Pos: pos, Rule: rule, Text: reason}, true
 
-	case "Proposal":
-		return ir.Assertion{Kind: ir.AssertProposal, Pos: pos}, true
+	case "Draft":
+		return ir.Assertion{Kind: ir.AssertDraft, Pos: pos}, true
 
 	case "Optional":
 		return ir.Assertion{Kind: ir.AssertOptional, Pos: pos}, true
@@ -177,7 +177,7 @@ func (p *Package) readAssertion(call *ast.CallExpr, out *diag.Set) (ir.Assertion
 
 func isAssertionName(name string) bool {
 	switch name {
-	case "Satisfies", "Transition", "External", "Help", "Term", "Rationale", "Waive", "Proposal", "Optional":
+	case "Satisfies", "Transition", "External", "Help", "Term", "Rationale", "Waive", "Draft", "Optional":
 		return true
 	}
 	return false

@@ -220,7 +220,7 @@ Abhängigkeit: Der Strang kann parallel zu S1 laufen, muss aber vor S3 abgeschlo
 | 8 | Weitere Recognizer: Eventfluss (`bus.Publish`, `events.SubscribeFor`), Routen (`cfg.RootView`, `admin.Card`), ReBAC-Namespaces | S2, nach Bedarf |
 | 9 | `New<Typname>` gegen werps `UC`-Suffix — zerfällt in 193 Namenskonvention, 45 Dateikonvention, 9 echte Dublette | vor der Einführung im ERP |
 | 10 | Projektgenerierter Code: 226 der 644 anforderungspflichtigen Konstrukte liegen in `*_gen.go` mit `DO NOT EDIT` | vor S4 |
-| 11 | Welcher Eventbezeichner gilt: `EventMeta.Type` (versioniert) oder der Diskriminator (Go-Typname)? Überschneidung derzeit leer | vor S3 |
+| 11 | Welcher Eventbezeichner gilt: `EventMeta.Type` (versioniert) oder der Diskriminator (Go-Typname)? Überschneidung derzeit leer | bevor der erste Kontext eingefroren wird |
 | 12 | `speclink inventory`: `verify` gibt nur Befunde aus, das Inferierte ist nicht auflistbar — ohne das ist Punkt 7 nicht abschließbar | vor S2 |
 
 ### Zu Punkt 7 — Abnahme gegen werp, durchgeführt
@@ -336,6 +336,28 @@ optionales `UC`-Suffix, oder werp lässt es fallen. Für die 45 steht die Regel
 „ein Use Case je Datei" gegen werps `usecases.go`-Konvention; hier ist die
 Begründung der Regel — die Dateiliste ist die Fähigkeitsliste — gegen den
 Umstellungsaufwand abzuwägen.
+
+### Zu Punkt 11 — kein Termin, eine Reihenfolge
+
+Solange `spec.Draft()` an einem Kontext steht, prüft speclink dort keine Form:
+Diskriminatoren, Feldnamen und Feldformen sind frei. In werp steht der Term an
+allen 14 Kontexten, `speclink.lock` existiert dort nicht, und es ist nichts
+zugesagt. Ein Wechsel der Diskriminatoren kostet heute also nichts.
+
+Zu entscheiden ist die Frage deshalb nicht bis zu einem Datum, sondern **bevor
+der erste Term gelöscht wird**. Was beim ersten `speclink freeze` im Code steht,
+schützt `K9-DISCRIMINATOR-FROZEN` danach dauerhaft.
+
+Was mit der Zeit wächst, ist nicht die Dringlichkeit, sondern der Aufwand: je
+mehr Code, Generat und Dokumentation sich auf eines der beiden Bezeichnersysteme
+stützen, desto teurer der Wechsel. Das skaliert mit der Codemenge, nicht mit dem
+Kalender.
+
+**Wann der Term zu löschen ist**, hängt nicht am Deploymentstatus, sondern an
+einer einzigen Frage: würdet ihr `ndb.DeleteType` für diesen Typ noch ohne Zögern
+aufrufen? Solange ja, ist `Draft` ehrlich — auch in einem laufenden System.
+Sobald nein, ist die Form faktisch zugesagt, auch wenn der Term noch dasteht,
+und dann lügt er.
 
 ### Zu Punkt 10 — projektgenerierter Code
 

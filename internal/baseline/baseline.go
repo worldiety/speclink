@@ -7,7 +7,7 @@
 // snapshot.
 //
 // It is deliberately not a second source of intent. Intent stays in the code —
-// the field type states the shape, spec.Proposal states the status. This file
+// the field type states the shape, spec.Draft states the status. This file
 // records facts: what was actually committed to. It has the same relationship
 // to the source that go.sum has to go.mod, and the same rule follows from it:
 // it is written by the tool and never edited by hand.

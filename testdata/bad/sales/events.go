@@ -11,7 +11,7 @@ type Aggregate struct {
 	Status string
 }
 
-// Opened is an event whose package is already a proposal, so marking the type
+// Opened is an event whose package is already a draft, so marking the type
 // again states nothing new.
 type Opened struct {
 	ID   string
@@ -25,7 +25,7 @@ func (e Opened) Evolve(_ context.Context, a *Aggregate) error {
 	return nil
 }
 
-// Closed carries a field marked as a proposal although the whole package is
+// Closed carries a field marked as a draft although the whole package is
 // one, which is the case the cascade exists to catch.
 type Closed struct {
 	ID     string

@@ -57,9 +57,9 @@ func TestFreezeIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestFreezeSkipsProposals pins the point of the marker: an unpromised shape
+// TestFreezeSkipsDrafts pins the point of the marker: an unpromised shape
 // stays out of the record until somebody decides otherwise.
-func TestFreezeSkipsProposals(t *testing.T) {
+func TestFreezeSkipsDrafts(t *testing.T) {
 	lock, err := os.ReadFile(filepath.Join("..", "..", "testdata", "example", "speclink.lock"))
 	if err != nil {
 		t.Fatal(err)
@@ -70,7 +70,7 @@ func TestFreezeSkipsProposals(t *testing.T) {
 		t.Error("a frozen event must be recorded")
 	}
 	if strings.Contains(text, "QuoteWithdrawn") {
-		t.Error("a proposal must not be recorded; nothing about it has been promised")
+		t.Error("a draft must not be recorded; nothing about it has been promised")
 	}
 	// A field added after the promise is recorded as optional, and that is what
 	// makes withdrawing the optionality detectable later.

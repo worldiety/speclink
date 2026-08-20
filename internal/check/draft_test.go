@@ -7,24 +7,24 @@ import (
 	"github.com/worldiety/speclink/internal/ir"
 )
 
-// TestProposalCascade pins the resolution itself. The diagnostics are covered
+// TestDraftCascade pins the resolution itself. The diagnostics are covered
 // end to end by the fixtures; what is checked here is the answer the rest of
 // the tool will ask for: given these terms, is this field promised?
-func TestProposalCascade(t *testing.T) {
+func TestDraftCascade(t *testing.T) {
 	const pkg = "example.com/m/sales"
 
 	event := func(name string) ir.SchemaType {
 		return ir.SchemaType{Name: pkg + "." + name, Package: pkg}
 	}
-	proposal := func(target ir.Target) ir.Binding {
-		return ir.Binding{Target: target, Assertions: []ir.Assertion{{Kind: ir.AssertProposal}}}
+	draft := func(target ir.Target) ir.Binding {
+		return ir.Binding{Target: target, Assertions: []ir.Assertion{{Kind: ir.AssertDraft}}}
 	}
 
 	tests := []struct {
 		name       string
 		bindings   []ir.Binding
 		wantFrozen map[string]bool // field -> promised?
-		wantType   bool            // whole type still a proposal?
+		wantType   bool            // whole type still a draft?
 	}{
 		{
 			// The default is the important one: saying nothing promises
@@ -34,39 +34,39 @@ func TestProposalCascade(t *testing.T) {
 		},
 		{
 			name:       "package cascades to every field",
-			bindings:   []ir.Binding{proposal(ir.Target{Kind: ir.TargetPackage, Package: pkg})},
+			bindings:   []ir.Binding{draft(ir.Target{Kind: ir.TargetPackage, Package: pkg})},
 			wantType:   true,
 			wantFrozen: map[string]bool{"ID": false, "Reason": false},
 		},
 		{
 			name:       "type cascades to every field",
-			bindings:   []ir.Binding{proposal(ir.Target{Kind: ir.TargetType, Name: pkg + ".Opened"})},
+			bindings:   []ir.Binding{draft(ir.Target{Kind: ir.TargetType, Name: pkg + ".Opened"})},
 			wantType:   true,
 			wantFrozen: map[string]bool{"ID": false, "Reason": false},
 		},
 		{
 			// The only level at which a field term means anything.
 			name:       "a single field inside a frozen type",
-			bindings:   []ir.Binding{proposal(ir.Target{Kind: ir.TargetField, Name: pkg + ".Opened", Field: "Reason"})},
+			bindings:   []ir.Binding{draft(ir.Target{Kind: ir.TargetField, Name: pkg + ".Opened", Field: "Reason"})},
 			wantFrozen: map[string]bool{"ID": true, "Reason": false},
 		},
 		{
 			// A term on a neighbour must not leak sideways.
 			name:       "another type stays frozen",
-			bindings:   []ir.Binding{proposal(ir.Target{Kind: ir.TargetType, Name: pkg + ".Closed"})},
+			bindings:   []ir.Binding{draft(ir.Target{Kind: ir.TargetType, Name: pkg + ".Closed"})},
 			wantFrozen: map[string]bool{"ID": true, "Reason": true},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := Proposals([]ir.SchemaType{event("Opened")}, tt.bindings, &diag.Set{})
+			got := Drafts([]ir.SchemaType{event("Opened")}, tt.bindings, &diag.Set{})
 			f, ok := got[pkg+".Opened"]
 			if !ok {
 				t.Fatal("the event carries no freeze status at all")
 			}
-			if f.Proposal != tt.wantType {
-				t.Errorf("type proposal = %v, want %v", f.Proposal, tt.wantType)
+			if f.Draft != tt.wantType {
+				t.Errorf("type draft = %v, want %v", f.Draft, tt.wantType)
 			}
 			for field, want := range tt.wantFrozen {
 				if f.Frozen(field) != want {
@@ -77,14 +77,14 @@ func TestProposalCascade(t *testing.T) {
 	}
 }
 
-// TestProposalScopeIsTheSchema guards where the persisted set comes from.
+// TestDraftScopeIsTheSchema guards where the persisted set comes from.
 //
 // It is the schema, not the construct list. An event is persisted because of
 // what it is, a persistence model because somewhere a repository was built over
 // it; a use case has no shape on the wire at all. Deriving the set from the
 // schema keeps that one decision in one place.
-func TestProposalScopeIsTheSchema(t *testing.T) {
-	got := Proposals([]ir.SchemaType{
+func TestDraftScopeIsTheSchema(t *testing.T) {
+	got := Drafts([]ir.SchemaType{
 		{Name: "m.Opened", Package: "m"},
 		{Name: "m.PersonEntity", Package: "m"},
 	}, nil, &diag.Set{})

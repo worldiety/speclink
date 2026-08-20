@@ -285,7 +285,7 @@ Assertions are pure and are passed into a binding. They are never standalone.
 | `spec.Term(g)` | anchors a glossary entry at the construct that defines it |
 | `spec.Rationale(text)` | justifies a decision at the construct implementing it |
 | `spec.Waive(rule, reason)` | suspends one rule here; the reason is mandatory |
-| `spec.Proposal()` | this persisted shape is not promised yet; see section 6 |
+| `spec.Draft()` | this persisted shape is not promised yet; see section 6 |
 | `spec.Optional()` | this field may be absent from stored data; see section 6 |
 
 A field binding satisfies a requirement for that field, not for the type it
@@ -375,34 +375,50 @@ documentation calls the sloppy form a shorthand for throw-away code where
 neither model has been stabilised — and it is exactly that: from the moment you
 choose it, every rename in your domain is a change to stored data.
 
-**Everything persisted is frozen by default.** `spec.Proposal()` is the
-exception, and promoting something to production is not an act of writing
-anything — it is deleting that term.
+**Everything persisted is frozen by default.** `spec.Draft()` is the exception,
+and committing to a shape is not an act of writing anything — it is deleting
+that term and recording what remains.
 
-The inversion is deliberate. The number of proposals in a system shrinks over
-its lifetime, so marking the exception costs less than marking the rule. And
+The inversion is deliberate. The number of drafts in a system shrinks over its
+lifetime, so marking the exception costs less than marking the rule. And
 forgetting fails safe: an unmarked newcomer is frozen at once, which surfaces as
 an error the first time somebody changes it, rather than as unreadable data a
 year later.
 
+### When do I remove the term?
+
+`spec.Draft()` claims one thing, and it is not about deployment: **we are
+willing to delete every stored message of this type.** The framework can do
+exactly that — `ndb.DeleteType` removes them all — which is what makes the state
+real rather than aspirational.
+
+So remove it the moment nobody would purge any more. That moment has nothing to
+do with going live. A development database can hold data somebody minds losing,
+and from then on the shape is promised whatever the source says; a deployed
+system whose data may be thrown away at will is still a draft. As long as you
+would call `DeleteType` without hesitating, the term is honest.
+
+Removing it is a two-step act: delete the term, then run `speclink freeze`. The
+diff of `speclink.lock` is what you review.
+
 ### The cascade
 
 ```go
-var _ = spec.ForPackage(spec.Proposal())        // every persisted type in it
-var _ = spec.For[QuoteWithdrawn](spec.Proposal()) // every field of the type
-var _ = spec.ForField[Quote]("Note", spec.Proposal())
+var _ = spec.ForPackage(spec.Draft())          // every persisted type in it
+var _ = spec.For[QuoteWithdrawn](spec.Draft()) // every field of the type
+var _ = spec.ForField[Quote]("Note", spec.Draft())
 ```
 
 Attach it at the level that is actually true. Marking a level that is already
-covered from above states nothing new and is reported (`K9-PROPOSAL-REDUNDANT`,
+covered from above states nothing new and is reported (`K9-DRAFT-REDUNDANT`,
 phase V4) — a field term only means something once the type itself is frozen.
 
-Working on a new context? One `spec.ForPackage(spec.Proposal())` covers it, and
+Working on a new context? One `spec.ForPackage(spec.Draft())` covers it, and
 it is deleted once when the context goes live.
 
 ### What you may still change
 
-While something is a proposal: anything. Add fields, remove them, retype them,
+While something is a draft: anything. Add fields, remove them, retype them,
 delete the event outright. The framework can purge every message of a type, so
 nothing is stranded.
 
@@ -424,7 +440,7 @@ says what a field used to be, so the promise is recorded in `speclink.lock`.
 
 The file is written by `speclink freeze` and **never edited by hand**. It is not
 a second place to state intent — intent stays in the code, where the field type
-says the shape and `spec.Proposal` says the status. It records what has already
+says the shape and `spec.Draft` says the status. It records what has already
 been committed to, the same relation `go.sum` has to `go.mod`.
 
 ```
@@ -472,8 +488,8 @@ collapsed: narrowing a `float64` to a `float32` loses precision silently.
 
 A frozen type that has never been recorded is reported
 (`K9-BASELINE-MISSING`). That finding is the point at which somebody has to
-decide: promise it, or mark it a proposal. And once a shape is recorded, marking
-it a proposal again is refused — a promise cannot be taken back by editing
+decide: promise it, or mark it a draft. And once a shape is recorded, marking
+it a draft again is refused — a promise cannot be taken back by editing
 source, because the stored messages do not read it.
 
 ---
@@ -827,13 +843,13 @@ Every rule ID is stable and may be used in `spec.Waive`.
 | `K7-INFRA-DOMAIN-FREE` | `V6-032`, `V6-033` | infrastructure imports a context or declares a use case |
 | `K8-MAIN-LOCATION` | `V6-030` | a `main` package outside `cmd/` |
 | `K8-MAIN-EXISTS` | `V6-031` | the module has no entry point |
-| `K9-PROPOSAL-REDUNDANT` | `V4-001`, `V4-002` | a proposal term at a level the cascade already covers |
+| `K9-DRAFT-REDUNDANT` | `V4-001`, `V4-002` | a draft term at a level the cascade already covers |
 | `K9-BASELINE-MISSING` | `V6-090` | a frozen shape that was never recorded |
 | `K9-DISCRIMINATOR-FROZEN` | `V6-091` | the serialisation tag of a promised type changed |
 | `K9-FIELD-REMOVED` | `V6-092` | a promised field is gone |
 | `K9-FIELD-RENAMED` | `V6-093` | a promised field changed its stored name |
 | `K9-TYPE-REMOVED` | `V6-094` | a promised type is gone; waive it on the package |
-| `K9-PROPOSAL-FROZEN` | `V6-095` | a promise taken back by marking it a proposal |
+| `K9-DRAFT-FROZEN` | `V6-095` | a promise taken back by marking it a draft |
 | `K9-FIELD-SHAPE` | `V6-096` | a promised field changed its stored shape |
 | `K9-OPTIONAL-REVOKED` | `V6-097` | a field stopped being optional |
 | `K9-FIELD-ADDED-REQUIRED` | `V6-098` | a field added to a promised type without `spec.Optional()` |

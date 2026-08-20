@@ -22,7 +22,7 @@ var _ = spec.ForField[SubmitQuoteCmd]("Title",
 // and the event may be dropped again. Promotion is the deletion of this term.
 var _ = spec.For[QuoteWithdrawn](
 	spec.Satisfies(quote.RQuoteApprove),
-	spec.Proposal(),
+	spec.Draft(),
 )
 
 var _ = spec.ForDecl(Namespace,

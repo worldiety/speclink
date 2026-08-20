@@ -34,7 +34,7 @@ func (e Unrecorded) Evolve(_ context.Context, a *Aggregate) error {
 	return nil
 }
 
-// Demoted was promised and is now marked as a proposal again, which claims that
+// Demoted was promised and is now marked as a draft again, which claims that
 // nothing was committed to. Stored messages say otherwise.
 type Demoted struct {
 	ID string

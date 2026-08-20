@@ -12,7 +12,7 @@ type Aggregate struct {
 	Status string
 }
 
-// Invoiced is a proposal type in a frozen package. Marking one of its fields
+// Invoiced is a draft type in a frozen package. Marking one of its fields
 // again states nothing new, because the type already covers every field.
 type Invoiced struct {
 	ID     string

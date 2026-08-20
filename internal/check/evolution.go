@@ -21,9 +21,9 @@ const (
 	RuleFieldRemoved = "K9-FIELD-REMOVED"
 	// RuleFieldRenamed fires when a promised field changed its wire name.
 	RuleFieldRenamed = "K9-FIELD-RENAMED"
-	// RuleProposalFrozen fires when something already promised is marked as a
-	// proposal again.
-	RuleProposalFrozen = "K9-PROPOSAL-FROZEN"
+	// RuleDraftFrozen fires when something already promised is marked as a
+	// draft again.
+	RuleDraftFrozen = "K9-DRAFT-FROZEN"
 	// RuleFieldShape fires when a promised field changed its stored shape.
 	RuleFieldShape = "K9-FIELD-SHAPE"
 	// RuleFieldAddedRequired fires when a field was added to a promised type
@@ -35,7 +35,7 @@ const (
 
 // Evolution compares the current shapes against what has been promised.
 //
-// Only frozen types take part. A proposal has promised nothing, so it is absent
+// Only frozen types take part. A draft has promised nothing, so it is absent
 // from the baseline and free to change in any way — that is the whole purpose
 // of marking it.
 //
@@ -53,9 +53,9 @@ func Evolution(schema []ir.SchemaType, freeze map[string]Freeze, base *baseline.
 		current[t.Name] = t
 
 		entry, recorded := base.Types[t.Name]
-		if f, ok := freeze[t.Name]; ok && f.Proposal {
+		if f, ok := freeze[t.Name]; ok && f.Draft {
 			if recorded {
-				reportProposalFrozen(t, waived, out)
+				reportDraftFrozen(t, waived, out)
 			}
 			continue
 		}
@@ -69,23 +69,23 @@ func Evolution(schema []ir.SchemaType, freeze map[string]Freeze, base *baseline.
 	reportRemoved(base, current, scope, waived, out)
 }
 
-// reportProposalFrozen catches an attempt to take a promise back.
+// reportDraftFrozen catches an attempt to take a promise back.
 //
 // The marker means "nothing has been promised here yet", and once a shape is
 // recorded that is simply untrue: messages may already be stored under it.
 // Allowing the demotion would make the baseline a suggestion rather than a
 // record, and every rule that reads it worthless.
-func reportProposalFrozen(t ir.SchemaType, waived map[waiverKey]bool, out *diag.Set) {
-	if waived[waiverKey{target: t.Name, rule: RuleProposalFrozen}] {
+func reportDraftFrozen(t ir.SchemaType, waived map[waiverKey]bool, out *diag.Set) {
+	if waived[waiverKey{target: t.Name, rule: RuleDraftFrozen}] {
 		return
 	}
 	out.Add(diag.Finding{
 		Code: diag.Code(diag.PhaseSemantic, 95),
 		Pos:  t.Pos,
-		Rule: RuleProposalFrozen,
-		What: shortName(t.Name) + " is marked as a proposal, but its shape has already been promised.",
-		Why:  "A proposal says that nothing has been committed to yet. Once the shape is recorded that is no longer true — messages may already be stored under it, and no marker in the source can unwrite them.",
-		How:  "Remove the spec.Proposal term. If the shape really has to change, introduce a new type beside this one and retire this one deliberately.",
+		Rule: RuleDraftFrozen,
+		What: shortName(t.Name) + " is marked as a draft, but its shape has already been promised.",
+		Why:  "A draft says that nothing has been committed to yet. Once the shape is recorded that is no longer true — messages may already be stored under it, and no marker in the source can unwrite them.",
+		How:  "Remove the spec.Draft term. If the shape really has to change, introduce a new type beside this one and retire this one deliberately.",
 	})
 }
 
@@ -104,7 +104,7 @@ func reportBaselineMissing(t ir.SchemaType, waived map[waiverKey]bool, out *diag
 		Rule: RuleBaselineMissing,
 		What: shortName(t.Name) + " is persisted and frozen, but its shape has never been recorded.",
 		Why:  "Everything persisted is frozen unless it says otherwise, so this shape counts as promised — but nothing states what was promised, and a promise nobody wrote down cannot be kept.",
-		How:  "Run `speclink freeze` to record it, or mark it as `spec.Proposal()` while it is still being worked out.",
+		How:  "Run `speclink freeze` to record it, or mark it as `spec.Draft()` while it is still being worked out.",
 	})
 }
 
