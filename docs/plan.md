@@ -337,6 +337,54 @@ optionales `UC`-Suffix, oder werp lässt es fallen. Für die 45 steht die Regel
 Begründung der Regel — die Dateiliste ist die Fähigkeitsliste — gegen den
 Umstellungsaufwand abzuwägen.
 
+### Pilot: der Kontext `sales` vollständig
+
+Ein Kontext wurde durchgezogen, um die Kosten der Migration zu messen statt sie
+zu schätzen. Ergebnis:
+
+```
+24 constructs (100% bound), 14 normative requirements (100% covered), 21 bindings
+```
+
+| | |
+|---|---:|
+| Anforderungen im Baum | 16 |
+| annotierte Konstrukte | 20 |
+| Zeilen Anforderungsbaum | 264 |
+| Zeilen Annotation | 136 |
+| Quellanker, auf Anhieb aufgelöst | 32 von 32 |
+
+**Punkt 2 ist entschieden: der Baum liegt im Zielmodul**, unter
+`werp/requirements/`. Die Annotationsdateien importieren ihn, also müssen beide
+im selben Modul liegen. Ein Baum im Elternmodul hätte eine Versionierung
+zwischen Anforderung und Implementierung eingeführt — genau den Versatz, gegen
+den das Werkzeug gebaut ist. Die Quelldokumente liegen weiterhin oberhalb des
+Moduls und werden mit relativem Pfad referenziert.
+
+**Die Zuordnung Konstrukt zu Anforderung musste nicht erfunden werden.** Sie
+steht im Modell als `EventMeta.Covers` und wird vom Generator verworfen. Das ist
+der Grund, warum die Annotationsarbeit klein bleibt: 136 Zeilen für 20
+Konstrukte, überwiegend mechanisch.
+
+**Hochrechnung.** 802 Konstrukte insgesamt, davon 20 in `sales` — also grob
+Faktor 40. Das ergibt in der Größenordnung 5.500 Zeilen Annotation und, bei 343
+Anforderungen gegenüber 16, rund 5.700 Zeilen Anforderungsbaum. Dem stehen die
+abzulösenden Artefakte gegenüber (S4): 27.104 Zeilen `spec/contexts/`, 863
+Zeilen `knowledge.go`, 9 Dateien `requirements.go`.
+
+**Drei Befunde entstanden nebenbei**, alle echt:
+
+1. `R-QUOTE-MODULAR` und `R-QUOTE-NATURE` sind von keinem Konstrukt erfüllt —
+   die tragenden Fakten stehen im Modell und fehlen im Code. Jetzt `spec.Planned`.
+   Vorher war das nirgends sichtbar.
+2. Das Trennungsgebot war als fachliche Anforderung der Domäne geführt, ist aber
+   eine gesetzliche Randbedingung. Jetzt `R-CST-SEPARATION` unter `cst/`.
+3. Das Verzeichnis `con/` der Konvention ist auf Windows ein reservierter
+   Gerätename; Go verweigert es als Importpfad. Der Baum war so nicht baubar.
+   Behoben, siehe speclink-Commit `21167d3`.
+
+Übrig bleiben in `sales` nur die Use-Case-Konventionen aus Punkt 9.
+
 ### Zu Punkt 7 — abgeschlossen
 
 Mit `speclink inventory` ist die Inferenzschicht gegen das Modell abgleichbar.
