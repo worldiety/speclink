@@ -51,6 +51,7 @@ func TestReadmeListsEveryRule(t *testing.T) {
 		"K9-FIELD-SHAPE",
 		"K9-OPTIONAL-REVOKED",
 		"K9-FIELD-ADDED-REQUIRED",
+		"K9-DISCRIMINATOR-COLLISION",
 	}
 	for _, rule := range rules {
 		if !strings.Contains(text, rule) {

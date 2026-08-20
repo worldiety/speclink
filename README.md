@@ -422,11 +422,17 @@ While something is a draft: anything. Add fields, remove them, retype them,
 delete the event outright. The framework can purge every message of a type, so
 nothing is stranded.
 
+Give the tag a namespace. `"sales.quote.submitted.v1"` cannot collide with
+another context and survives a rename of the Go type; a bare `"QuoteSubmitted"`
+carries no package, so two contexts naming a type alike end up in one stream,
+and renaming the type for clarity orphans everything written so far.
+
 Once it is frozen:
 
 | | |
 |---|---|
 | **The discriminator must never change** | It is the key stored messages are decoded by. Changing it does not rename anything, it orphans every message written under the old tag. |
+| **and it must be unique in the module** | It is used directly as the store's type id, so it is global. Two types sharing one write into the same stream and read each other's messages. Checked for drafts too, because that is corruption rather than a broken promise. |
 | A field must not be **removed** | Readers cannot tell an absent value from one that was never written. |
 | A field must not be **renamed on the wire** | The Go field name may change freely; the json tag is what is promised. |
 | A field's **shape** must not change incompatibly | `string` to a named type with underlying `string` is fine, and so is any change between integer widths. `int` to `string`, or a scalar to a slice, is not. |
@@ -853,6 +859,7 @@ Every rule ID is stable and may be used in `spec.Waive`.
 | `K9-FIELD-SHAPE` | `V6-096` | a promised field changed its stored shape |
 | `K9-OPTIONAL-REVOKED` | `V6-097` | a field stopped being optional |
 | `K9-FIELD-ADDED-REQUIRED` | `V6-098` | a field added to a promised type without `spec.Optional()` |
+| `K9-DISCRIMINATOR-COLLISION` | `V6-099` | two persisted types claim the same serialisation tag |
 
 Requirement-tree findings (`V5`) are not waivable per construct, because they
 concern the requirement, not the code: `V5-001` missing ID, `V5-002` missing

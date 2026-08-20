@@ -87,6 +87,7 @@ func TestVerifyBad(t *testing.T) {
 		"SPEC-V6-096", // promised field changed its stored shape
 		"SPEC-V6-097", // optionality withdrawn
 		"SPEC-V6-098", // field added without being declared optional
+		"SPEC-V6-099", // two persisted types claiming one serialisation tag
 	}
 	// The redundant field term fires once per covering level: the package in
 	// one fixture, the type in the other.
@@ -102,10 +103,10 @@ func TestVerifyBad(t *testing.T) {
 	if n := strings.Count(out, "[SPEC-V6-090]"); n != 2 {
 		t.Errorf("expected two unrecorded shapes, got %d", n)
 	}
-	// One projection and seven events, none of them naming a requirement. A
+	// One projection and eight events, none of them naming a requirement. A
 	// draft is free to change its shape, not free to exist for no reason.
-	if n := strings.Count(out, "[SPEC-V6-020]"); n != 8 {
-		t.Errorf("expected eight unbound constructs, got %d", n)
+	if n := strings.Count(out, "[SPEC-V6-020]"); n != 9 {
+		t.Errorf("expected nine unbound constructs, got %d", n)
 	}
 	for _, code := range want {
 		if n := strings.Count(out, "["+code+"]"); n != 1 {

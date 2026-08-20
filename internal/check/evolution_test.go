@@ -270,3 +270,87 @@ func TestIntegerWidthIsNotAShapeChange(t *testing.T) {
 		t.Errorf("an integer stays an integer:\n%s", render(out))
 	}
 }
+
+// TestDiscriminatorCollision pins the rule that exists because the framework
+// cannot enforce it. nago checks tag uniqueness per aggregate handler, so two
+// bounded contexts claiming one tag pass unnoticed and then write into the same
+// stream.
+func TestDiscriminatorCollision(t *testing.T) {
+	tagged := func(pkg, name, tag string) ir.SchemaType {
+		return ir.SchemaType{Name: pkg + "." + name, Package: pkg, Discriminator: tag}
+	}
+
+	tests := []struct {
+		name   string
+		schema []ir.SchemaType
+		want   int
+	}{
+		{
+			name: "distinct tags",
+			schema: []ir.SchemaType{
+				tagged("m/sales", "Opened", "sales.opened.v1"),
+				tagged("m/billing", "Opened", "billing.opened.v1"),
+			},
+			want: 0,
+		},
+		{
+			// The case the rule is for: same bare type name in two contexts.
+			// The package disappears from the tag, so both become "Opened".
+			name: "same tag across contexts",
+			schema: []ir.SchemaType{
+				tagged("m/sales", "Opened", "Opened"),
+				tagged("m/billing", "Opened", "Opened"),
+			},
+			want: 1,
+		},
+		{
+			// One finding per collision, not per participant: fixing either
+			// type resolves it.
+			name: "three colliding types",
+			schema: []ir.SchemaType{
+				tagged("m/a", "Opened", "Opened"),
+				tagged("m/b", "Opened", "Opened"),
+				tagged("m/c", "Opened", "Opened"),
+			},
+			want: 2,
+		},
+		{
+			// A persistence model is found by its key, not decoded by a tag.
+			// Two of them share the empty string and must not be mistaken for
+			// a collision.
+			name: "persistence models without a tag",
+			schema: []ir.SchemaType{
+				tagged("m/sales", "CustomerEntity", ""),
+				tagged("m/billing", "LedgerEntity", ""),
+			},
+			want: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out := &diag.Set{}
+			Discriminators(tt.schema, nil, out)
+			if out.Len() != tt.want {
+				t.Errorf("got %d findings, want %d:\n%s", out.Len(), tt.want, render(out))
+			}
+		})
+	}
+}
+
+// TestDiscriminatorCollisionAppliesToDrafts guards the one place a draft is not
+// exempt. Everywhere else the marker says nothing has been promised; here it
+// would say that corrupting another type's stream is acceptable as long as the
+// shape is still being worked out.
+func TestDiscriminatorCollisionAppliesToDrafts(t *testing.T) {
+	schema := []ir.SchemaType{
+		{Name: "m/a.Opened", Package: "m/a", Discriminator: "Opened"},
+		{Name: "m/b.Opened", Package: "m/b", Discriminator: "Opened"},
+	}
+	// Drafts are not even passed in: the rule never asks about freeze status.
+	out := &diag.Set{}
+	Discriminators(schema, nil, out)
+	if out.Len() != 1 {
+		t.Errorf("a collision is reported whatever the freeze status:\n%s", render(out))
+	}
+}

@@ -31,7 +31,68 @@ const (
 	RuleFieldAddedRequired = "K9-FIELD-ADDED-REQUIRED"
 	// RuleOptionalRevoked fires when a field stops being optional.
 	RuleOptionalRevoked = "K9-OPTIONAL-REVOKED"
+	// RuleDiscriminatorCollision fires when two persisted types claim the same
+	// serialisation tag.
+	RuleDiscriminatorCollision = "K9-DISCRIMINATOR-COLLISION"
 )
+
+// Discriminators reports two persisted types claiming the same serialisation
+// tag.
+//
+// The tag is not a local name. It is used directly as the store's type id, so
+// it is global to the whole module, and two types sharing one write into the
+// same stream: each decodes the other's messages as its own, or fails on them.
+//
+// The framework cannot catch this. Its own uniqueness check runs per aggregate
+// handler, so a collision between two bounded contexts passes silently. Nothing
+// but a view of the whole module can see it, and that is exactly the view this
+// tool has.
+//
+// It applies to drafts as well. Everywhere else a draft is exempt because
+// nothing has been promised yet, but a collision is not a broken promise — it
+// is two types corrupting each other's data from the first message, and being
+// free to change the shape does not make that harmless.
+func Discriminators(schema []ir.SchemaType, bindings []ir.Binding, out *diag.Set) {
+	waived := waivedRules(bindings)
+	byTag := map[string][]ir.SchemaType{}
+
+	for _, t := range schema {
+		// A persistence model is found by its key rather than decoded by a
+		// tag, so it has none and cannot collide.
+		if t.Discriminator == "" {
+			continue
+		}
+		byTag[t.Discriminator] = append(byTag[t.Discriminator], t)
+	}
+
+	for _, tag := range sortedKeys(byTag) {
+		group := byTag[tag]
+		if len(group) < 2 {
+			continue
+		}
+		sort.Slice(group, func(i, j int) bool { return group[i].Name < group[j].Name })
+
+		// One finding per collision rather than one per participant: fixing
+		// either type resolves it, and reporting both would make one mistake
+		// look like two.
+		for _, t := range group[1:] {
+			if waived[waiverKey{target: t.Name, rule: RuleDiscriminatorCollision}] {
+				continue
+			}
+			// The other type is named in full. In the case this rule exists
+			// for — two bounded contexts choosing the same bare type name —
+			// the short names are identical and would name nothing.
+			out.Add(diag.Finding{
+				Code: diag.Code(diag.PhaseSemantic, 99),
+				Pos:  t.Pos,
+				Rule: RuleDiscriminatorCollision,
+				What: shortName(t.Name) + " uses the tag " + quote(tag) + ", which is already taken by " + group[0].Name + ".",
+				Why:  "The tag is the store's type id and is global to the module, so both types write into one stream. Each will read the other's messages as its own. The framework checks uniqueness only within one aggregate, so a collision across bounded contexts passes it unnoticed.",
+				How:  "Give one of them a distinct tag. A tag carrying its context, such as \"sales.quote.submitted.v1\", cannot collide by construction; a bare type name can, because the package it came from is not part of it.",
+			})
+		}
+	}
+}
 
 // Evolution compares the current shapes against what has been promised.
 //
