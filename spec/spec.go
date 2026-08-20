@@ -34,7 +34,7 @@ type TermID string
 type State string
 
 // Kind classifies what a requirement is. It determines the first directory
-// level of the requirement tree: dec/, nfr/, con/ and fun/<domain>/.
+// level of the requirement tree: dec/, nfr/, cst/ and fun/<domain>/.
 //
 // Boundaries:
 //

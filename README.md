@@ -165,7 +165,7 @@ pkg/, foundation/                           infrastructure, domain free
 
 requirements/dec/R-DEC-<NAME>.spec.go      Kind: Decision
 requirements/nfr/R-NFR-<NAME>.spec.go      Kind: NonFunctional
-requirements/con/R-CON-<NAME>.spec.go      Kind: Constraint
+requirements/cst/R-CST-<NAME>.spec.go      Kind: Constraint
 requirements/fun/<domain>/R-<DOMAIN>-<NAME>.spec.go   Kind: Functional
 requirements/fun/<domain>/R-<DOMAIN>-<NAME>/          attachments, no .go
 requirements/_sources/                     the raw source documents
@@ -176,7 +176,7 @@ Directory, ID prefix and `Kind` are the same fact stated three times, and
 speclink checks that they agree. Cross-cutting kinds are grouped by kind because
 they have no domain home; functional requirements are grouped by domain.
 
-What is enforced and what is not: the kind level `dec/`, `nfr/`, `con/`, `fun/`
+What is enforced and what is not: the kind level `dec/`, `nfr/`, `cst/`, `fun/`
 is fixed, and so is `<ID>.spec.go` as the file name. The name of the directory
 above it is not — speclink finds the kind level anywhere in the path, and a
 requirement outside such a tree is simply not layout checked. `requirements/`

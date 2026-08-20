@@ -20,7 +20,7 @@ import (
 //
 //	requirements/dec/R-DEC-EVENTSOURCING.spec.go        Kind = Decision
 //	requirements/nfr/R-NFR-AUDIT.spec.go                Kind = NonFunctional
-//	requirements/con/R-CON-TENANT.spec.go               Kind = Constraint
+//	requirements/cst/R-CST-TENANT.spec.go               Kind = Constraint
 //	requirements/fun/quote/R-QUOTE-SUBMIT.spec.go       Kind = Functional
 //	requirements/fun/quote/R-QUOTE-SUBMIT/              attachments, no .go
 //
@@ -63,7 +63,7 @@ func (t *Tree) checkFileName(r *ir.Requirement, out *diag.Set) {
 //
 // The correlation was not invented here: in the reference project all 125
 // decisions carry R-DEC-, all 10 quality goals R-NFR- and all 7 constraints
-// R-CON-, without a single exception. The convention already existed; it was
+// R-CST-, without a single exception. The convention already existed; it was
 // only never written down and never checked.
 func (t *Tree) checkPrefix(r *ir.Requirement, out *diag.Set) {
 	prefix, ok := idPrefix(r.ID)
@@ -104,7 +104,7 @@ func (t *Tree) checkDir(r *ir.Requirement, out *diag.Set) {
 	}
 	parts := strings.Split(filepath.ToSlash(rel), "/")
 
-	level, ok := firstOf(parts, "dec", "nfr", "con", "fun")
+	level, ok := firstOf(parts, "dec", "nfr", "cst", "fun")
 	if !ok {
 		return // outside the conventional tree; layout is not enforced there
 	}
@@ -157,7 +157,7 @@ func kindPrefix(k ir.Kind) (string, bool) {
 	case ir.NonFunctional:
 		return "NFR", true
 	case ir.Constraint:
-		return "CON", true
+		return "CST", true
 	}
 	return "", false
 }

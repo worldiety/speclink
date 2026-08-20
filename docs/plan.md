@@ -25,7 +25,7 @@ Ein Werkzeug, das Anforderungen an Codekonstrukte bindet, beide Richtungen der A
 | Deklaration | `var X = spec.Requirement{…}` in `<ID>.spec.go` | annotations §2.2 |
 | Aussage | `var _ = spec.For[T](…)` | annotations §5.3 |
 | Auswertung | keine; zwei Pässe, Reihenfolgefreiheit als Property-Test | annotations §4.1 |
-| Anforderungsbaum | `dec/`, `nfr/`, `con/`, `fun/<domäne>/`; ID im Dateinamen | annotations §10 |
+| Anforderungsbaum | `dec/`, `nfr/`, `cst/`, `fun/<domäne>/`; ID im Dateinamen | annotations §10 |
 | Inferenz | nago-Recognizer, hartkodiert; Annotation inferierbarer Fakten ist ein Fehler | annotations §1.2 |
 | Generisches CRUD | verboten (`K4-NO-GENERIC-CRUD`), nicht nachgebaut | annotations §1.6, §8.2 |
 | Schweregrade | **keine.** Steuerung über den Geltungsbereich | annotations §1.8 |
@@ -211,7 +211,7 @@ Abhängigkeit: Der Strang kann parallel zu S1 laufen, muss aber vor S3 abgeschlo
 | # | Punkt | Wann zu entscheiden |
 |---|---|---|
 | 1 | Form der Geltungsbereichs-Konfiguration: Positivliste, Negativliste oder Marker im Paket | S2 |
-| 2 | Modulschnitt: liegt der Anforderungsbaum im selben Go-Modul wie das Zielprojekt? | vor S1, betrifft Versionierung und Release |
+| 2 | Modulschnitt: liegt der Anforderungsbaum im selben Go-Modul wie das Zielprojekt? | ✅ ja, siehe Pilot unten |
 | 3 | F9 Mehrsprachigkeit der Fachtexte (`Help`, `Term`) | nach S3 |
 | 4 | F8 Reviewmodell: wird der Code-Diff noch reviewt oder nur der von Annotationen und Anforderungen? | vor S4 |
 | 5 | Verdrahtungswahrheit als eigener Befehl (braucht Eingriff im Zielprojekt) | nach S3 |

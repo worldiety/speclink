@@ -36,7 +36,10 @@ func (k Kind) Dir() string {
 	case NonFunctional:
 		return "nfr"
 	case Constraint:
-		return "con"
+		// Not "con": CON is a reserved device name on Windows, and Go refuses
+		// it as an import path element. A directory nobody can compile is not
+		// a convention, it is a trap.
+		return "cst"
 	case Decision:
 		return "dec"
 	}
