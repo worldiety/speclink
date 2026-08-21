@@ -385,13 +385,26 @@ func (p *Package) checkPermissionBinding(uc useCase, decl *ast.FuncDecl, body *a
 			return
 		}
 	}
+
+	// Delegation counts here for the same reason it counts as authorisation
+	// evidence: a use case that hands its subject to something else has moved
+	// the check there, not skipped it. In the decide-evolve pattern that is the
+	// normal shape — the closure forwards the command to the handler and the
+	// permission is audited inside Decide, where the invariants are.
+	//
+	// Refusing to accept that would report every event sourced use case in a
+	// system, which is how a rule teaches people to ignore it.
+	if p.hasAuthorisationEvidence(body) {
+		return
+	}
+
 	out.Add(diag.Finding{
 		Code: diag.Code(diag.PhaseSemantic, 57),
 		Pos:  p.pos(decl.Pos()),
 		Rule: RuleUCPermission,
 		What: "use case " + uc.name + " never uses its permission " + declared[0].varName + ".",
 		Why:  "A declared but unchecked permission is worse than none: it appears in the role editor and suggests a protection that does not exist.",
-		How:  "Check it in the implementation, e.g. `if err := subject.Audit(" + declared[0].varName + "); err != nil { … }`.",
+		How:  "Check it in the implementation, e.g. `if err := subject.Audit(" + declared[0].varName + "); err != nil { … }`, or hand the subject to whatever does check.",
 	})
 }
 

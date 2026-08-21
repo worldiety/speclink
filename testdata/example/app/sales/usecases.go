@@ -11,10 +11,10 @@ type UseCases struct {
 }
 
 // NewUseCases wires the quotation use cases.
-func NewUseCases(view QuoteOverviewReader) UseCases {
+func NewUseCases(view QuoteOverviewReader, gate LegalGate) UseCases {
 	return UseCases{
 		SubmitQuote:       NewSubmitQuote(nopRegistry{}),
-		ApproveQuote:      NewApproveQuote(),
+		ApproveQuote:      NewApproveQuote(gate),
 		FindQuoteOverview: NewFindQuoteOverview(view),
 	}
 }
