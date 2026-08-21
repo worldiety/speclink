@@ -134,8 +134,12 @@ func (p *Package) checkUseCaseConstructor(uc useCase, perms map[string][]permDec
 	if body == nil {
 		return
 	}
-	p.checkAuthorisation(uc, decl, body, out)
-	p.checkPermissionBinding(uc, decl, body, perms, out)
+	// Whether the body names a permission of this use case answers both
+	// questions below, so it is established once.
+	named := p.namesOwnPermission(body, perms[uc.name])
+
+	p.checkAuthorisation(uc, decl, body, named, out)
+	p.checkPermissionBinding(uc, decl, body, perms, named, out)
 	p.checkDependencies(uc, decl, body, out)
 }
 
@@ -146,8 +150,20 @@ func (p *Package) checkUseCaseConstructor(uc useCase, perms map[string][]permDec
 // case that nowhere mentions the subject it was handed is almost certainly an
 // oversight, and that is the class of mistake worth catching. In the reference
 // framework an unguarded read projection was a real, project wide bug.
-func (p *Package) checkAuthorisation(uc useCase, decl *ast.FuncDecl, body *ast.BlockStmt, out *diag.Set) {
+func (p *Package) checkAuthorisation(uc useCase, decl *ast.FuncDecl, body *ast.BlockStmt, namesOwnPermission bool, out *diag.Set) {
 	if p.hasAuthorisationEvidence(body) {
+		return
+	}
+
+	// Naming the permission that guards this use case is evidence too, and
+	// stronger than the presence of a subject: it says which right is being
+	// enforced, not merely that something was consulted.
+	//
+	// It is the only evidence there is when the guard is applied at the type
+	// level rather than in the body — `return guard(load, PermViewRisks)`
+	// wraps the check around the function and never mentions a subject, which
+	// is a perfectly ordinary way to write a read side.
+	if namesOwnPermission {
 		return
 	}
 	out.Add(diag.Finding{
@@ -158,6 +174,31 @@ func (p *Package) checkAuthorisation(uc useCase, decl *ast.FuncDecl, body *ast.B
 		Why:  "Every use case receives a subject, and one that never consults it grants everyone everything. The check here is deliberately loose: it does not judge whether the check is right, only that there is one.",
 		How:  "Call subject.Audit(Perm…), subject.AuditResource(…), subject.HasPermission/HasRole/HasGroup, return an error wrapping user.PermissionDeniedErr, or pass the subject on to another use case that checks.",
 	})
+}
+
+// namesOwnPermission reports whether the body mentions one of the permissions
+// declared for this use case.
+func (p *Package) namesOwnPermission(body *ast.BlockStmt, declared []permDecl) bool {
+	if body == nil || len(declared) == 0 {
+		return false
+	}
+	want := map[string]bool{}
+	for _, d := range declared {
+		want[d.varName] = true
+	}
+
+	found := false
+	ast.Inspect(body, func(n ast.Node) bool {
+		if found {
+			return false
+		}
+		if id, ok := n.(*ast.Ident); ok && want[id.Name] {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
 }
 
 // authorisation method names accepted as evidence.
@@ -349,7 +390,7 @@ func (p *Package) usesI18n(call *ast.CallExpr) bool {
 // At least one, not exactly one: a single use case can legitimately guard
 // several operations, and the framework's own drive package binds two
 // permissions to one use case type.
-func (p *Package) checkPermissionBinding(uc useCase, decl *ast.FuncDecl, body *ast.BlockStmt, perms map[string][]permDecl, out *diag.Set) {
+func (p *Package) checkPermissionBinding(uc useCase, decl *ast.FuncDecl, body *ast.BlockStmt, perms map[string][]permDecl, namesOwnPermission bool, out *diag.Set) {
 	declared := perms[uc.name]
 	if len(declared) == 0 {
 		out.Add(diag.Finding{
@@ -363,16 +404,6 @@ func (p *Package) checkPermissionBinding(uc useCase, decl *ast.FuncDecl, body *a
 		return
 	}
 
-	used := map[string]bool{}
-	ast.Inspect(body, func(n ast.Node) bool {
-		id, ok := n.(*ast.Ident)
-		if !ok {
-			return true
-		}
-		used[id.Name] = true
-		return true
-	})
-
 	// The texts are end user facing regardless of whether the implementation
 	// consults the permission, so this is checked for every declaration rather
 	// than only for the one that is used.
@@ -380,10 +411,8 @@ func (p *Package) checkPermissionBinding(uc useCase, decl *ast.FuncDecl, body *a
 		p.checkPermissionI18n(uc, d, out)
 	}
 
-	for _, d := range declared {
-		if used[d.varName] {
-			return
-		}
+	if namesOwnPermission {
+		return
 	}
 
 	// Delegation counts here for the same reason it counts as authorisation
