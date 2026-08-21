@@ -32,10 +32,10 @@ func TestInference(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected a clean run, got exit %d:\n%s", code, out)
 	}
-	// two use cases, one query, one command, two events, three aggregates,
-	// one projection, two repositories, three permissions
-	if !strings.Contains(out, "15 constructs") {
-		t.Errorf("expected 15 recognised constructs, got:\n%s", out)
+	// three use cases, one query, one command, two events, three aggregates,
+	// one projection, two repositories, four permissions
+	if !strings.Contains(out, "17 constructs") {
+		t.Errorf("expected 17 recognised constructs, got:\n%s", out)
 	}
 }
 
@@ -242,5 +242,28 @@ func TestConformantProject(t *testing.T) {
 	out, code := runVerify(t, "../../testdata/example")
 	if code != 0 {
 		t.Fatalf("the conformant fixture must verify clean, got exit %d:\n%s", code, out)
+	}
+}
+
+// TestPermissionTextsThroughAHelper guards a rule that would otherwise reward
+// the worse structure.
+//
+// Permission texts have to come from the translation catalogue, and writing the
+// catalogue call out at every declaration is a dozen lines each — hundreds
+// across a system. Any project will factor that into a helper. If the check
+// only accepted the inlined form it would report the factored one, and the way
+// to satisfy it would be to undo the refactoring.
+//
+// The conformant fixture therefore declares one permission through a helper of
+// its own, in another package. That the helper sits elsewhere is the point: a
+// lookup that resolved identifiers through the calling package's type
+// information would find nothing there and answer no, silently.
+func TestPermissionTextsThroughAHelper(t *testing.T) {
+	out, code := runVerify(t, "../../testdata/example")
+	if code != 0 {
+		t.Fatalf("a helper that goes through the catalogue must satisfy the rule, got exit %d:\n%s", code, out)
+	}
+	if strings.Contains(out, "SPEC-V6-059") {
+		t.Errorf("the factored form was reported:\n%s", out)
 	}
 }

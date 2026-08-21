@@ -33,6 +33,10 @@ const (
 // CheckUseCases verifies the shape, the file layout, the authorisation and the
 // dependency injection of every use case in a bounded context.
 func CheckUseCases(pkgs []*Package, cfg config.Config, root string, out *diag.Set) {
+	// A shared helper is resolved across the module, so the index is built from
+	// every loaded package rather than from each one in turn.
+	funcs := indexFuncs(pkgs)
+
 	for _, p := range pkgs {
 		rel := p.relDir(root)
 		if _, inContext := cfg.InContextRoot(rel); !inContext {
@@ -42,11 +46,11 @@ func CheckUseCases(pkgs []*Package, cfg config.Config, root string, out *diag.Se
 			continue
 		}
 
-		perms := p.permissionsByUseCase()
+		perms := p.permissionsByUseCase(funcs)
 		for _, uc := range p.useCaseTypes() {
 			p.checkUseCaseFile(uc, out)
 			p.checkUseCaseSignature(uc, out)
-			p.checkUseCaseConstructor(uc, perms, out)
+			p.checkUseCaseConstructor(uc, perms, funcs, out)
 		}
 	}
 }
@@ -90,7 +94,7 @@ func (p *Package) checkUseCaseSignature(uc useCase, out *diag.Set) {
 // checkUseCaseConstructor verifies that the constructor exists, lives beside
 // its type, performs an authorisation check and takes its dependencies as
 // parameters.
-func (p *Package) checkUseCaseConstructor(uc useCase, perms map[string][]permDecl, out *diag.Set) {
+func (p *Package) checkUseCaseConstructor(uc useCase, perms map[string][]permDecl, funcs funcIndex, out *diag.Set) {
 	name := "New" + uc.name
 	fn, decl, ok := p.lookupFuncDecl(name)
 	if !ok {
@@ -139,7 +143,7 @@ func (p *Package) checkUseCaseConstructor(uc useCase, perms map[string][]permDec
 	named := p.namesOwnPermission(body, perms[uc.name])
 
 	p.checkAuthorisation(uc, decl, body, named, out)
-	p.checkPermissionBinding(uc, decl, body, perms, named, out)
+	p.checkPermissionBinding(uc, decl, body, perms, named, funcs, out)
 	p.checkDependencies(uc, decl, body, out)
 }
 
@@ -299,7 +303,7 @@ type permDecl struct {
 // The framework binds a permission to a use case through the type parameter of
 // permission.Declare, and enforces at run time that it is a named func type.
 // That makes the pairing statically recoverable.
-func (p *Package) permissionsByUseCase() map[string][]permDecl {
+func (p *Package) permissionsByUseCase(funcs funcIndex) map[string][]permDecl {
 	out := map[string][]permDecl{}
 
 	for _, f := range p.pkg.Syntax {
@@ -339,7 +343,7 @@ func (p *Package) permissionsByUseCase() map[string][]permDecl {
 					// The CRUD helpers generate their texts through i18n; the
 					// plain Declare only does so when the caller passes i18n
 					// values in.
-					i18n: fnName != "Declare" || p.usesI18n(call),
+					i18n: fnName != "Declare" || p.usesI18n(call, funcs),
 					pos:  p.pos(call.Pos()),
 				})
 			}
@@ -364,9 +368,36 @@ func (p *Package) specFuncNameIn(fun ast.Expr, pkgPath string) string {
 
 // usesI18n reports whether a permission declaration takes its texts from the
 // translation catalogue rather than from hardcoded literals.
-func (p *Package) usesI18n(call *ast.CallExpr) bool {
+//
+// A helper of the project's own counts. Writing the catalogue call out at every
+// declaration is a dozen lines each and hundreds across a system, so a project
+// factors it into something like permName(id, "…") — and a rule that only
+// accepts the inlined form would punish the better structure and push people
+// towards the worse one.
+//
+// The indirection is followed exactly one step, into functions of the same
+// package. That is enough for a helper and stops well short of dataflow
+// analysis, whose cost this design deliberately avoids.
+func (p *Package) usesI18n(call *ast.CallExpr, funcs funcIndex) bool {
+	if p.mentionsI18n(call) {
+		return true
+	}
+	for _, arg := range call.Args {
+		inner, ok := arg.(*ast.CallExpr)
+		if !ok {
+			continue
+		}
+		if fn, ok := funcs.lookup(p, inner.Fun); ok && fn.pkg.mentionsI18n(fn.body) {
+			return true
+		}
+	}
+	return false
+}
+
+// mentionsI18n reports whether the node references the translation catalogue.
+func (p *Package) mentionsI18n(n ast.Node) bool {
 	found := false
-	ast.Inspect(call, func(n ast.Node) bool {
+	ast.Inspect(n, func(n ast.Node) bool {
 		if found {
 			return false
 		}
@@ -384,13 +415,61 @@ func (p *Package) usesI18n(call *ast.CallExpr) bool {
 	return found
 }
 
+// funcIndex maps a qualified function name to its body and the package that
+// owns it, so a helper can be resolved wherever in the module it was put.
+//
+// The owner is not decoration. Identifiers are resolved through the type
+// information of the package they were written in; looking them up through the
+// caller's would silently find nothing, and the check would quietly answer no.
+type funcIndex map[string]indexedFunc
+
+type indexedFunc struct {
+	pkg  *Package
+	body *ast.BlockStmt
+}
+
+// indexFuncs collects the package level functions of every loaded package.
+func indexFuncs(pkgs []*Package) funcIndex {
+	out := funcIndex{}
+	for _, p := range pkgs {
+		for _, f := range p.pkg.Syntax {
+			for _, decl := range f.Decls {
+				fd, ok := decl.(*ast.FuncDecl)
+				if ok && fd.Recv == nil && fd.Body != nil {
+					out[p.PkgPath()+"."+fd.Name.Name] = indexedFunc{pkg: p, body: fd.Body}
+				}
+			}
+		}
+	}
+	return out
+}
+
+// lookup resolves a call target to the function it names.
+func (i funcIndex) lookup(p *Package, fun ast.Expr) (indexedFunc, bool) {
+	var id *ast.Ident
+	switch f := fun.(type) {
+	case *ast.Ident:
+		id = f
+	case *ast.SelectorExpr:
+		id = f.Sel
+	default:
+		return indexedFunc{}, false
+	}
+	obj := p.pkg.TypesInfo.Uses[id]
+	if obj == nil || obj.Pkg() == nil {
+		return indexedFunc{}, false
+	}
+	f, ok := i[obj.Pkg().Path()+"."+obj.Name()]
+	return f, ok
+}
+
 // checkPermissionBinding requires at least one permission bound to the use case
 // and actually consulted by the implementation.
 //
 // At least one, not exactly one: a single use case can legitimately guard
 // several operations, and the framework's own drive package binds two
 // permissions to one use case type.
-func (p *Package) checkPermissionBinding(uc useCase, decl *ast.FuncDecl, body *ast.BlockStmt, perms map[string][]permDecl, namesOwnPermission bool, out *diag.Set) {
+func (p *Package) checkPermissionBinding(uc useCase, decl *ast.FuncDecl, body *ast.BlockStmt, perms map[string][]permDecl, namesOwnPermission bool, funcs funcIndex, out *diag.Set) {
 	declared := perms[uc.name]
 	if len(declared) == 0 {
 		out.Add(diag.Finding{
@@ -408,7 +487,7 @@ func (p *Package) checkPermissionBinding(uc useCase, decl *ast.FuncDecl, body *a
 	// consults the permission, so this is checked for every declaration rather
 	// than only for the one that is used.
 	for _, d := range declared {
-		p.checkPermissionI18n(uc, d, out)
+		p.checkPermissionI18n(uc, d, funcs, out)
 	}
 
 	if namesOwnPermission {
@@ -444,7 +523,7 @@ func (p *Package) checkPermissionBinding(uc useCase, decl *ast.FuncDecl, body *a
 // editor, where somebody who is not a developer decides who may do what. A
 // hardcoded German or English sentence makes that screen untranslatable, and
 // the decision it supports is exactly the kind that must be understood.
-func (p *Package) checkPermissionI18n(uc useCase, d permDecl, out *diag.Set) {
+func (p *Package) checkPermissionI18n(uc useCase, d permDecl, funcs funcIndex, out *diag.Set) {
 	if d.i18n {
 		return
 	}

@@ -8,6 +8,7 @@ type UseCases struct {
 	SubmitQuote       SubmitQuote
 	ApproveQuote      ApproveQuote
 	FindQuoteOverview FindQuoteOverview
+	WithdrawQuote     WithdrawQuote
 }
 
 // NewUseCases wires the quotation use cases.
@@ -16,6 +17,7 @@ func NewUseCases(view QuoteOverviewReader, gate LegalGate) UseCases {
 		SubmitQuote:       NewSubmitQuote(nopRegistry{}),
 		ApproveQuote:      NewApproveQuote(gate),
 		FindQuoteOverview: NewFindQuoteOverview(view),
+		WithdrawQuote:     NewWithdrawQuote(),
 	}
 }
 
