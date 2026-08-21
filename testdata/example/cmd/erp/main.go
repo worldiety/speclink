@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	_ = sales.NewUseCases(emptyOverview{}, openGate{})
+	_ = sales.NewUseCases(emptyOverview{}, emptyOverview{}, openGate{})
 }
 
 // emptyOverview stands in for the running projection while the wiring of the
@@ -18,6 +18,8 @@ type emptyOverview struct{}
 func (emptyOverview) Get(customer string) (sales.QuoteOverview, bool) {
 	return sales.QuoteOverview{}, false
 }
+
+func (emptyOverview) All() []sales.QuoteOverview { return nil }
 
 // openGate stands in for the legal review while the wiring of it is out of
 // scope for this fixture.

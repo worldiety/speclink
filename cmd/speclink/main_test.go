@@ -32,10 +32,10 @@ func TestInference(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected a clean run, got exit %d:\n%s", code, out)
 	}
-	// three use cases, one query, one command, two events, three aggregates,
-	// one projection, two repositories, four permissions
-	if !strings.Contains(out, "17 constructs") {
-		t.Errorf("expected 17 recognised constructs, got:\n%s", out)
+	// four use cases, two queries, one command, two events, three aggregates,
+	// one projection, two repositories, five permissions
+	if !strings.Contains(out, "19 constructs") {
+		t.Errorf("expected 19 recognised constructs, got:\n%s", out)
 	}
 }
 
@@ -265,5 +265,29 @@ func TestPermissionTextsThroughAHelper(t *testing.T) {
 	}
 	if strings.Contains(out, "SPEC-V6-059") {
 		t.Errorf("the factored form was reported:\n%s", out)
+	}
+}
+
+// TestUseCaseBuiltFromCombinators guards against reading the wrong function.
+//
+// A constructor need not return a closure. It may build the use case out of
+// combinators — guard(listAll(rows, less), PermX) — where the permission is
+// applied by wrapping and the only function literal in sight is the comparator
+// handed to the sort. That comparator is an argument of a helper, not the use
+// case, and it names neither a subject nor a permission. Taking the first
+// literal found anywhere lands on it, and every check downstream then examines
+// a body that could not possibly hold what it is looking for.
+//
+// The fixture builds one use case exactly that way. Both checks that read the
+// body have to see through it.
+func TestUseCaseBuiltFromCombinators(t *testing.T) {
+	out, code := runVerify(t, "../../testdata/example")
+	if code != 0 {
+		t.Fatalf("a use case assembled from combinators must pass, got exit %d:\n%s", code, out)
+	}
+	for _, code := range []string{"SPEC-V6-055", "SPEC-V6-057"} {
+		if strings.Contains(out, code) {
+			t.Errorf("%s misfired on the combinator form:\n%s", code, out)
+		}
 	}
 }

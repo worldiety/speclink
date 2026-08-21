@@ -142,7 +142,7 @@ func (p *Package) checkUseCaseConstructor(uc useCase, perms map[string][]permDec
 	// questions below, so it is established once.
 	named := p.namesOwnPermission(body, perms[uc.name])
 
-	p.checkAuthorisation(uc, decl, body, named, out)
+	p.checkAuthorisation(uc, decl, body, p.namesAnyPermission(body, perms), out)
 	p.checkPermissionBinding(uc, decl, body, perms, named, funcs, out)
 	p.checkDependencies(uc, decl, body, out)
 }
@@ -154,20 +154,26 @@ func (p *Package) checkUseCaseConstructor(uc useCase, perms map[string][]permDec
 // case that nowhere mentions the subject it was handed is almost certainly an
 // oversight, and that is the class of mistake worth catching. In the reference
 // framework an unguarded read projection was a real, project wide bug.
-func (p *Package) checkAuthorisation(uc useCase, decl *ast.FuncDecl, body *ast.BlockStmt, namesOwnPermission bool, out *diag.Set) {
+func (p *Package) checkAuthorisation(uc useCase, decl *ast.FuncDecl, body *ast.BlockStmt, namesAnyPermission bool, out *diag.Set) {
 	if p.hasAuthorisationEvidence(body) {
 		return
 	}
 
-	// Naming the permission that guards this use case is evidence too, and
-	// stronger than the presence of a subject: it says which right is being
-	// enforced, not merely that something was consulted.
+	// Naming a permission is evidence too, and stronger than the presence of a
+	// subject: it says which right is being enforced, not merely that
+	// something was consulted.
 	//
-	// It is the only evidence there is when the guard is applied at the type
-	// level rather than in the body — `return guard(load, PermViewRisks)`
-	// wraps the check around the function and never mentions a subject, which
-	// is a perfectly ordinary way to write a read side.
-	if namesOwnPermission {
+	// It is the only evidence there is when the guard is applied by wrapping
+	// rather than in the body — `return guard(load, PermViewRisks)` puts the
+	// check around the function and never mentions a subject, which is a
+	// perfectly ordinary way to write a read side.
+	//
+	// Any declared permission counts, not just this use case's own. A read
+	// that enforces a neighbour's right — policies guarded by the document
+	// permission — has plainly been thought about; whether it should have one
+	// of its own is a different question, and K5-UC-PERMISSION already asks
+	// it. Reporting it here as well would say something untrue about it.
+	if namesAnyPermission {
 		return
 	}
 	out.Add(diag.Finding{
@@ -178,6 +184,16 @@ func (p *Package) checkAuthorisation(uc useCase, decl *ast.FuncDecl, body *ast.B
 		Why:  "Every use case receives a subject, and one that never consults it grants everyone everything. The check here is deliberately loose: it does not judge whether the check is right, only that there is one.",
 		How:  "Call subject.Audit(Perm…), subject.AuditResource(…), subject.HasPermission/HasRole/HasGroup, return an error wrapping user.PermissionDeniedErr, or pass the subject on to another use case that checks.",
 	})
+}
+
+// namesAnyPermission reports whether the body mentions any declared permission
+// of the context, whichever use case it belongs to.
+func (p *Package) namesAnyPermission(body *ast.BlockStmt, perms map[string][]permDecl) bool {
+	var all []permDecl
+	for _, ds := range perms {
+		all = append(all, ds...)
+	}
+	return p.namesOwnPermission(body, all)
 }
 
 // namesOwnPermission reports whether the body mentions one of the permissions
@@ -624,20 +640,31 @@ func closureBody(decl *ast.FuncDecl) *ast.BlockStmt {
 	if decl == nil || decl.Body == nil {
 		return nil
 	}
+	// Only a literal that is *returned* is the use case. Taking the first one
+	// found anywhere would just as happily take a comparator handed to a sort,
+	// or any other callback passed to a helper — an incidental function that
+	// names neither the subject nor the permission, so every check downstream
+	// would look at the wrong body and find nothing.
 	var body *ast.BlockStmt
 	ast.Inspect(decl.Body, func(n ast.Node) bool {
 		if body != nil {
 			return false
 		}
-		if lit, ok := n.(*ast.FuncLit); ok {
+		ret, ok := n.(*ast.ReturnStmt)
+		if !ok || len(ret.Results) == 0 {
+			return true
+		}
+		if lit, ok := ret.Results[0].(*ast.FuncLit); ok {
 			body = lit.Body
 			return false
 		}
 		return true
 	})
 	if body == nil {
-		// A constructor that delegates rather than building a closure, e.g.
-		// one that decorates another use case. Its own body is what there is.
+		// A constructor that delegates rather than returning a closure: it
+		// builds the use case out of combinators, decorates another one, or
+		// assigns the closure to a variable first. Its own body is what there
+		// is, and reading the whole of it is the conservative choice.
 		return decl.Body
 	}
 	return body

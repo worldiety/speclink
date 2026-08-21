@@ -23,3 +23,11 @@ var PermWithdrawQuote = permission.Declare[WithdrawQuote](
 	permtext.Name("sales.quote.withdraw", "Withdraw quote"),
 	"Holders may take back a submitted quote.",
 )
+
+// PermListQuotes guards the list query. It is never named inside a closure of
+// the use case, only handed to the combinator that wraps it.
+var PermListQuotes = permission.Declare[ListQuotes](
+	"sales.quote.list",
+	permtext.Name("sales.quote.list", "List quotes"),
+	permtext.Desc("sales.quote.list", "Holders may read the quotation list."),
+)

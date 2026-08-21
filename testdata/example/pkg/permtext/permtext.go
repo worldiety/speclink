@@ -18,3 +18,11 @@ func Name(id permission.ID, en string) string {
 		i18n.Values{language.English: en},
 	).String()
 }
+
+// Desc returns the translatable description of a permission.
+func Desc(id permission.ID, en string) string {
+	return i18n.MustString(
+		i18n.Key(string(id)+"_perm_desc"),
+		i18n.Values{language.English: en},
+	).String()
+}
