@@ -2,7 +2,10 @@ module example.com/arch
 
 go 1.26.5
 
-require go.wdy.de/nago v0.0.0-20260806113855-e82d2c34878e
+require (
+	github.com/worldiety/speclink v0.0.0
+	go.wdy.de/nago v0.0.0-20260806113855-e82d2c34878e
+)
 
 require (
 	github.com/tidwall/btree v1.8.1 // indirect
@@ -16,3 +19,5 @@ require (
 	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 )
+
+replace github.com/worldiety/speclink => ../..

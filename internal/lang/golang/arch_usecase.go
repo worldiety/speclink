@@ -32,7 +32,7 @@ const (
 
 // CheckUseCases verifies the shape, the file layout, the authorisation and the
 // dependency injection of every use case in a bounded context.
-func CheckUseCases(pkgs []*Package, cfg config.Config, root string, out *diag.Set) {
+func CheckUseCases(pkgs []*Package, cfg config.Config, root string, waived ir.Waivers, out *diag.Set) {
 	// A shared helper is resolved across the module, so the index is built from
 	// every loaded package rather than from each one in turn.
 	funcs := indexFuncs(pkgs)
@@ -48,9 +48,24 @@ func CheckUseCases(pkgs []*Package, cfg config.Config, root string, out *diag.Se
 
 		perms := p.permissionsByUseCase(funcs)
 		for _, uc := range p.useCaseTypes() {
-			p.checkUseCaseFile(uc, out)
-			p.checkUseCaseSignature(uc, out)
-			p.checkUseCaseConstructor(uc, perms, funcs, out)
+			// The findings of one use case are gathered on their own so that a
+			// waiver can be applied to them. A waiver names the construct it
+			// exempts, and a finding carries only a position, so the two can
+			// only be matched where it is still known which construct is being
+			// examined.
+			// The waiver names the construct as speclink identifies it, which
+			// is the package qualified name rather than the bare one.
+			qualified := p.PkgPath() + "." + uc.name
+			scoped := &diag.Set{}
+			p.checkUseCaseFile(uc, scoped)
+			p.checkUseCaseSignature(uc, scoped)
+			p.checkUseCaseConstructor(uc, perms, funcs, scoped)
+			for _, f := range scoped.Findings() {
+				if f.Rule != "" && waived.Has(qualified, f.Rule) {
+					continue
+				}
+				out.Add(f)
+			}
 		}
 	}
 }

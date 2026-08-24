@@ -55,7 +55,7 @@ func CoverConstructs(constructs []ir.Construct, bindings []ir.Binding, out *diag
 			}
 		}
 	}
-	waived := waivedRules(bindings)
+	waived := ir.CollectWaivers(bindings)
 
 	sorted := append([]ir.Construct(nil), constructs...)
 	sort.Slice(sorted, func(i, j int) bool {
@@ -75,7 +75,7 @@ func CoverConstructs(constructs []ir.Construct, bindings []ir.Binding, out *diag
 		}
 		s.Unbound = append(s.Unbound, c)
 
-		if waived[waiverKey{target: c.Name, rule: RuleConstructUnbound}] {
+		if waived.Has(c.Name, RuleConstructUnbound) {
 			continue
 		}
 		out.Add(diag.Finding{

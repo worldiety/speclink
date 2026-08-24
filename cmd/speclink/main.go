@@ -189,7 +189,7 @@ func verify(args []string) error {
 
 	// V6: the architecture rules. They read the project layout, which is the
 	// one thing speclink cannot infer and the only thing speclink.json states.
-	golang.CheckUseCases(pkgs, layout, absRoot, findings)
+	golang.CheckUseCases(pkgs, layout, absRoot, ir.CollectWaivers(bindings), findings)
 	golang.CheckBoundedContexts(pkgs, layout, absRoot, findings)
 	golang.CheckInfrastructure(pkgs, layout, absRoot, findings)
 	golang.CheckMainPackages(pkgs, layout, absRoot, findings)

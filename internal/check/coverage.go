@@ -58,7 +58,7 @@ func (c Coverage) Ratio() float64 {
 // test.
 func CoverRequirements(tree *reqtree.Tree, bindings []ir.Binding, out *diag.Set) Coverage {
 	cov := Coverage{BySatisfier: map[string][]ir.Target{}}
-	waived := waivedRules(bindings)
+	waived := ir.CollectWaivers(bindings)
 
 	// Forward: collect what each construct claims to satisfy.
 	for _, b := range bindings {
@@ -89,7 +89,7 @@ func CoverRequirements(tree *reqtree.Tree, bindings []ir.Binding, out *diag.Set)
 		}
 		cov.Uncovered = append(cov.Uncovered, id)
 
-		if waived[waiverKey{rule: RuleRequirementUncovered}] {
+		if waived.Has("", RuleRequirementUncovered) {
 			continue
 		}
 		out.Add(diag.Finding{
@@ -105,10 +105,10 @@ func CoverRequirements(tree *reqtree.Tree, bindings []ir.Binding, out *diag.Set)
 }
 
 // checkSatisfiable rejects references to requirements that must not be covered.
-func checkSatisfiable(r *ir.Requirement, b ir.Binding, a ir.Assertion, waived map[waiverKey]bool, out *diag.Set) {
+func checkSatisfiable(r *ir.Requirement, b ir.Binding, a ir.Assertion, waived ir.Waivers, out *diag.Set) {
 	switch r.Status {
 	case ir.Abstract:
-		if waived[waiverKey{target: b.Target.String(), rule: RuleAbstractCovered}] {
+		if waived.Has(b.Target.String(), RuleAbstractCovered) {
 			return
 		}
 		out.Add(diag.Finding{
@@ -120,7 +120,7 @@ func checkSatisfiable(r *ir.Requirement, b ir.Binding, a ir.Assertion, waived ma
 			How:  "Reference the concrete requirement derived from " + r.ID + " instead.",
 		})
 	case ir.Superseded:
-		if waived[waiverKey{target: b.Target.String(), rule: RuleSupersededCovered}] {
+		if waived.Has(b.Target.String(), RuleSupersededCovered) {
 			return
 		}
 		out.Add(diag.Finding{
@@ -132,26 +132,6 @@ func checkSatisfiable(r *ir.Requirement, b ir.Binding, a ir.Assertion, waived ma
 			How:  "Point at the successor that lists " + r.ID + " in its Supersedes field.",
 		})
 	}
-}
-
-// waiverKey identifies a waiver: a rule, optionally narrowed to one target.
-type waiverKey struct {
-	target string
-	rule   string
-}
-
-// waivedRules collects the waivers declared via spec.Waive.
-func waivedRules(bindings []ir.Binding) map[waiverKey]bool {
-	out := map[waiverKey]bool{}
-	for _, b := range bindings {
-		for _, a := range b.Assertions {
-			if a.Kind != ir.AssertWaive {
-				continue
-			}
-			out[waiverKey{target: b.Target.String(), rule: a.Rule}] = true
-		}
-	}
-	return out
 }
 
 func requirementOf(tree *reqtree.Tree, goIdentOrID string) *ir.Requirement {

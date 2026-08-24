@@ -221,11 +221,23 @@ func TestArchitectureRules(t *testing.T) {
 		}
 	}
 
-	// Both use cases of the fixture violate file layout and authorisation.
-	for _, code := range []string{"SPEC-V6-050", "SPEC-V6-053", "SPEC-V6-055"} {
+	// Both use cases of the fixture violate file layout.
+	for _, code := range []string{"SPEC-V6-050", "SPEC-V6-053"} {
 		if n := strings.Count(out, "["+code+"]"); n != 2 {
 			t.Errorf("expected %s twice, found %d times", code, n)
 		}
+	}
+
+	// Both use cases violate authorisation as well, but one of them waives the
+	// rule. That the count is one rather than two is the whole assertion: the
+	// rule still fires, and the waiver suppressed exactly the other instance.
+	// spec.Waive did not reach the architecture rules at all until it was
+	// wired, and nothing would have said so.
+	if n := strings.Count(out, "[SPEC-V6-055]"); n != 1 {
+		t.Errorf("expected SPEC-V6-055 once, the other being waived, found %d times", n)
+	}
+	if strings.Contains(out, "app/billing/usecases.go") && strings.Contains(out, "IssueInvoice contains nothing") {
+		t.Error("the waived use case was still reported for K5-UC-AUTHZ")
 	}
 
 	// The wiring layer connects views to use cases and must stay exempt,

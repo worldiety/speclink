@@ -53,7 +53,7 @@ const (
 // is two types corrupting each other's data from the first message, and being
 // free to change the shape does not make that harmless.
 func Discriminators(schema []ir.SchemaType, bindings []ir.Binding, out *diag.Set) {
-	waived := waivedRules(bindings)
+	waived := ir.CollectWaivers(bindings)
 	byTag := map[string][]ir.SchemaType{}
 
 	for _, t := range schema {
@@ -76,7 +76,7 @@ func Discriminators(schema []ir.SchemaType, bindings []ir.Binding, out *diag.Set
 		// either type resolves it, and reporting both would make one mistake
 		// look like two.
 		for _, t := range group[1:] {
-			if waived[waiverKey{target: t.Name, rule: RuleDiscriminatorCollision}] {
+			if waived.Has(t.Name, RuleDiscriminatorCollision) {
 				continue
 			}
 			// The other type is named in full. In the case this rule exists
@@ -106,7 +106,7 @@ func Discriminators(schema []ir.SchemaType, bindings []ir.Binding, out *diag.Set
 // package would take the package out of scope and hide the very removal that
 // has to be reported.
 func Evolution(schema []ir.SchemaType, freeze map[string]Freeze, base *baseline.File, scope map[string]bool, bindings []ir.Binding, out *diag.Set) {
-	waived := waivedRules(bindings)
+	waived := ir.CollectWaivers(bindings)
 	current := map[string]ir.SchemaType{}
 
 	for _, t := range schema {
@@ -136,8 +136,8 @@ func Evolution(schema []ir.SchemaType, freeze map[string]Freeze, base *baseline.
 // recorded that is simply untrue: messages may already be stored under it.
 // Allowing the demotion would make the baseline a suggestion rather than a
 // record, and every rule that reads it worthless.
-func reportDraftFrozen(t ir.SchemaType, waived map[waiverKey]bool, out *diag.Set) {
-	if waived[waiverKey{target: t.Name, rule: RuleDraftFrozen}] {
+func reportDraftFrozen(t ir.SchemaType, waived ir.Waivers, out *diag.Set) {
+	if waived.Has(t.Name, RuleDraftFrozen) {
 		return
 	}
 	out.Add(diag.Finding{
@@ -155,8 +155,8 @@ func reportDraftFrozen(t ir.SchemaType, waived map[waiverKey]bool, out *diag.Set
 //
 // This is what drives adoption. Without it an empty baseline would stay empty
 // and the whole guard would never engage, because nothing would ever ask.
-func reportBaselineMissing(t ir.SchemaType, waived map[waiverKey]bool, out *diag.Set) {
-	if waived[waiverKey{target: t.Name, rule: RuleBaselineMissing}] {
+func reportBaselineMissing(t ir.SchemaType, waived ir.Waivers, out *diag.Set) {
+	if waived.Has(t.Name, RuleBaselineMissing) {
 		return
 	}
 	out.Add(diag.Finding{
@@ -178,8 +178,8 @@ func optionalOf(freeze map[string]Freeze, name string) map[string]bool {
 }
 
 // compare checks one type against its record.
-func compare(t ir.SchemaType, e baseline.Entry, optional map[string]bool, waived map[waiverKey]bool, out *diag.Set) {
-	if t.Discriminator != e.Discriminator && !waived[waiverKey{target: t.Name, rule: RuleDiscriminatorFrozen}] {
+func compare(t ir.SchemaType, e baseline.Entry, optional map[string]bool, waived ir.Waivers, out *diag.Set) {
+	if t.Discriminator != e.Discriminator && !waived.Has(t.Name, RuleDiscriminatorFrozen) {
 		out.Add(diag.Finding{
 			Code: diag.Code(diag.PhaseSemantic, 91),
 			Pos:  t.Pos,
@@ -198,7 +198,7 @@ func compare(t ir.SchemaType, e baseline.Entry, optional map[string]bool, waived
 			if _, byWire := wireField(t, f.Wire); byWire {
 				continue
 			}
-			if waived[waiverKey{target: t.Name + "." + f.Name, rule: RuleFieldRemoved}] {
+			if waived.Has(t.Name+"."+f.Name, RuleFieldRemoved) {
 				continue
 			}
 			out.Add(diag.Finding{
@@ -211,7 +211,7 @@ func compare(t ir.SchemaType, e baseline.Entry, optional map[string]bool, waived
 			})
 			continue
 		}
-		if cur.Wire != f.Wire && !waived[waiverKey{target: t.Name + "." + f.Name, rule: RuleFieldRenamed}] {
+		if cur.Wire != f.Wire && !waived.Has(t.Name+"."+f.Name, RuleFieldRenamed) {
 			out.Add(diag.Finding{
 				Code: diag.Code(diag.PhaseSemantic, 93),
 				Pos:  t.Pos,
@@ -221,7 +221,7 @@ func compare(t ir.SchemaType, e baseline.Entry, optional map[string]bool, waived
 				How:  "Restore the json tag `json:\"" + f.Wire + "\"`. The Go field name may be changed freely; only the stored name is promised.",
 			})
 		}
-		if cur.Shape != f.Shape && !waived[waiverKey{target: t.Name + "." + f.Name, rule: RuleFieldShape}] {
+		if cur.Shape != f.Shape && !waived.Has(t.Name+"."+f.Name, RuleFieldShape) {
 			out.Add(diag.Finding{
 				Code: diag.Code(diag.PhaseSemantic, 96),
 				Pos:  t.Pos,
@@ -231,7 +231,7 @@ func compare(t ir.SchemaType, e baseline.Entry, optional map[string]bool, waived
 				How:  "Restore the old shape. A named type over the same underlying type is free, and so is any integer width; a genuinely different shape needs a new field beside this one.",
 			})
 		}
-		if f.Optional && !optional[f.Name] && !waived[waiverKey{target: t.Name + "." + f.Name, rule: RuleOptionalRevoked}] {
+		if f.Optional && !optional[f.Name] && !waived.Has(t.Name+"."+f.Name, RuleOptionalRevoked) {
 			out.Add(diag.Finding{
 				Code: diag.Code(diag.PhaseSemantic, 97),
 				Pos:  t.Pos,
@@ -252,7 +252,7 @@ func compare(t ir.SchemaType, e baseline.Entry, optional map[string]bool, waived
 // This is the one rule of the family that does not stop a change but shapes it.
 // Adding a field is always allowed and is how a persisted model grows; what is
 // not allowed is pretending that the messages written yesterday contain it.
-func reportAdded(t ir.SchemaType, e baseline.Entry, optional map[string]bool, waived map[waiverKey]bool, out *diag.Set) {
+func reportAdded(t ir.SchemaType, e baseline.Entry, optional map[string]bool, waived ir.Waivers, out *diag.Set) {
 	for _, cur := range t.Fields {
 		if _, promised := e.ByWire(cur.Wire); promised {
 			continue
@@ -263,7 +263,7 @@ func reportAdded(t ir.SchemaType, e baseline.Entry, optional map[string]bool, wa
 		if _, known := e.Field(cur.Name); known {
 			continue
 		}
-		if optional[cur.Name] || waived[waiverKey{target: t.Name + "." + cur.Name, rule: RuleFieldAddedRequired}] {
+		if optional[cur.Name] || waived.Has(t.Name+"."+cur.Name, RuleFieldAddedRequired) {
 			continue
 		}
 		out.Add(diag.Finding{
@@ -292,7 +292,7 @@ func wireField(t ir.SchemaType, wire string) (ir.SchemaField, bool) {
 // The waiver sits on the package, because the type it would otherwise sit on no
 // longer exists. Retiring a promised type is deliberate work: the stored
 // messages have to be purged first, and saying so out loud is the point.
-func reportRemoved(base *baseline.File, current map[string]ir.SchemaType, scope map[string]bool, waived map[waiverKey]bool, out *diag.Set) {
+func reportRemoved(base *baseline.File, current map[string]ir.SchemaType, scope map[string]bool, waived ir.Waivers, out *diag.Set) {
 	for _, name := range base.Names() {
 		if _, ok := current[name]; ok {
 			continue
@@ -301,8 +301,8 @@ func reportRemoved(base *baseline.File, current map[string]ir.SchemaType, scope 
 		if !scope[pkg] {
 			continue // not loaded in this run; absence says nothing
 		}
-		if waived[waiverKey{target: name, rule: RuleTypeRemoved}] ||
-			waived[waiverKey{target: pkg, rule: RuleTypeRemoved}] {
+		if waived.Has(name, RuleTypeRemoved) ||
+			waived.Has(pkg, RuleTypeRemoved) {
 			continue
 		}
 		out.Add(diag.Finding{
