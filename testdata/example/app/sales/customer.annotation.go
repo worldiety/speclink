@@ -2,6 +2,8 @@ package sales
 
 import (
 	"example.com/erp/requirements/dec"
+	"example.com/erp/requirements/fun/customer"
+	"example.com/erp/requirements/nfr"
 	"github.com/worldiety/speclink/spec"
 )
 
@@ -23,4 +25,12 @@ var _ = spec.For[CustomerEntity](
 var _ = spec.ForDecl(NewCustomerRepository,
 	spec.Satisfies(dec.RDecCustomerState),
 	spec.Rationale("The mapping between the two models lives here, which is where the choice to store state rather than facts actually takes effect."),
+)
+
+var _ = spec.ForField[CustomerEntity]("ID",
+	spec.Satisfies(nfr.RNfrTraceability),
+)
+
+var _ = spec.ForField[CustomerEntity]("Name",
+	spec.Satisfies(customer.RCustomerMasterdata),
 )

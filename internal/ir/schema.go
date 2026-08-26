@@ -45,4 +45,11 @@ type SchemaField struct {
 	// Optional reports whether the field may be absent from stored data. It is
 	// set for fields added after the type was promised.
 	Optional bool
+	// Pos is the declaration of the field itself.
+	//
+	// A finding about a field has to point at that field. Pointing at the
+	// enclosing type instead puts every field of a large event on one line,
+	// which is the difference between a list that can be worked through and a
+	// wall that gets ignored.
+	Pos Position
 }

@@ -190,7 +190,12 @@ func verify(args []string) error {
 	// K1: why the data is shaped the way it is, which forward coverage does
 	// not ask because aggregates and repositories carry no requirement of
 	// their own.
-	check.JustifyPersistence(tree, constructs, bindings, golang.DomainPackages(pkgs, layout, absRoot), findings)
+	domain := golang.DomainPackages(pkgs, layout, absRoot)
+	check.JustifyPersistence(tree, constructs, bindings, domain, findings)
+
+	// K1: forward coverage down to the field. Types are reviewed when they are
+	// created; fields accrete afterwards, which is where the drift is.
+	check.CoverFields(schema, bindings, domain, findings)
 
 	// V6: the architecture rules. They read the project layout, which is the
 	// one thing speclink cannot infer and the only thing speclink.json states.

@@ -3,6 +3,7 @@ package sales
 import (
 	"example.com/erp/requirements/dec"
 	"example.com/erp/requirements/fun/quote"
+	"example.com/erp/requirements/nfr"
 	"github.com/worldiety/speclink/spec"
 )
 
@@ -33,11 +34,30 @@ var _ = spec.ForField[SubmitQuoteCmd]("Title",
 	spec.Satisfies(quote.RQuoteSubmit),
 )
 
+// The fields of the submitted fact, one by one. QuoteID answers no business
+// question on its own — it is what makes the sequence of events on a quote
+// reconstructable at all, which is a requirement in its own right.
+var _ = spec.ForField[QuoteSubmitted]("QuoteID",
+	spec.Satisfies(nfr.RNfrTraceability),
+)
+
+var _ = spec.ForField[QuoteSubmitted]("QuoteNumber",
+	spec.Satisfies(quote.RQuoteSubmit),
+)
+
 // The withdrawal is not promised yet: the shape may still change in any way,
 // and the event may be dropped again. Promotion is the deletion of this term.
 var _ = spec.For[QuoteWithdrawn](
 	spec.Satisfies(quote.RQuoteApprove),
 	spec.Draft(),
+)
+
+var _ = spec.ForField[QuoteWithdrawn]("QuoteID",
+	spec.Satisfies(nfr.RNfrTraceability),
+)
+
+var _ = spec.ForField[QuoteWithdrawn]("Reason",
+	spec.Satisfies(quote.RQuoteApprove),
 )
 
 var _ = spec.ForDecl(Namespace,
@@ -48,5 +68,6 @@ var _ = spec.ForDecl(Namespace,
 // Added after the promise, so old messages lack it. Optionality cannot be
 // withdrawn later, because those messages cannot be rewritten.
 var _ = spec.ForField[QuoteSubmitted]("Channel",
+	spec.Satisfies(quote.RQuoteChannel),
 	spec.Optional(),
 )

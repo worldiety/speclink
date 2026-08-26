@@ -173,6 +173,7 @@ func (p *Package) readFields(st *types.Struct) []ir.SchemaField {
 			Name:  f.Name(),
 			Wire:  wire,
 			Shape: shapeOf(f.Type(), map[*types.Named]bool{}),
+			Pos:   p.pos(f.Pos()),
 		})
 	}
 	return out

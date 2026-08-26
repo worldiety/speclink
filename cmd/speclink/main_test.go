@@ -330,3 +330,25 @@ func TestPersistenceDecisionAcceptsEveryReasonableForm(t *testing.T) {
 		t.Errorf("a recorded decision was not accepted:\n%s", out)
 	}
 }
+
+// TestFieldCoverageReachesEveryStoredField pins that forward coverage goes down
+// to the field, and that the conformant fixture can actually satisfy it.
+//
+// Binding a type is not the same as accounting for what is in it. Types are
+// created deliberately and reviewed; fields accrete afterwards, and a field is
+// the one thing that cannot be renegotiated once messages carry it.
+//
+// The fixture binds every stored field, including the ones that answer no
+// business question on their own. QuoteID is bound to the traceability
+// requirement rather than exempted, because an identifier on a stored fact is
+// not self evident — it is what makes the sequence of events reconstructable,
+// which is a requirement like any other.
+func TestFieldCoverageReachesEveryStoredField(t *testing.T) {
+	out, code := runVerify(t, "../../testdata/example")
+	if code != 0 {
+		t.Fatalf("a project that binds its stored fields must pass, got exit %d:\n%s", code, out)
+	}
+	if strings.Contains(out, "SPEC-V6-022") {
+		t.Errorf("a bound field was still reported:\n%s", out)
+	}
+}
