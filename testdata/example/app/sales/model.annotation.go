@@ -1,8 +1,23 @@
 package sales
 
 import (
+	"example.com/erp/requirements/dec"
 	"example.com/erp/requirements/fun/quote"
 	"github.com/worldiety/speclink/spec"
+)
+
+// The quote is event sourced and the customer is not, in one and the same
+// context. That is the ordinary case, not a defect: the approval of a quote is
+// evidence and must stay readable as it was, while a customer is read by its
+// current name. Because the two mix here, the decision is recorded per
+// aggregate rather than once for the package.
+var _ = spec.For[QuoteAggregate](
+	spec.Satisfies(dec.RDecQuoteEventSourced),
+)
+
+var _ = spec.For[QuoteRepository](
+	spec.Satisfies(dec.RDecQuoteEventSourced),
+	spec.Rationale("The repository serves the folded state of the log, not a second source of truth: it is rebuilt from the events and may be dropped at any time."),
 )
 
 var _ = spec.For[SubmitQuoteCmd](

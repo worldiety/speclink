@@ -187,6 +187,11 @@ func verify(args []string) error {
 	// is checked for drafts too.
 	check.Discriminators(schema, bindings, findings)
 
+	// K1: why the data is shaped the way it is, which forward coverage does
+	// not ask because aggregates and repositories carry no requirement of
+	// their own.
+	check.JustifyPersistence(tree, constructs, bindings, golang.DomainPackages(pkgs, layout, absRoot), findings)
+
 	// V6: the architecture rules. They read the project layout, which is the
 	// one thing speclink cannot infer and the only thing speclink.json states.
 	golang.CheckUseCases(pkgs, layout, absRoot, ir.CollectWaivers(bindings), findings)

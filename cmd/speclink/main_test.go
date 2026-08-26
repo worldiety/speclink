@@ -203,6 +203,7 @@ func TestArchitectureRules(t *testing.T) {
 	}
 
 	want := []string{
+		"SPEC-V6-021", // aggregate without a persistence decision
 		"SPEC-V6-030", // main package outside cmd/
 		"SPEC-V6-032", // infrastructure imports a bounded context
 		"SPEC-V6-033", // infrastructure declares a use case
@@ -301,5 +302,31 @@ func TestUseCaseBuiltFromCombinators(t *testing.T) {
 		if strings.Contains(out, code) {
 			t.Errorf("%s misfired on the combinator form:\n%s", code, out)
 		}
+	}
+}
+
+// TestPersistenceDecisionAcceptsEveryReasonableForm guards the rule against the
+// mistake its own family keeps making: reporting the projects that did the
+// right thing.
+//
+// The choice between keeping facts and keeping state is written down in three
+// places depending on the project, and all three are ordinary. On the type,
+// because that is where the shape is. On the constructor, because a repository
+// is reached through New… and that is where the mapping between domain and
+// stored form actually lives. On the package, when a whole context made one
+// choice.
+//
+// The conformant fixture uses two of them, and mixes the strategies inside one
+// context on purpose: the quote is event sourced because its approval is
+// evidence, the customer next to it is kept as current state because a
+// corrected typo in a name is not a business event. That mixture is why the
+// rule asks per aggregate and not per package.
+func TestPersistenceDecisionAcceptsEveryReasonableForm(t *testing.T) {
+	out, code := runVerify(t, "../../testdata/example")
+	if code != 0 {
+		t.Fatalf("a project that records its persistence choice must pass, got exit %d:\n%s", code, out)
+	}
+	if strings.Contains(out, "SPEC-V6-021") {
+		t.Errorf("a recorded decision was not accepted:\n%s", out)
 	}
 }

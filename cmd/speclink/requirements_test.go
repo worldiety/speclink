@@ -17,7 +17,7 @@ func TestRequirementsCommand(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected a clean tree, got exit %d:\n%s", code, out)
 	}
-	if !strings.Contains(out, "4 requirements (3 normative)") {
+	if !strings.Contains(out, "6 requirements (5 normative)") {
 		t.Errorf("unexpected summary:\n%s", out)
 	}
 }

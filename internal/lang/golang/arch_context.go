@@ -242,3 +242,26 @@ func (p *Package) lookupFunc(name string) (*types.Func, bool) {
 	fn, ok := obj.(*types.Func)
 	return fn, ok
 }
+
+// DomainPackages returns the import paths of the packages that are the domain
+// side of a bounded context.
+//
+// It exists so that checks outside this package can ask the same question the
+// architecture rules ask, instead of reaching into infrastructure. Which
+// directories are contexts is the one thing speclink cannot infer, and asking
+// a shared helper keeps the answer in one place: an infrastructure type that
+// happens to carry an identity is not an aggregate anybody decided about.
+func DomainPackages(pkgs []*Package, cfg config.Config, root string) map[string]bool {
+	out := map[string]bool{}
+	for _, p := range pkgs {
+		rel := p.relDir(root)
+		if _, inContext := cfg.InContextRoot(rel); !inContext {
+			continue
+		}
+		if cfg.Excluded(rel) || contextRole(rel, cfg) != roleDomain {
+			continue
+		}
+		out[p.PkgPath()] = true
+	}
+	return out
+}
