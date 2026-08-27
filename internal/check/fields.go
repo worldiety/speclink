@@ -60,7 +60,7 @@ func CoverFields(schema []ir.SchemaType, constructs []ir.Construct, bindings []i
 	for _, c := range constructs {
 		// Only the domain model. A command or a projection is working memory
 		// and can be reshaped at will, so nothing is promised by its fields.
-		if c.Kind != ir.ConstructAggregate || len(c.Fields) == 0 || seen[c.Name] {
+		if !c.Kind.IsDomainModel() || len(c.Fields) == 0 || seen[c.Name] {
 			continue
 		}
 		shapes = append(shapes, shape{name: c.Name, pkg: c.Package, fields: c.Fields, fileSeq: c.Pos})

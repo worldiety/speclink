@@ -47,7 +47,7 @@ func JustifyPersistence(tree *reqtree.Tree, constructs []ir.Construct, bindings 
 	})
 
 	for _, c := range sorted {
-		if c.Kind != ir.ConstructAggregate && c.Kind != ir.ConstructRepository {
+		if !c.Kind.EmbodiesStorageDecision() {
 			continue
 		}
 		// Infrastructure is out of scope. A helper type that carries an

@@ -31,20 +31,20 @@ func TestInferKinds(t *testing.T) {
 	}
 
 	want := map[string]ir.ConstructKind{
-		"SubmitQuote":       ir.ConstructUseCase,
-		"ApproveQuote":      ir.ConstructUseCase,
-		"FindQuoteOverview": ir.ConstructQuery,
-		"SubmitQuoteCmd":    ir.ConstructCommand,
-		"QuoteSubmitted":    ir.ConstructEvent,
+		"SubmitQuote":       ConstructUseCase,
+		"ApproveQuote":      ConstructUseCase,
+		"FindQuoteOverview": ConstructQuery,
+		"SubmitQuoteCmd":    ConstructCommand,
+		"QuoteSubmitted":    ConstructEvent,
 		// Recognised through Evolve rather than Identity: an event sourced
 		// aggregate is a plain struct rebuilt by replaying events, and carries
 		// no marker of its own.
-		"QuoteAggregate": ir.ConstructAggregate,
+		"QuoteAggregate": ConstructAggregate,
 		// The read model is call driven: its type carries only Clone, so the
 		// fact that it is a projection exists solely at construction.
-		"QuoteOverview": ir.ConstructProjection,
+		"QuoteOverview": ConstructProjection,
 		// The repository is a named type standing for the framework interface.
-		"QuoteRepository": ir.ConstructRepository,
+		"QuoteRepository": ConstructRepository,
 	}
 	for name, kind := range want {
 		if got[name] != kind {
@@ -59,11 +59,11 @@ func TestInferKinds(t *testing.T) {
 // already treats a query as a use case. Reading is a promise too.
 func TestCoverageObligations(t *testing.T) {
 	must := []ir.ConstructKind{
-		ir.ConstructUseCase,
-		ir.ConstructQuery,
-		ir.ConstructCommand,
-		ir.ConstructEvent,
-		ir.ConstructProjection,
+		ConstructUseCase,
+		ConstructQuery,
+		ConstructCommand,
+		ConstructEvent,
+		ConstructProjection,
 	}
 	for _, k := range must {
 		if !k.NeedsRequirement() {
@@ -74,9 +74,9 @@ func TestCoverageObligations(t *testing.T) {
 	// Structural kinds are covered through the use case that guards, writes or
 	// holds them; demanding a binding for each would only produce noise.
 	mustNot := []ir.ConstructKind{
-		ir.ConstructAggregate,
-		ir.ConstructPermission,
-		ir.ConstructRepository,
+		ConstructAggregate,
+		ConstructPermission,
+		ConstructRepository,
 	}
 	for _, k := range mustNot {
 		if k.NeedsRequirement() {
@@ -126,7 +126,7 @@ func TestAggregateWithoutIdentity(t *testing.T) {
 	if len(kinds) != 1 {
 		t.Fatalf("expected the fold target to be recognised once, got %d", len(kinds))
 	}
-	if kinds[0] != ir.ConstructAggregate {
+	if kinds[0] != ConstructAggregate {
 		t.Errorf("the type an event folds into is an aggregate, got %v", kinds[0])
 	}
 }

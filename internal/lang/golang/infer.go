@@ -97,29 +97,29 @@ func (p *Package) inferType(ts *ast.TypeSpec, folded map[string]bool) (ir.Constr
 	// idiom being `type Repository data.Repository[Quote, ID]`. Both the
 	// defined type and the alias form are matched, because both occur.
 	if inst, ok := p.repositoryInstance(ts, named); ok {
-		base.Kind = ir.ConstructRepository
+		base.Kind = ConstructRepository
 		base.Evidence = "stands for data." + inst
 		return base, true
 	}
 
 	switch {
 	case p.hasMethods(named, "Evolve", "Discriminator"):
-		base.Kind = ir.ConstructEvent
+		base.Kind = ConstructEvent
 		base.Evidence = "implements evs.Evt, that is Evolve plus Discriminator"
 		return base, true
 
 	case p.hasMethods(named, "Decide"):
-		base.Kind = ir.ConstructCommand
+		base.Kind = ConstructCommand
 		base.Evidence = "implements evs.Cmd, that is Decide"
 		return base, true
 
 	case p.hasMethods(named, "Identity"):
-		base.Kind = ir.ConstructAggregate
+		base.Kind = ConstructAggregate
 		base.Evidence = "implements data.Aggregate, that is Identity"
 		return base, true
 
 	case folded[ts.Name.Name]:
-		base.Kind = ir.ConstructAggregate
+		base.Kind = ConstructAggregate
 		base.Evidence = "is the state an event folds into through Evolve"
 		return base, true
 	}
@@ -133,10 +133,10 @@ func (p *Package) inferType(ts *ast.TypeSpec, folded map[string]bool) (ir.Constr
 	if !p.firstParamIsSubject(sig) {
 		return ir.Construct{}, false
 	}
-	base.Kind = ir.ConstructUseCase
+	base.Kind = ConstructUseCase
 	base.Evidence = "is a named func type with auth.Subject as its first parameter"
 	if isReadOnly(sig) {
-		base.Kind = ir.ConstructQuery
+		base.Kind = ConstructQuery
 		base.Evidence = "is a named func type returning data, with auth.Subject as its first parameter"
 	}
 	return base, true
@@ -336,7 +336,7 @@ func (p *Package) inferPermissions() []ir.Construct {
 				guarded = typeName(t)
 			}
 			out = append(out, ir.Construct{
-				Kind:     ir.ConstructPermission,
+				Kind:     ConstructPermission,
 				Name:     id,
 				Package:  p.PkgPath(),
 				Evidence: "is declared by permission." + fnName + ", bound to " + guarded,
@@ -410,7 +410,7 @@ func (p *Package) inferProjections() []ir.Construct {
 			seen[name] = true
 
 			out = append(out, ir.Construct{
-				Kind:     ir.ConstructProjection,
+				Kind:     ConstructProjection,
 				Name:     name,
 				Package:  p.PkgPath(),
 				Evidence: "is the state of an evs." + fnName + " read model",

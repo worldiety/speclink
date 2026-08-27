@@ -4,106 +4,101 @@ package ir
 //
 // These roles are never annotated. They are inferred from framework usage,
 // because the framework already states them unambiguously — and a fact that is
-// inferable must not be annotated (P2: exactly one source per fact). What
-// cannot be inferred is which requirement a construct was written for; that is
-// what the annotation carries.
-type ConstructKind int
+// inferable must not be annotated (exactly one source per fact). What cannot be
+// inferred is which requirement a construct was written for; that is what the
+// annotation carries.
+//
+// The set is supplied by the frontend, not fixed here, and the reason is that
+// the vocabulary below is one framework's. Use case, command, event, aggregate
+// and projection are the words of a domain driven, event sourced design. A
+// project built on a different framework has other roles and the same question
+// to answer about each of them, so what belongs here is the question, not the
+// answer.
+//
+// The questions are the three attributes. Everything the rules do with a kind
+// is ask one of them, which is worth stating plainly: for a long time the rules
+// asked "is this an aggregate" when they meant "is this the domain model", and
+// the two only happened to coincide.
+type ConstructKind struct {
+	name    string
+	article string
 
-const (
-	// ConstructUseCase is a named func type taking an auth subject first.
-	ConstructUseCase ConstructKind = iota + 1
-	// ConstructCommand implements Decide and is the write side of an aggregate.
-	ConstructCommand
-	// ConstructEvent implements Evolve plus Discriminator and is a domain fact.
-	ConstructEvent
-	// ConstructAggregate is a consistency boundary with an identity.
-	ConstructAggregate
-	// ConstructPermission is declared by permission.Declare and bound to a use
-	// case through its type parameter.
-	ConstructPermission
-	// ConstructQuery is a read side function taking an auth subject.
-	ConstructQuery
-	// ConstructProjection is an event folded read model, built by
-	// evs.NewProjection and fed by evs.Project.
-	ConstructProjection
-	// ConstructRepository is a named type standing for data.Repository or
-	// data.ReadRepository over an aggregate.
-	ConstructRepository
-)
+	needsRequirement bool
+	domainModel      bool
+	storageDecision  bool
+}
+
+// NewConstructKind declares a role a frontend can recognise.
+//
+// article is given rather than derived because the rule follows pronunciation,
+// not spelling: "a use case", because "use" begins with a consonant sound
+// despite starting with a vowel letter. A generic vowel test gets that wrong.
+func NewConstructKind(name, article string, opts ...ConstructKindOption) ConstructKind {
+	k := ConstructKind{name: name, article: article}
+	for _, opt := range opts {
+		opt(&k)
+	}
+	return k
+}
+
+// ConstructKindOption sets one of the questions a rule may ask about a role.
+type ConstructKindOption func(*ConstructKind)
+
+// NeedsRequirement marks a role whose instances must each name a requirement.
+//
+// It is for the roles that carry business meaning. The structural ones are
+// covered through whatever uses them, and demanding a binding for each would
+// only produce noise.
+func NeedsRequirement() ConstructKindOption {
+	return func(k *ConstructKind) { k.needsRequirement = true }
+}
+
+// IsDomainModel marks a role whose fields must each trace to a requirement.
+//
+// Types are created deliberately and reviewed; fields accrete afterwards, which
+// is where the drift is. A field of the domain model states what the system
+// believes about the thing it describes, and one that traces to nothing is
+// either an unrecorded promise or dead weight.
+func IsDomainModel() ConstructKindOption {
+	return func(k *ConstructKind) { k.domainModel = true }
+}
+
+// EmbodiesStorageDecision marks a role that exists because somebody chose how
+// data is kept, and must therefore point at that choice.
+//
+// Forward coverage does not ask this, because these roles carry no requirement
+// of their own. The decision behind them is invisible in the type and is
+// exactly what a later reader needs.
+func EmbodiesStorageDecision() ConstructKindOption {
+	return func(k *ConstructKind) { k.storageDecision = true }
+}
 
 // WithArticle renders the kind as a noun phrase for diagnostics.
-//
-// The article follows pronunciation, not spelling: "a use case", because "use"
-// begins with a consonant sound despite starting with a vowel letter. A generic
-// vowel test gets this wrong, so the phrase is stated per kind.
 func (k ConstructKind) WithArticle() string {
-	switch k {
-	case ConstructUseCase:
-		return "a use case"
-	case ConstructCommand:
-		return "a command"
-	case ConstructEvent:
-		return "an event"
-	case ConstructAggregate:
-		return "an aggregate"
-	case ConstructPermission:
-		return "a permission"
-	case ConstructQuery:
-		return "a query"
-	case ConstructProjection:
-		return "a projection"
-	case ConstructRepository:
-		return "a repository"
+	if k.article == "" {
+		return "an unknown construct"
 	}
-	return "an unknown construct"
+	return k.article
 }
 
 func (k ConstructKind) String() string {
-	switch k {
-	case ConstructUseCase:
-		return "use case"
-	case ConstructCommand:
-		return "command"
-	case ConstructEvent:
-		return "event"
-	case ConstructAggregate:
-		return "aggregate"
-	case ConstructPermission:
-		return "permission"
-	case ConstructQuery:
-		return "query"
-	case ConstructProjection:
-		return "projection"
-	case ConstructRepository:
-		return "repository"
+	if k.name == "" {
+		return "unknown"
 	}
-	return "unknown"
+	return k.name
 }
 
 // NeedsRequirement reports whether a construct of this kind has to be bound to
-// a requirement (forward coverage, K1/K3).
-//
-// Use cases, queries, commands, events and projections carry business meaning
-// and must trace back to something that was asked for.
-//
-// A query is included for the same reason a use case is. Reading is a promise
-// too — that someone may see a thing — and every architecture rule already
-// treats a query as a use case: it needs its own uc_ file, its constructor, its
-// permission and its place in the bundle. Exempting it from coverage alone was
-// an omission rather than a decision, and it made a recogniser defect
-// expensive: while evs.SeqID went unrecognised, every writing use case was
-// classified as a query and silently left the denominator.
-//
-// Permissions, aggregates and repositories are structural. They are covered
-// through the use case that guards, writes or holds them, and demanding a
-// binding for each would only produce noise.
-func (k ConstructKind) NeedsRequirement() bool {
-	switch k {
-	case ConstructUseCase, ConstructQuery, ConstructCommand, ConstructEvent, ConstructProjection:
-		return true
-	}
-	return false
-}
+// a requirement.
+func (k ConstructKind) NeedsRequirement() bool { return k.needsRequirement }
+
+// IsDomainModel reports whether the fields of this construct must each trace to
+// a requirement.
+func (k ConstructKind) IsDomainModel() bool { return k.domainModel }
+
+// EmbodiesStorageDecision reports whether this construct must point at the
+// decision that put it there.
+func (k ConstructKind) EmbodiesStorageDecision() bool { return k.storageDecision }
 
 // Construct is an architectural fact recognised in the host language.
 type Construct struct {
