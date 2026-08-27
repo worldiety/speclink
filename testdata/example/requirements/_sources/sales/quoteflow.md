@@ -1,5 +1,7 @@
 # Angebotsfluss
 
+<!-- speclink:informative -->
+
 Beschreibung des Angebotsprozesses.
 
 ## 2. Kunde

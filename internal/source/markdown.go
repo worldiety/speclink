@@ -4,13 +4,19 @@ import (
 	"strings"
 )
 
-// informativeMarker excludes a section from the coverage obligation.
+// InformativeMarker excludes a section from the coverage obligation.
 //
 // It is an HTML comment because that is the only annotation Markdown has that
 // every renderer ignores. The source documents belong to the departments who
 // write them; a marker that showed up in the rendered text would be a tool
 // leaking into somebody else's document.
-const informativeMarker = "<!-- speclink:informative -->"
+//
+// This is the exemption for the forward coverage, and deliberately not a
+// waiver. spec.Waive attaches to a Go construct and a section has none, so a
+// waiver narrowed to one section could not be written down. Stating it in the
+// document instead puts the decision with the person who wrote the section and
+// keeps the fact in exactly one place.
+const InformativeMarker = "<!-- speclink:informative -->"
 
 // preambleID addresses the text before the first heading.
 //
@@ -116,7 +122,7 @@ func segmentMarkdown(doc string, md string) ([]Segment, []error) {
 			Kind:        KindMarkdown,
 			Title:       s.title,
 			Fingerprint: fingerprint([]byte(canonical(body))),
-			Informative: strings.Contains(body, informativeMarker),
+			Informative: strings.Contains(body, InformativeMarker),
 			Pos:         Pos{File: doc, Line: s.line},
 		})
 	}

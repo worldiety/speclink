@@ -39,3 +39,13 @@ func (w Waivers) Has(target, rule string) bool {
 func (w Waivers) Reason(target, rule string) string {
 	return w[waiverKey{target: target, rule: rule}]
 }
+
+// Waive records an exemption directly.
+//
+// Bindings are the normal way in and CollectWaivers is how they get here. This
+// exists for the rules whose target is not a Go construct at all, where a
+// waiver cannot come from a binding, and for tests that need one without a
+// package to read it from.
+func (w Waivers) Waive(target, rule, reason string) {
+	w[waiverKey{target: target, rule: rule}] = reason
+}

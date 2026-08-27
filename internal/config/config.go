@@ -36,6 +36,15 @@ type Config struct {
 	// Nothing domain specific may live there.
 	InfraRoots []string `json:"infraRoots,omitempty"`
 
+	// SourceRoots are the directories holding the raw requirement documents.
+	//
+	// They have to be named rather than discovered, because forward coverage
+	// of the sources only means something if the set of sources is known. A
+	// tool that checked only the documents somebody happened to cite could
+	// never report the document nobody read: the one place where a whole
+	// feature goes missing without a single finding.
+	SourceRoots []string `json:"sourceRoots,omitempty"`
+
 	// Exclude are path patterns the architecture rules ignore, matched with
 	// path.Match against the project relative directory. Examples and
 	// generated documentation copies are the usual candidates.
@@ -48,6 +57,7 @@ func Default() Config {
 		ContextRoot: "app",
 		CmdRoot:     "cmd",
 		InfraRoots:  []string{"pkg", "foundation"},
+		SourceRoots: []string{"requirements/_sources"},
 	}
 }
 
@@ -89,6 +99,9 @@ func (c *Config) normalise() {
 	c.CmdRoot = filepath.ToSlash(strings.Trim(c.CmdRoot, "/"))
 	for i, r := range c.InfraRoots {
 		c.InfraRoots[i] = filepath.ToSlash(strings.Trim(r, "/"))
+	}
+	for i, r := range c.SourceRoots {
+		c.SourceRoots[i] = filepath.ToSlash(strings.Trim(r, "/"))
 	}
 }
 

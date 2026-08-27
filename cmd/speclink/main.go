@@ -166,9 +166,8 @@ func verify(args []string) error {
 	// V5: resolve identity, layout, the derivation graph and the outer edge.
 	tree := reqtree.Build(absRoot, reqs, findings)
 	tree.CheckLayout(findings)
-	docs := source.NewSet(absRoot)
+	docs, sourceDocs := loadSources(absRoot, layout, findings)
 	tree.CheckSources(docs, findings)
-	reqtree.ReportDocuments(docs, findings)
 
 	// V6: the specification rules, in both directions of the coverage.
 	for _, p := range pkgs {
@@ -176,6 +175,13 @@ func verify(args []string) error {
 	}
 	str := check.CoverConstructs(constructs, bindings, findings)
 	cov := check.CoverRequirements(tree, bindings, findings)
+
+	// V6: and the direction above the tree. Everything below it is already
+	// held by the Go compiler; this is the only step in the chain that has no
+	// formal semantics, and it decides whether the two figures above mean
+	// anything at all.
+	src := check.CoverSources(tree, docs, sourceDocs, ir.CollectWaivers(bindings), findings)
+	reqtree.ReportDocuments(docs, findings)
 
 	// V6: what has already been promised must still hold. A shape that outlives
 	// the code declaring it cannot be checked against the code alone, so this
@@ -207,7 +213,7 @@ func verify(args []string) error {
 	golang.CheckInfrastructure(pkgs, layout, absRoot, findings)
 	golang.CheckMainPackages(pkgs, layout, absRoot, findings)
 
-	if err := report(*format, findings, cov, str, len(bindings)); err != nil {
+	if err := report(*format, findings, cov, str, src, len(bindings)); err != nil {
 		return err
 	}
 	if !findings.Empty() {
@@ -233,6 +239,7 @@ func requirements(args []string) error {
 	fs := flag.NewFlagSet("requirements", flag.ExitOnError)
 	format := fs.String("format", "text", "output format: text or json")
 	root := fs.String("root", ".", "repository root, used to resolve source documents")
+	cfgPath := fs.String("config", "", "layout configuration; defaults to "+config.FileName+" in the root")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -240,6 +247,13 @@ func requirements(args []string) error {
 	absRoot, err := filepath.Abs(*root)
 	if err != nil {
 		return fmt.Errorf("resolve root: %w", err)
+	}
+
+	// The tree question now reaches above the tree, so this command needs the
+	// layout too: it is what says where the raw documents live.
+	layout, err := loadLayout(absRoot, *cfgPath)
+	if err != nil {
+		return err
 	}
 
 	patterns := fs.Args()
@@ -275,11 +289,12 @@ func requirements(args []string) error {
 
 	tree := reqtree.Build(absRoot, reqs, findings)
 	tree.CheckLayout(findings)
-	docs := source.NewSet(absRoot)
+	docs, sourceDocs := loadSources(absRoot, layout, findings)
 	tree.CheckSources(docs, findings)
+	src := check.CoverSources(tree, docs, sourceDocs, nil, findings)
 	reqtree.ReportDocuments(docs, findings)
 
-	if err := reportRequirements(*format, findings, tree); err != nil {
+	if err := reportRequirements(*format, findings, tree, src); err != nil {
 		return err
 	}
 	if !findings.Empty() {
@@ -292,7 +307,36 @@ func requirements(args []string) error {
 // is the number a migration is steered by: only normative requirements will
 // later have to be covered, and everything else is an explicit, justified
 // exemption.
-func reportRequirements(format string, findings *diag.Set, tree *reqtree.Tree) error {
+// loadSources enumerates the raw requirement documents and reports the defects
+// of the enumeration itself.
+//
+// Enumeration rather than collection from citations is the point: a document
+// nobody cited would otherwise contribute nothing and look exactly like one
+// that is fully covered.
+func loadSources(absRoot string, layout config.Config, findings *diag.Set) (*source.Set, []string) {
+	docs := source.NewSet(absRoot)
+	found, errs := source.Walk(absRoot, layout.SourceRoots)
+	for _, err := range errs {
+		se, ok := err.(*source.SegmentError)
+		if !ok {
+			continue
+		}
+		// A defect of the enumeration is not a defect of a document, so it
+		// does not share the code. A source root that is not there and a cited
+		// file that is not there fail for different reasons and are fixed in
+		// different places.
+		findings.Add(diag.Finding{
+			Code: diag.Code(diag.PhaseResolve, 27),
+			Pos:  ir.Position{File: se.Doc, Line: se.Line},
+			What: se.Msg + ".",
+			Why:  se.Why,
+			How:  se.How,
+		})
+	}
+	return docs, found
+}
+
+func reportRequirements(format string, findings *diag.Set, tree *reqtree.Tree, src check.SourceCoverage) error {
 	switch format {
 	case "json":
 		return findings.WriteJSON(os.Stdout)
@@ -307,8 +351,9 @@ func reportRequirements(format string, findings *diag.Set, tree *reqtree.Tree) e
 				normative++
 			}
 		}
-		fmt.Fprintf(os.Stderr, "\n%s (%d normative), %s\n",
+		fmt.Fprintf(os.Stderr, "\n%s (%d normative), %d source segments (%.0f%% accounted), %s\n",
 			plural(len(all), "requirement", "requirements"), normative,
+			src.Total, src.Ratio()*100,
 			plural(findings.Len(), "finding", "findings"))
 		return nil
 	default:
@@ -325,7 +370,15 @@ func loadLayout(absRoot, explicit string) (config.Config, error) {
 	return config.LoadFile(explicit, false)
 }
 
-func report(format string, findings *diag.Set, cov check.Coverage, str check.Structure, bindings int) error {
+// report writes the summary.
+//
+// Three figures, three directions. Bound asks whether every construct that
+// carries business meaning names a requirement. Covered asks whether every
+// normative requirement is satisfied by a construct. Accounted asks the
+// question above both: whether every part of what was actually asked for
+// became a requirement at all. Without the third the other two measure a tree
+// against itself.
+func report(format string, findings *diag.Set, cov check.Coverage, str check.Structure, src check.SourceCoverage, bindings int) error {
 	switch format {
 	case "json":
 		return findings.WriteJSON(os.Stdout)
@@ -334,7 +387,8 @@ func report(format string, findings *diag.Set, cov check.Coverage, str check.Str
 			return err
 		}
 		fmt.Fprintf(os.Stderr,
-			"\n%d constructs (%.0f%% bound), %d normative requirements (%.0f%% covered), %d bindings, %s\n",
+			"\n%d source segments (%.0f%% accounted), %d constructs (%.0f%% bound), %d normative requirements (%.0f%% covered), %d bindings, %s\n",
+			src.Total, src.Ratio()*100,
 			len(str.Constructs), str.Ratio()*100,
 			cov.Normative, cov.Ratio()*100,
 			bindings, plural(findings.Len(), "finding", "findings"))

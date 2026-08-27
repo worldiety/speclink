@@ -106,7 +106,7 @@ func TestReorderingIsNotDrift(t *testing.T) {
 }
 
 func TestInformativeMarker(t *testing.T) {
-	segs, _ := segmentMarkdown("doc.md", "# Einleitung\n\n"+informativeMarker+"\n\nNur Kontext.\n")
+	segs, _ := segmentMarkdown("doc.md", "# Einleitung\n\n"+InformativeMarker+"\n\nNur Kontext.\n")
 	if !segs[0].Informative {
 		t.Fatal("marker not honoured")
 	}
