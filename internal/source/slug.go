@@ -1,4 +1,4 @@
-package reqtree
+package source
 
 import (
 	"strings"

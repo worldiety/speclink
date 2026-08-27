@@ -17,6 +17,7 @@ import (
 
 	"github.com/worldiety/speclink/internal/diag"
 	"github.com/worldiety/speclink/internal/ir"
+	"github.com/worldiety/speclink/internal/source"
 )
 
 // Tree is the resolved requirement graph.
@@ -243,7 +244,7 @@ func (t *Tree) checkAnchor(r *ir.Requirement, s ir.Source, abs string, out *diag
 	if err != nil {
 		return // already reported by the existence check
 	}
-	slugs := Headings(string(data))
+	slugs := source.Headings(string(data))
 	for _, got := range slugs {
 		if got == s.Anchor {
 			return
