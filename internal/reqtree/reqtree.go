@@ -10,14 +10,29 @@
 package reqtree
 
 import (
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/worldiety/speclink/internal/diag"
 	"github.com/worldiety/speclink/internal/ir"
 	"github.com/worldiety/speclink/internal/source"
+)
+
+// Rules of the outer edge. Unlike the rest of the requirement tree checks these
+// are waivable, because both of them can genuinely not hold. A requirement can
+// follow from a decision that no document records, and a document can carry a
+// section whose whole content is one requirement, leaving nothing for an anchor
+// to distinguish. Both are rare, both need a sentence of justification, and
+// neither is worth an unwaivable rule that people route around by inventing a
+// source.
+const (
+	// RuleReqUnsourced fires on a normative requirement that cites nothing. It
+	// is the backward direction of the outer edge and catches the requirement
+	// that no document asked for.
+	RuleReqUnsourced = "K11-REQ-UNSOURCED"
+	// RuleSourceUnanchored fires on a citation that names a document but not a
+	// part of it.
+	RuleSourceUnanchored = "K11-SOURCE-UNANCHORED"
 )
 
 // Tree is the resolved requirement graph.
@@ -165,27 +180,37 @@ func (t *Tree) sortedIDs() []string {
 	return ids
 }
 
-// CheckSources verifies the outer edge: that every Doc exists and every Anchor
-// resolves, and that exactly one of Doc and Extern is given.
-func (t *Tree) CheckSources(out *diag.Set) {
+// CheckSources verifies the outer edge: that every cited document exists, that
+// every anchor resolves to a segment of it, and that exactly one of Doc and
+// Extern is given.
+//
+// The anchor is resolved against the segments of the document rather than
+// against a list of headings, which is what lets an image be cited at all. From
+// the requirement side there is no difference between pointing at a section and
+// pointing at a region of a mockup, so there is no reason for the model to have
+// one. Until now an anchor on an image was rejected outright and the location
+// had to be described in Note, which was free text and therefore the one
+// remaining unverified reference in the chain.
+func (t *Tree) CheckSources(docs *source.Set, out *diag.Set) {
 	for _, id := range t.sortedIDs() {
 		r := t.ByID[id]
 		if len(r.Sources) == 0 && r.Status.MustBeCovered() {
 			out.Add(diag.Finding{
 				Code: diag.Code(diag.PhaseResolve, 20),
+				Rule: RuleReqUnsourced,
 				Pos:  r.Pos,
 				What: "normative requirement " + r.ID + " names no source.",
-				Why:  "Without a source the requirement cannot be traced back to what was actually asked for. This is the outer edge that is traditionally free text and unverified.",
+				Why:  "Without a source the requirement cannot be traced back to what was actually asked for. A requirement that no document asked for is indistinguishable from one that was invented, and the code implementing it will still be bound, covered and green.",
 				How:  "Add a Source with Doc pointing into requirements/_sources/, or Extern naming the law or standard.",
 			})
 		}
 		for _, s := range r.Sources {
-			t.checkSource(r, s, out)
+			t.checkSource(r, s, docs, out)
 		}
 	}
 }
 
-func (t *Tree) checkSource(r *ir.Requirement, s ir.Source, out *diag.Set) {
+func (t *Tree) checkSource(r *ir.Requirement, s ir.Source, docs *source.Set, out *diag.Set) {
 	switch {
 	case s.Doc == "" && s.Extern == "":
 		out.Add(diag.Finding{
@@ -209,61 +234,73 @@ func (t *Tree) checkSource(r *ir.Requirement, s ir.Source, out *diag.Set) {
 		return // nothing to verify, deliberately
 	}
 
-	abs := filepath.Join(t.root, s.Doc)
-	info, err := os.Stat(abs)
-	if err != nil || info.IsDir() {
-		out.Add(diag.Finding{
-			Code: diag.Code(diag.PhaseResolve, 23),
-			Pos:  s.Pos,
-			What: "source document " + s.Doc + " of " + r.ID + " does not exist.",
-			Why:  "The path is repository relative and must name a file. A reference into nothing is worse than none, because it looks verified.",
-			How:  "Correct the path, or move the document into requirements/_sources/.",
-		})
+	doc := docs.Get(s.Doc)
+	if doc.Err != nil {
+		// Reported once against the document itself, not once per citation. Ten
+		// requirements pointing at a file that was moved is one defect.
 		return
 	}
 	if s.Anchor == "" {
-		return
-	}
-	t.checkAnchor(r, s, abs, out)
-}
-
-// checkAnchor verifies that a heading with the given slug exists.
-func (t *Tree) checkAnchor(r *ir.Requirement, s ir.Source, abs string, out *diag.Set) {
-	if !strings.EqualFold(filepath.Ext(abs), ".md") {
 		out.Add(diag.Finding{
-			Code: diag.Code(diag.PhaseResolve, 24),
+			Code: diag.Code(diag.PhaseResolve, 26),
+			Rule: RuleSourceUnanchored,
 			Pos:  s.Pos,
-			What: "source of " + r.ID + " sets an Anchor on a non text document.",
-			Why:  "Anchors are headings of a Markdown document; there is no equivalent in an image or PDF.",
-			How:  "Remove the Anchor and describe the location in Note instead. Note is not verifiable, which is the accepted residual gap.",
+			What: "source " + s.Doc + " of " + r.ID + " names no anchor.",
+			Why:  "A whole document is not an origin. Without an anchor nothing can be said about which part of it the requirement came from, so a change to any paragraph would have to alert every requirement citing the file, and none of them could be checked for completeness.",
+			How:  "Set Anchor to one of: " + suggest(doc.IDs(), "") + ".",
 		})
 		return
 	}
-
-	data, err := os.ReadFile(abs)
-	if err != nil {
-		return // already reported by the existence check
+	if _, ok := doc.Segment(s.Anchor); !ok {
+		out.Add(diag.Finding{
+			Code: diag.Code(diag.PhaseResolve, 25),
+			Pos:  s.Pos,
+			What: "anchor " + s.Anchor + " does not exist in " + s.Doc + ".",
+			Why:  anchorWhy(doc.Kind),
+			How:  "Use one of the existing anchors: " + suggest(doc.IDs(), s.Anchor) + ".",
+		})
 	}
-	slugs := source.Headings(string(data))
-	for _, got := range slugs {
-		if got == s.Anchor {
-			return
+}
+
+func anchorWhy(k source.Kind) string {
+	if k == source.KindImage {
+		return "An anchor on an image is the name of a region declared in its manifest. A stale anchor points at a region that has been renamed or removed."
+	}
+	return "An anchor is the slug of a heading in the target document. A stale anchor points at a section that has been renamed or removed."
+}
+
+// ReportDocuments turns the defects of the source documents themselves into
+// findings. They are reported once per document rather than once per citing
+// requirement.
+func ReportDocuments(docs *source.Set, out *diag.Set) {
+	for _, d := range docs.Loaded() {
+		for _, err := range d.Errors() {
+			se, ok := err.(*source.SegmentError)
+			if !ok {
+				continue
+			}
+			out.Add(diag.Finding{
+				Code: diag.Code(diag.PhaseResolve, 23),
+				Pos:  ir.Position{File: se.Doc, Line: se.Line},
+				What: se.Msg + ".",
+				Why:  se.Why,
+				How:  se.How,
+			})
 		}
 	}
-	out.Add(diag.Finding{
-		Code: diag.Code(diag.PhaseResolve, 25),
-		Pos:  s.Pos,
-		What: "anchor " + s.Anchor + " does not exist in " + s.Doc + ".",
-		Why:  "An anchor is the slug of a heading in the target document. A stale anchor points at a section that has been renamed or removed.",
-		How:  "Use one of the existing headings: " + suggest(slugs, s.Anchor) + ".",
-	})
 }
 
 // suggest offers the closest few anchors, so the message can be acted upon
 // without opening the document.
 func suggest(slugs []string, want string) string {
 	if len(slugs) == 0 {
-		return "the document has no headings"
+		return "the document has no segments"
+	}
+	if want == "" {
+		if len(slugs) > 5 {
+			slugs = slugs[:5]
+		}
+		return strings.Join(slugs, ", ")
 	}
 	var near []string
 	for _, s := range slugs {

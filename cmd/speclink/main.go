@@ -21,6 +21,7 @@ import (
 	"github.com/worldiety/speclink/internal/ir"
 	"github.com/worldiety/speclink/internal/lang/golang"
 	"github.com/worldiety/speclink/internal/reqtree"
+	"github.com/worldiety/speclink/internal/source"
 )
 
 func main() {
@@ -165,7 +166,9 @@ func verify(args []string) error {
 	// V5: resolve identity, layout, the derivation graph and the outer edge.
 	tree := reqtree.Build(absRoot, reqs, findings)
 	tree.CheckLayout(findings)
-	tree.CheckSources(findings)
+	docs := source.NewSet(absRoot)
+	tree.CheckSources(docs, findings)
+	reqtree.ReportDocuments(docs, findings)
 
 	// V6: the specification rules, in both directions of the coverage.
 	for _, p := range pkgs {
@@ -272,7 +275,9 @@ func requirements(args []string) error {
 
 	tree := reqtree.Build(absRoot, reqs, findings)
 	tree.CheckLayout(findings)
-	tree.CheckSources(findings)
+	docs := source.NewSet(absRoot)
+	tree.CheckSources(docs, findings)
+	reqtree.ReportDocuments(docs, findings)
 
 	if err := reportRequirements(*format, findings, tree); err != nil {
 		return err
