@@ -125,7 +125,6 @@ func verify(args []string) error {
 	// K8-MAIN-LOCATION fire in every package that has a test.
 	pkgs := golang.NonTests(loaded)
 	testPkgs := golang.Tests(loaded)
-	_ = testPkgs
 
 	// Phase V2 is the Go compilation itself. If it failed there is nothing
 	// meaningful to say about annotations, and saying it anyway would bury the
@@ -196,6 +195,19 @@ func verify(args []string) error {
 	str := check.CoverConstructs(constructs, bindings, findings)
 	cov := check.CoverRequirements(tree, bindings, findings)
 
+	// V6: and whether anything demonstrates the requirement, which coverage
+	// never asked. Read from the tests, whose claims are the half that can be
+	// forgotten; whether the claim was ever executed is a separate question
+	// answered by a separate record.
+	var verifications []ir.Binding
+	for _, p := range testPkgs {
+		verifications = append(verifications, p.ReadVerifications(findings)...)
+	}
+	for _, p := range pkgs {
+		p.CheckVerifiedOutsideTests(findings)
+	}
+	ver := check.CoverVerification(tree, verifications, cov, ir.CollectWaivers(bindings), findings)
+
 	// V6: and the direction above the tree. Everything below it is already
 	// held by the Go compiler; this is the only step in the chain that has no
 	// formal semantics, and it decides whether the two figures above mean
@@ -239,7 +251,7 @@ func verify(args []string) error {
 	golang.CheckInfrastructure(pkgs, layout, absRoot, findings)
 	golang.CheckMainPackages(pkgs, layout, absRoot, findings)
 
-	if err := report(*format, findings, cov, str, src, len(bindings)); err != nil {
+	if err := report(*format, findings, cov, str, src, ver, len(bindings)); err != nil {
 		return err
 	}
 	if !findings.Empty() {
@@ -427,7 +439,7 @@ func loadLayout(absRoot, explicit string) (config.Config, error) {
 // question above both: whether every part of what was actually asked for
 // became a requirement at all. Without the third the other two measure a tree
 // against itself.
-func report(format string, findings *diag.Set, cov check.Coverage, str check.Structure, src check.SourceCoverage, bindings int) error {
+func report(format string, findings *diag.Set, cov check.Coverage, str check.Structure, src check.SourceCoverage, ver check.Verification, bindings int) error {
 	switch format {
 	case "json":
 		return findings.WriteJSON(os.Stdout)
@@ -436,10 +448,10 @@ func report(format string, findings *diag.Set, cov check.Coverage, str check.Str
 			return err
 		}
 		fmt.Fprintf(os.Stderr,
-			"\n%d source segments (%.0f%% accounted), %d constructs (%.0f%% bound), %d normative requirements (%.0f%% covered), %d bindings, %s\n",
+			"\n%d source segments (%.0f%% accounted), %d constructs (%.0f%% bound), %d normative requirements (%.0f%% covered, %.0f%% verified), %d bindings, %s\n",
 			src.Total, src.Ratio()*100,
 			len(str.Constructs), str.Ratio()*100,
-			cov.Normative, cov.Ratio()*100,
+			cov.Normative, cov.Ratio()*100, ver.Ratio()*100,
 			bindings, plural(findings.Len(), "finding", "findings"))
 		return nil
 	default:

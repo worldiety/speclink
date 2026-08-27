@@ -28,6 +28,9 @@ var allowedTargets = map[ir.AssertionKind][]ir.TargetKind{
 	// Optional is a statement about one field and has no meaning anywhere else:
 	// a whole type cannot be absent from a message, it simply is the message.
 	ir.AssertOptional: {ir.TargetField},
+	// Verified is stated by a test about itself, so its only target is the
+	// test function it stands in.
+	ir.AssertVerified: {ir.TargetFunc},
 }
 
 // repeatable lists the assertions that may appear more than once per target.
@@ -37,6 +40,10 @@ var repeatable = map[ir.AssertionKind]bool{
 	ir.AssertTransition: true,
 	ir.AssertWaive:      true,
 	ir.AssertTerm:       true,
+	// A test may demonstrate several requirements, and may say so in more than
+	// one place: the statement is about the point control reached, so two calls
+	// on two paths are two different statements.
+	ir.AssertVerified: true,
 }
 
 // checkTargetAllowed validates one binding against the rules above.

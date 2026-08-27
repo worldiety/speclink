@@ -104,6 +104,10 @@ const (
 	AssertWaive
 	AssertDraft
 	AssertOptional
+	// AssertVerified is the only assertion that is not read from an annotation
+	// file. It comes from a spec.Verified call inside a test, whose target is
+	// the test function.
+	AssertVerified
 )
 
 func (k AssertionKind) String() string {
@@ -126,6 +130,8 @@ func (k AssertionKind) String() string {
 		return "draft"
 	case AssertOptional:
 		return "optional"
+	case AssertVerified:
+		return "verified"
 	}
 	return "unknown"
 }

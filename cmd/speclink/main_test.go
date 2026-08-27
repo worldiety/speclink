@@ -474,3 +474,53 @@ func summary(out string) string {
 	lines := strings.Split(strings.TrimSpace(out), "\n")
 	return strings.TrimSpace(lines[len(lines)-1])
 }
+
+// TestVerificationIsSeparateFromCoverage pins the question coverage never
+// asked.
+//
+// K3 says code was written for a requirement. It has never said the code does
+// what the requirement asks, and in a loop where the same model writes the
+// implementation and the tests, nothing else does either. Deleting the test
+// must therefore leave coverage untouched and verification broken — if both
+// move together, one of them is not measuring anything of its own.
+func TestVerificationIsSeparateFromCoverage(t *testing.T) {
+	dir := copyFixture(t, "../../testdata/example")
+
+	rewrite(t, dir, "app/sales/sales_test.go",
+		"spec.Verified(t, quote.RQuoteSubmit)\n}\n\n// A submission that cannot draw",
+		"}\n\n// A submission that cannot draw")
+	rewrite(t, dir, "app/sales/sales_test.go",
+		"\tspec.Verified(t, quote.RQuoteSubmit)\n}\n\n// --- R-QUOTE-APPROVE ---",
+		"}\n\n// --- R-QUOTE-APPROVE ---")
+
+	out, code := runVerify(t, dir)
+	if code == 0 {
+		t.Fatalf("removing the only test of a requirement was not reported:\n%s", out)
+	}
+	if !strings.Contains(out, "no test demonstrates R-QUOTE-SUBMIT") {
+		t.Errorf("expected K14 for R-QUOTE-SUBMIT:\n%s", out)
+	}
+	// Coverage is a different question and must not have moved.
+	if !strings.Contains(out, "100% covered") {
+		t.Errorf("deleting a test changed the coverage figure:\n%s", summary(out))
+	}
+}
+
+// spec.Verified outside a test claims something nothing can ever back. Left
+// unreported it would look like verification that simply never gets recorded,
+// which is the most expensive kind of silence in this tool.
+func TestVerifiedOutsideATestIsReported(t *testing.T) {
+	dir := copyFixture(t, "../../testdata/example")
+
+	rewrite(t, dir, "app/sales/uc_submit_quote.go",
+		"import (",
+		"import (\n\tspec \"github.com/worldiety/speclink/spec\"\n\t\"example.com/erp/requirements/fun/quote\"")
+	rewrite(t, dir, "app/sales/uc_submit_quote.go",
+		"\t\tif _, err := numbers.Next(); err != nil {",
+		"\t\tspec.Verified(nil, quote.RQuoteSubmit)\n\t\tif _, err := numbers.Next(); err != nil {")
+
+	out, _ := runVerify(t, dir)
+	if !strings.Contains(out, "spec.Verified outside a test") {
+		t.Errorf("expected the call in production code to be reported:\n%s", out)
+	}
+}

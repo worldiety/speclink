@@ -39,11 +39,21 @@ type CustomerRepository data.Repository[Customer, CustomerID]
 func NewCustomerRepository(store blob.Store) CustomerRepository {
 	return json.NewJSONRepository[Customer, CustomerID, CustomerEntity, CustomerID](
 		store,
-		func(e CustomerEntity) (Customer, error) {
-			return Customer{ID: e.ID, Name: e.Name, Notes: e.Notes}, nil
-		},
-		func(c Customer) (CustomerEntity, error) {
-			return CustomerEntity{ID: c.ID, Name: c.Name, Notes: c.Notes}, nil
-		},
+		customerFromEntity,
+		customerToEntity,
 	)
+}
+
+// customerToEntity and customerFromEntity are named rather than written inline
+// so that the mapping can be exercised on its own.
+//
+// This pair is where a field was once dropped on save and read back empty,
+// because the mapping simply did not mention it. Nothing about that was visible
+// in a type, and it is the reason the two directions are now tested together.
+func customerToEntity(c Customer) (CustomerEntity, error) {
+	return CustomerEntity{ID: c.ID, Name: c.Name, Notes: c.Notes}, nil
+}
+
+func customerFromEntity(e CustomerEntity) (Customer, error) {
+	return Customer{ID: e.ID, Name: e.Name, Notes: e.Notes}, nil
 }

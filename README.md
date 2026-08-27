@@ -61,23 +61,27 @@ Exit code is `1` if there is any finding, `0` otherwise. The summary goes to
 stderr:
 
 ```
-7 source segments (100% accounted), 19 constructs (100% bound), 8 normative requirements (100% covered), 30 bindings, 0 findings
+7 source segments (100% accounted), 19 constructs (100% bound), 8 normative requirements (100% covered, 100% verified), 30 bindings, 0 findings
 ```
 
-Three numbers, three directions, all of which must reach 100%.
+Four numbers, four directions, all of which must reach 100%.
 
 *Accounted* is the direction above the requirement tree: did every part of the
 documents people actually wrote become a requirement? *Bound* is the forward
 direction below it: does every construct that carries business meaning name a
 requirement? *Covered* is the backward direction: is every normative
-requirement satisfied by at least one construct?
+requirement satisfied by at least one construct? *Verified* is the question the
+other three never ask: does anything demonstrate that the code does what the
+requirement says?
 
-Read them in that order, because the first one decides what the other two are
-worth. Bound and covered measure the tree against the code, and the Go compiler
-is already holding most of that edge up. Accounted measures the tree against
-what was asked for, and nothing else in the chain does — a tree can be
-internally perfect, both other figures at a hundred percent, and a whole
-section of the specification simply absent.
+Read them in that order, because the first decides what the middle two are
+worth and the last decides what any of them are worth. Bound and covered
+measure the tree against the code, and the Go compiler is already holding most
+of that edge up. Accounted measures the tree against what was asked for, and
+nothing else in the chain does — a tree can be internally perfect, every other
+figure at a hundred percent, and a whole section of the specification simply
+absent. Verified is the one that stops the whole thing from being a very
+thorough account of code that nobody ever ran.
 
 ### Checking the requirement tree on its own
 
@@ -1022,6 +1026,63 @@ habit.
 
 ---
 
+## 10b. Verification
+
+Coverage says code was written for a requirement. It has never said the code
+does what the requirement asks, and where the implementation and the tests come
+from the same place and people review by sampling, nothing else does either.
+
+At the end of a test, say what it demonstrated:
+
+```go
+func TestSubmitQuoteDrawsAGaplessNumber(t *testing.T) {
+	// … exercise the use case, assert the number sequence …
+
+	spec.Verified(t, quote.RQuoteSubmit)
+}
+```
+
+**Position matters here, and nowhere else in this language.** `spec.Verified`
+writes a line when it runs, so putting it at the end says the test got there.
+Putting it at the top says only that the test started.
+
+That is the point of it. A marker read from the source is a claim, and a claim
+is not evidence: it can sit behind a condition that never holds, or in a test
+that fails long before reaching it. So the call has two lives. It is read
+statically, which is what makes a *missing* one reportable. It writes a line
+when it executes, which is what makes a *present* one believable.
+
+| in the source | recorded | meaning |
+|---|---|---|
+| no call | – | nothing claims to verify it — `K14-REQ-UNVERIFIED` |
+| a call | nothing, or against an older wording | claimed, not demonstrated |
+| a call | matching, from a passing test | demonstrated |
+
+This is the one place in speclink where a fact is produced at run time, and it
+is not the exception it looks like. P9 bans constructs that turn *static* facts
+into dynamic ones. A test result was never a static fact; no analysis can
+derive it.
+
+### When a requirement cannot be tested
+
+Some cannot. A structural decision — *customer data is stored as state, not as
+facts* — is discharged by the type existing at all, and a test for it could only
+assert that the code compiles as written. Waive it on a construct that
+satisfies it:
+
+```go
+var _ = spec.For[Customer](
+	spec.Satisfies(dec.RDecCustomerState),
+	spec.Waive("K14-REQ-UNVERIFIED", "The ruling is that a customer is stored as state rather than as facts, …"),
+)
+```
+
+The waiver goes on the construct, not on the requirement: `spec.Waive` attaches
+to a Go construct and a requirement declaration is not one. The finding names a
+construct you can put it on.
+
+---
+
 ## 11. Rule index
 
 Every rule ID is stable and may be used in `spec.Waive`.
@@ -1062,6 +1123,7 @@ Every rule ID is stable and may be used in `spec.Waive`.
 | `K11-SOURCE-UNANCHORED` | `V5-026` | a citation names a document but no part of it |
 | `K12-SOURCE-UNCOVERED` | `V6-100` | a section or region became no requirement |
 | `K13-SOURCE-DRIFT` | `V6-111` | a source segment was rewritten under the requirements derived from it |
+| `K14-REQ-UNVERIFIED` | `V6-120` | no test demonstrates a normative requirement |
 
 `K12-SOURCE-UNCOVERED` has no per-segment waiver; mark the segment informative
 in the document instead. The undirected `spec.Waive` switches the whole rule

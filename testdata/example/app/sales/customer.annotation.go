@@ -12,6 +12,7 @@ import (
 // the data, not to the directory it happens to sit in.
 var _ = spec.For[Customer](
 	spec.Satisfies(dec.RDecCustomerState),
+	spec.Waive("K14-REQ-UNVERIFIED", "The ruling is that a customer is stored as state rather than as facts, and the type having no event and a repository behind it is what discharges it. A test could only assert that the code compiles as written."),
 )
 
 // The stored form carries the decision as well. It is a separate type on

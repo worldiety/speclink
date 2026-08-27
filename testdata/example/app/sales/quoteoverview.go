@@ -33,10 +33,14 @@ func newQuoteOverview(src evs.Source) *evs.Singleton[*QuoteOverview] {
 	p := evs.NewSingleton[*QuoteOverview](src, evs.ProjectionOptions{})
 	evs.Project(p,
 		func(QuoteSubmitted) evs.Unit { return evs.TheUnit() },
-		func(s *QuoteOverview, e QuoteSubmitted) {
-			s.Submitted++
-			s.LastQuote = e.QuoteNumber
-		},
+		applyQuoteSubmitted,
 	)
 	return p
+}
+
+// applyQuoteSubmitted is the fold itself, named rather than written inline so
+// that it can be exercised without standing up an event source.
+func applyQuoteSubmitted(s *QuoteOverview, e QuoteSubmitted) {
+	s.Submitted++
+	s.LastQuote = e.QuoteNumber
 }
