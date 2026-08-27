@@ -37,12 +37,16 @@ func CheckMainPackages(pkgs []*Package, cfg config.Config, root string, out *dia
 		if p.pkg.Name != "main" {
 			continue
 		}
-		rel := p.relDir(root)
-		if cfg.Excluded(rel) {
-			continue
-		}
+		// Counted before the scope is consulted. Where the entry point lives is
+		// a question about the package and belongs to the scope; whether the
+		// module has one at all is a question about the module, and a scope
+		// that happens to exclude cmd/ must not answer it with "no".
 		found++
 
+		rel := p.relDir(root)
+		if !cfg.InScope(rel) {
+			continue
+		}
 		if cfg.UnderCmdRoot(rel) {
 			continue
 		}
@@ -86,7 +90,7 @@ func CheckInfrastructure(pkgs []*Package, cfg config.Config, root string, out *d
 
 	for _, p := range pkgs {
 		rel := p.relDir(root)
-		if !cfg.InInfraRoot(rel) || cfg.Excluded(rel) {
+		if !cfg.InInfraRoot(rel) || !cfg.InScope(rel) {
 			continue
 		}
 

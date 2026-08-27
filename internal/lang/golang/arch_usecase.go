@@ -42,7 +42,7 @@ func CheckUseCases(pkgs []*Package, cfg config.Config, root string, waived ir.Wa
 		if _, inContext := cfg.InContextRoot(rel); !inContext {
 			continue
 		}
-		if cfg.Excluded(rel) || contextRole(rel, cfg) != roleDomain {
+		if !cfg.InScope(rel) || contextRole(rel, cfg) != roleDomain {
 			continue
 		}
 

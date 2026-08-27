@@ -28,7 +28,7 @@ func CheckBoundedContexts(pkgs []*Package, cfg config.Config, root string, out *
 	for _, p := range pkgs {
 		rel := p.relDir(root)
 		ctx, inContext := cfg.InContextRoot(rel)
-		if !inContext || cfg.Excluded(rel) {
+		if !inContext || !cfg.InScope(rel) {
 			continue
 		}
 
@@ -273,7 +273,7 @@ func DomainPackages(pkgs []*Package, cfg config.Config, root string) map[string]
 		if _, inContext := cfg.InContextRoot(rel); !inContext {
 			continue
 		}
-		if cfg.Excluded(rel) || contextRole(rel, cfg) != roleDomain {
+		if !cfg.InScope(rel) || contextRole(rel, cfg) != roleDomain {
 			continue
 		}
 		out[p.PkgPath()] = true

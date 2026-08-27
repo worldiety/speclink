@@ -98,7 +98,7 @@ func (v Verification) ShownRatio() float64 {
 // Reporting the claim is still worth doing on its own, because it is the half
 // that can be forgotten. A test that was never written leaves nothing behind at
 // all, and no amount of reading test output will produce it.
-func CoverVerification(tree *reqtree.Tree, verifications []ir.Binding, cov Coverage, waived ir.Waivers, out *diag.Set) Verification {
+func CoverVerification(tree *reqtree.Tree, verifications []ir.Binding, cov Coverage, measured map[string]bool, waived ir.Waivers, out *diag.Set) Verification {
 	v := Verification{ByTest: map[string][]string{}}
 
 	for _, b := range verifications {
@@ -124,6 +124,9 @@ func CoverVerification(tree *reqtree.Tree, verifications []ir.Binding, cov Cover
 
 	for _, r := range tree.All() {
 		if !r.Status.MustBeCovered() {
+			continue
+		}
+		if measured != nil && !measured[r.ID] {
 			continue
 		}
 		v.Normative++
@@ -170,14 +173,17 @@ func waivedForRequirement(id string, cov Coverage, rule string, waived ir.Waiver
 // A requirement with no claim at all is not reported twice. K14-REQ-UNVERIFIED
 // has already said the only thing worth saying about it, and a second finding
 // would only make the first one look like half of a bigger problem.
-func Demonstrated(tree *reqtree.Tree, v Verification, cov Coverage, base *baseline.File, waived ir.Waivers, out *diag.Set) int {
-	// Counted down from the whole rather than up from the parts, so the figure
-	// is by construction the share this rule did not object to. Counting up
-	// meant restating the waiver logic of the rule beside it, and the two
-	// drifting apart would have shown as a percentage nobody could account for.
+func Demonstrated(tree *reqtree.Tree, v Verification, cov Coverage, measured map[string]bool, base *baseline.File, waived ir.Waivers, out *diag.Set) int {
+	// Counted down from what was claimed, not from the whole. Counting down
+	// from the whole reported a hundred percent demonstrated next to zero
+	// percent verified, because nothing claimed and therefore nothing was
+	// stale — a figure that was arithmetically defensible and plainly false.
 	stale := 0
 	for _, r := range tree.All() {
 		if !r.Status.MustBeCovered() {
+			continue
+		}
+		if measured != nil && !measured[r.ID] {
 			continue
 		}
 		claimants := v.ByTest[r.ID]
@@ -200,7 +206,7 @@ func Demonstrated(tree *reqtree.Tree, v Verification, cov Coverage, base *baseli
 			How:  "Run the tests and hand the result over: go test -json ./... | speclink evidence. If they do not pass, that is the finding.",
 		})
 	}
-	return v.Normative - stale
+	return v.Verified - stale
 }
 
 func staleWhat(claimants []string) string {

@@ -20,6 +20,7 @@ import (
 
 	"golang.org/x/tools/go/packages"
 
+	"github.com/worldiety/speclink/internal/config"
 	"github.com/worldiety/speclink/internal/ir"
 )
 
@@ -242,4 +243,38 @@ func calleeIdent(e ast.Expr) *ast.Ident {
 		return calleeIdent(x.X)
 	}
 	return nil
+}
+
+// InScope keeps the packages the configuration says are measured.
+//
+// The filter runs once, on the loaded set, before any rule sees it. That is the
+// only place it can run: a rule that skipped out-of-scope packages itself would
+// leave them in the set every other rule works from, and the evolution rules in
+// particular decide what counts as *removed* from exactly that set. A promised
+// type in a package nobody looked at must not read as deleted.
+//
+// A package holding requirement declarations is always kept. The scope says
+// which code is measured; the requirement tree is not code, and a scope that
+// happened to exclude it would leave the run with nothing to measure against
+// and every requirement reading as uncovered.
+func InScope(pkgs []*Package, cfg config.Config, root string) []*Package {
+	out := make([]*Package, 0, len(pkgs))
+	for _, p := range pkgs {
+		if len(p.requirementFiles) > 0 || cfg.InScope(p.relDir(root)) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// OutOfScope returns the packages the configuration excludes, so a run can say
+// how much it did not look at.
+func OutOfScope(pkgs []*Package, cfg config.Config, root string) []*Package {
+	out := make([]*Package, 0, len(pkgs))
+	for _, p := range pkgs {
+		if len(p.requirementFiles) == 0 && !cfg.InScope(p.relDir(root)) {
+			out = append(out, p)
+		}
+	}
+	return out
 }

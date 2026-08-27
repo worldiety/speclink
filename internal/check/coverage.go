@@ -56,7 +56,20 @@ func (c Coverage) Ratio() float64 {
 // tables unnecessary. A forgotten requirement is invisible to any one
 // directional measurement, because it appears nowhere and therefore fails no
 // test.
-func CoverRequirements(tree *reqtree.Tree, bindings []ir.Binding, out *diag.Set) Coverage {
+// measured says which requirements the backward direction applies to, nil for
+// all of them.
+//
+// A restricted scope has to reach the requirement tree, or it is unusable for
+// the thing it exists for. Bringing a codebase in one package at a time means
+// the requirements of the packages still outside are satisfied by nothing in
+// scope — which is true, and reporting it would bury the run in findings about
+// code nobody claimed to have brought in yet.
+//
+// The tree itself is always read in full, whatever the scope. An in-scope
+// construct may bind to any requirement, and a tree missing the far end of that
+// reference would make the construct read as unbound. So the scope decides what
+// is *asked of* a requirement, not whether it exists.
+func CoverRequirements(tree *reqtree.Tree, bindings []ir.Binding, measured map[string]bool, out *diag.Set) Coverage {
 	cov := Coverage{BySatisfier: map[string][]ir.Target{}}
 	waived := ir.CollectWaivers(bindings)
 
@@ -81,6 +94,9 @@ func CoverRequirements(tree *reqtree.Tree, bindings []ir.Binding, out *diag.Set)
 	for _, id := range sortedIDs(tree) {
 		r := tree.ByID[id]
 		if !r.Status.MustBeCovered() {
+			continue
+		}
+		if measured != nil && !measured[id] {
 			continue
 		}
 		cov.Normative++

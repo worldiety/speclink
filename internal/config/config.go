@@ -45,9 +45,28 @@ type Config struct {
 	// feature goes missing without a single finding.
 	SourceRoots []string `json:"sourceRoots,omitempty"`
 
-	// Exclude are path patterns the architecture rules ignore, matched with
-	// path.Match against the project relative directory. Examples and
-	// generated documentation copies are the usual candidates.
+	// Scope restricts speclink to the packages matching one of these patterns.
+	// Empty means the whole module, which is the normal case.
+	//
+	// This is the only dial speclink has, and it is deliberately the only one.
+	// There are no warnings and no severities: a finding is an error and the
+	// run fails. The reasons compound. The Go compiler behaves the same way,
+	// and softening here would be incoherent anyway, because the annotations
+	// sit in the ordinary build and a compile error cannot be downgraded to a
+	// warning. Warnings meant for a migration become a permanent excuse — that
+	// is not a guess but the standing behaviour of every codebase with a
+	// warning backlog. And the reader is a model, which iterates until green:
+	// commented-out code is visibly unfinished, a suppressed warning is
+	// invisibly unfinished.
+	//
+	// So a codebase is brought in package by package rather than rule by rule.
+	// The difference matters: "this package is not under speclink yet" is a
+	// true statement, "this rule half applies here" is not one.
+	Scope []string `json:"scope,omitempty"`
+
+	// Exclude are path patterns speclink ignores, matched with path.Match
+	// against the project relative directory. Examples and generated
+	// documentation copies are the usual candidates.
 	Exclude []string `json:"exclude,omitempty"`
 }
 
@@ -103,10 +122,43 @@ func (c *Config) normalise() {
 	for i, r := range c.SourceRoots {
 		c.SourceRoots[i] = filepath.ToSlash(strings.Trim(r, "/"))
 	}
+	for i, r := range c.Scope {
+		c.Scope[i] = filepath.ToSlash(strings.Trim(r, "/"))
+	}
 }
 
-// Excluded reports whether a project relative directory is out of scope for the
-// architecture rules.
+// InScope reports whether a project relative directory is checked at all.
+//
+// The decision is binary and it is the whole of it. Inside the scope
+// completeness is claimed; outside, nothing is. A package is either measured or
+// it is not, and which one is stated in the configuration rather than implied
+// by a tolerance somebody set once.
+func (c Config) InScope(rel string) bool {
+	rel = filepath.ToSlash(rel)
+	if c.Excluded(rel) {
+		return false
+	}
+	if len(c.Scope) == 0 {
+		return true
+	}
+	for _, pattern := range c.Scope {
+		if matchPath(pattern, rel) {
+			return true
+		}
+	}
+	return false
+}
+
+// Restricted reports whether the scope covers less than the whole module.
+//
+// A run that measures part of a project must say so. Without it a summary
+// reading a hundred percent would be true of what was looked at and silent
+// about what was not, which is the one way this tool could mislead by telling
+// the truth.
+func (c Config) Restricted() bool { return len(c.Scope) > 0 || len(c.Exclude) > 0 }
+
+// Excluded reports whether a project relative directory is explicitly out of
+// scope.
 func (c Config) Excluded(rel string) bool {
 	rel = filepath.ToSlash(rel)
 	for _, pattern := range c.Exclude {

@@ -181,6 +181,8 @@ these defaults apply.
   "contextRoot": "app",
   "cmdRoot": "cmd",
   "infraRoots": ["pkg", "foundation"],
+  "sourceRoots": ["requirements/_sources"],
+  "scope": [],
   "exclude": []
 }
 ```
@@ -188,11 +190,46 @@ these defaults apply.
 - `contextRoot` — where the bounded contexts live.
 - `cmdRoot` — where `main` packages live.
 - `infraRoots` — packages that must stay free of domain knowledge.
-- `exclude` — path patterns, `dir/**` supported.
+- `sourceRoots` — where the raw requirement documents live.
+- `scope` — the packages speclink measures; empty means all of them.
+- `exclude` — packages it does not, whatever `scope` says.
+
+Both take path patterns, with `dir/**` supported.
 
 `-config <file>` reads the layout from somewhere else, which is how a project
 can be measured without being modified. A file named this way must exist; only
 the conventional location may be absent.
+
+### Scope is the only dial
+
+There are no warnings, no severities and no tolerance mode, and `scope` is the
+single thing that can be turned. A package is measured or it is not.
+
+The reasons compound. The Go compiler behaves the same way. Softening would be
+incoherent anyway, because the annotations sit in the ordinary build and a
+compile error cannot be downgraded to a warning. Warnings meant for a migration
+become a permanent excuse — not a guess, but the standing behaviour of every
+codebase with a warning backlog. And the reader is a model, which iterates
+until green: commented-out code is visibly unfinished, a suppressed warning is
+invisibly unfinished.
+
+So a codebase is brought in **package by package, not rule by rule**. The
+difference is the whole point: *this package is not under speclink yet* is a
+true statement, *this rule half applies here* is not one.
+
+Three things follow, and all three are load-bearing:
+
+- **The scope decides what is measured, never what is loaded.** Rules that
+  resolve across packages — the permission i18n check follows a helper one step
+  — keep seeing the whole module. A rule that changed its verdict on untouched
+  code because of a configuration setting would be worse than one switched off.
+- **The requirement tree is always read in full.** An in-scope construct may
+  bind to any requirement. What the scope decides is what is *asked of* a
+  requirement, not whether it exists: a requirement declared outside the scope
+  is not reported as uncovered by code nobody claimed to have brought in yet.
+- **A restricted run says so.** `2 packages outside the configured scope and
+  not measured` follows the summary. Without it a hundred percent would be true
+  of what was looked at and silent about what was not.
 
 ---
 

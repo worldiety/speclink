@@ -128,8 +128,19 @@ func verify(args []string) error {
 	// through would double every construct, every schema and every finding
 	// derived from them, and the generated <pkg>.test main package would make
 	// K8-MAIN-LOCATION fire in every package that has a test.
-	pkgs := golang.NonTests(loaded)
-	testPkgs := golang.Tests(loaded)
+	// The scope decides what is measured, never what is loaded. Filtering the
+	// loaded set instead was the first attempt and it was wrong: every rule
+	// that resolves across packages then answers differently depending on the
+	// scope. Scoping out pkg/permtext made K5-UC-PERMISSION-I18N report
+	// permissions that were perfectly fine, because the helper it follows one
+	// step into was no longer there to resolve — a rule silently changing its
+	// verdict on code nobody touched.
+	//
+	// So `all` stays whole for resolution and `pkgs` is what rules report on.
+	all := golang.NonTests(loaded)
+	pkgs := golang.InScope(all, layout, absRoot)
+	skipped := golang.OutOfScope(all, layout, absRoot)
+	testPkgs := golang.InScope(golang.Tests(loaded), layout, absRoot)
 
 	// Phase V2 is the Go compilation itself. If it failed there is nothing
 	// meaningful to say about annotations, and saying it anyway would bury the
@@ -165,14 +176,20 @@ func verify(args []string) error {
 	for _, p := range pkgs {
 		reqs = append(reqs, p.ReadRequirements(findings)...)
 	}
+	// Persisted models are collected from everything loaded. A repository is
+	// usually built in the wiring package, far from the type it stores, and a
+	// scope that excludes the wiring would leave the stored shapes unrecognised
+	// rather than unmeasured.
 	models := map[string]bool{}
+	for _, p := range all {
+		for name := range p.PersistedModels() {
+			models[name] = true
+		}
+	}
 	for _, p := range pkgs {
 		bindings = append(bindings, p.ReadBindings(findings)...)
 		constructs = append(constructs, p.Infer()...)
 		scope[p.PkgPath()] = true
-		for name := range p.PersistedModels() {
-			models[name] = true
-		}
 	}
 	// The persisted set has to be complete before any shape is read: a
 	// repository is usually built in the wiring package, far from the type it
@@ -198,7 +215,12 @@ func verify(args []string) error {
 		p.CheckGenericCRUD(findings)
 	}
 	str := check.CoverConstructs(constructs, bindings, findings)
-	cov := check.CoverRequirements(tree, bindings, findings)
+	// Which requirements the backward direction applies to. The tree is always
+	// read in full — an in-scope construct may bind anywhere — but a
+	// requirement declared outside the scope is not asked to be covered by the
+	// code that was deliberately not looked at.
+	measured := measuredRequirements(tree, layout, absRoot)
+	cov := check.CoverRequirements(tree, bindings, measured, findings)
 
 	// V6: and whether anything demonstrates the requirement, which coverage
 	// never asked. Read from the tests, whose claims are the half that can be
@@ -211,7 +233,7 @@ func verify(args []string) error {
 	for _, p := range pkgs {
 		p.CheckVerifiedOutsideTests(findings)
 	}
-	ver := check.CoverVerification(tree, verifications, cov, ir.CollectWaivers(bindings), findings)
+	ver := check.CoverVerification(tree, verifications, cov, measured, ir.CollectWaivers(bindings), findings)
 
 	// V6: and the direction above the tree. Everything below it is already
 	// held by the Go compiler; this is the only step in the chain that has no
@@ -238,7 +260,7 @@ func verify(args []string) error {
 	// And whether the claims the tests make were ever borne out. Reading the
 	// source finds the test nobody wrote; only the record finds the test nobody
 	// ran.
-	shown := check.Demonstrated(tree, ver, cov, base, ir.CollectWaivers(bindings), findings)
+	shown := check.Demonstrated(tree, ver, cov, measured, base, ir.CollectWaivers(bindings), findings)
 	ver.Shown = shown
 
 	// A collision is not a broken promise but a corruption in progress, so it
@@ -248,7 +270,7 @@ func verify(args []string) error {
 	// K1: why the data is shaped the way it is, which forward coverage does
 	// not ask because aggregates and repositories carry no requirement of
 	// their own.
-	domain := golang.DomainPackages(pkgs, layout, absRoot)
+	domain := golang.DomainPackages(all, layout, absRoot)
 	check.JustifyPersistence(tree, constructs, bindings, domain, findings)
 
 	// K1: forward coverage down to the field. Types are reviewed when they are
@@ -257,12 +279,12 @@ func verify(args []string) error {
 
 	// V6: the architecture rules. They read the project layout, which is the
 	// one thing speclink cannot infer and the only thing speclink.json states.
-	golang.CheckUseCases(pkgs, layout, absRoot, ir.CollectWaivers(bindings), findings)
-	golang.CheckBoundedContexts(pkgs, layout, absRoot, findings)
-	golang.CheckInfrastructure(pkgs, layout, absRoot, findings)
-	golang.CheckMainPackages(pkgs, layout, absRoot, findings)
+	golang.CheckUseCases(all, layout, absRoot, ir.CollectWaivers(bindings), findings)
+	golang.CheckBoundedContexts(all, layout, absRoot, findings)
+	golang.CheckInfrastructure(all, layout, absRoot, findings)
+	golang.CheckMainPackages(all, layout, absRoot, findings)
 
-	if err := report(*format, findings, cov, str, src, ver, len(bindings)); err != nil {
+	if err := report(*format, findings, cov, str, src, ver, len(bindings), len(skipped)); err != nil {
 		return err
 	}
 	if !findings.Empty() {
@@ -366,6 +388,29 @@ func requirements(args []string) error {
 // is the number a migration is steered by: only normative requirements will
 // later have to be covered, and everything else is an explicit, justified
 // exemption.
+// measuredRequirements returns the requirement IDs the scope asks anything of,
+// nil when the scope is the whole module.
+//
+// nil rather than a full set on purpose: the unrestricted case is the normal
+// one, and a map built for it would be a lookup on every requirement to answer
+// a question nobody asked.
+func measuredRequirements(tree *reqtree.Tree, layout config.Config, root string) map[string]bool {
+	if !layout.Restricted() {
+		return nil
+	}
+	out := map[string]bool{}
+	for _, r := range tree.All() {
+		dir := filepath.Dir(r.Pos.File)
+		if rel, err := filepath.Rel(root, dir); err == nil {
+			dir = rel
+		}
+		if layout.InScope(filepath.ToSlash(dir)) {
+			out[r.ID] = true
+		}
+	}
+	return out
+}
+
 // loadSources enumerates the raw requirement documents and reports the defects
 // of the enumeration itself.
 //
@@ -450,7 +495,7 @@ func loadLayout(absRoot, explicit string) (config.Config, error) {
 // question above both: whether every part of what was actually asked for
 // became a requirement at all. Without the third the other two measure a tree
 // against itself.
-func report(format string, findings *diag.Set, cov check.Coverage, str check.Structure, src check.SourceCoverage, ver check.Verification, bindings int) error {
+func report(format string, findings *diag.Set, cov check.Coverage, str check.Structure, src check.SourceCoverage, ver check.Verification, bindings, skipped int) error {
 	switch format {
 	case "json":
 		return findings.WriteJSON(os.Stdout)
@@ -464,6 +509,14 @@ func report(format string, findings *diag.Set, cov check.Coverage, str check.Str
 			len(str.Constructs), str.Ratio()*100,
 			cov.Normative, cov.Ratio()*100, ver.Ratio()*100, ver.ShownRatio()*100,
 			bindings, plural(findings.Len(), "finding", "findings"))
+		if skipped > 0 {
+			// A run that measures part of a project has to say so. Without it
+			// the figures above are true of what was looked at and silent
+			// about what was not, which is the one way this tool could mislead
+			// by telling the truth.
+			fmt.Fprintf(os.Stderr, "%s outside the configured scope and not measured\n",
+				plural(skipped, "package", "packages"))
+		}
 		return nil
 	default:
 		return fmt.Errorf("unknown format %q, expected text or json", format)
