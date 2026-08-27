@@ -17,23 +17,9 @@ import (
 	"github.com/worldiety/speclink/internal/ir"
 )
 
-// nago package paths the recognisers match on.
-const (
-	nagoAuth       = "go.wdy.de/nago/auth"
-	nagoUser       = "go.wdy.de/nago/application/user"
-	nagoPermission = "go.wdy.de/nago/application/permission"
-	nagoEvs        = "go.wdy.de/nago/application/evs"
-	nagoData       = "go.wdy.de/nago/pkg/data"
-	nagoDataJSON   = "go.wdy.de/nago/pkg/data/json"
-	nagoNdb        = "go.wdy.de/nago/pkg/ndb"
-	nagoEnt        = "go.wdy.de/nago/application/ent"
-	nagoEntCfg     = "go.wdy.de/nago/application/ent/cfg"
-	// nagoUIEnt is the generic CRUD user interface. It lives under the ent
-	// module rather than under presentation/, which is easy to get wrong: the
-	// path was presentation/ui/ent in earlier versions and a stale constant
-	// here would silently disable the rule instead of failing loudly.
-	nagoUIEnt = "go.wdy.de/nago/application/ent/ui"
-)
+// The framework paths the recognisers match on are declared in nago.go, with
+// the rule each one carries, so that a version bump reports what it broke
+// instead of quietly disabling it.
 
 // Infer walks the ordinary source files of the package and returns the
 // architectural constructs it recognises.
