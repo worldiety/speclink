@@ -113,11 +113,22 @@ func CoverSources(tree *reqtree.Tree, set *source.Set, docs []string, waived ir.
 				Pos:  ir.Position{File: seg.Pos.File, Line: seg.Pos.Line},
 				What: describe(seg) + " became no requirement.",
 				Why:  "Every part of a requirement document has to turn into something. A section that did not is the one defect the rest of speclink cannot see: there is no requirement to report as uncovered and no construct to report as unbound, so the run stays green while a piece of what was asked for is missing.",
-				How:  "Write a requirement citing " + seg.Ref() + ", or mark the section informative with " + source.InformativeMarker + " if it states no obligation.",
+				How:  "Write a requirement citing " + seg.Ref() + ", or " + markInformative(seg) + " if it states no obligation.",
 			})
 		}
 	}
 	return cov
+}
+
+// markInformative names the exemption in the terms of the document it applies
+// to. The statement always belongs in the source, but a Markdown section and an
+// image region say it in different places, and a diagnostic that named the
+// wrong one would be worse than none.
+func markInformative(s source.Segment) string {
+	if s.Kind == source.KindImage {
+		return `set "informative": true on the region in ` + source.ManifestPath(s.Doc)
+	}
+	return "mark the section informative with " + source.InformativeMarker
 }
 
 func describe(s source.Segment) string {

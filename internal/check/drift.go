@@ -105,8 +105,8 @@ func driftSources(tree *reqtree.Tree, set *source.Set, docs []string, cov Source
 				Rule: RuleSourceDrift,
 				Pos:  ir.Position{File: seg.Pos.File, Line: seg.Pos.Line},
 				What: describe(seg) + " changed since it was last recorded.",
-				Why:  "The anchor still resolves, so nothing is dangling and no other rule has anything to say. The part of the document it resolves to now reads differently, and " + derivedFrom(derived) + " unchanged.",
-				How:  "Re-read " + list(derived) + " against the new wording, change what has to change, then run `speclink freeze` to record the version that was reviewed.",
+				Why:  "The anchor still resolves, so nothing is dangling and no other rule has anything to say. What it resolves to " + nowShows(seg) + ", and " + derivedFrom(derived) + " unchanged.",
+				How:  "Re-read " + list(derived) + " against " + theNew(seg) + ", change what has to change, then run `speclink freeze` to record the version that was reviewed.",
 			})
 		}
 	}
@@ -164,6 +164,23 @@ func names(targets []ir.Target) []string {
 		out = append(out, t.String())
 	}
 	return out
+}
+
+// The two source kinds drift in different words. A region of a mockup does not
+// read differently, it looks different, and a diagnostic that said otherwise
+// would send the reader looking for text that is not there.
+func nowShows(s source.Segment) string {
+	if s.Kind == source.KindImage {
+		return "now looks different"
+	}
+	return "now reads differently"
+}
+
+func theNew(s source.Segment) string {
+	if s.Kind == source.KindImage {
+		return "the new mockup"
+	}
+	return "the new wording"
 }
 
 func satisfying(ids []string) string {

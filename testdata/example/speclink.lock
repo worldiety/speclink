@@ -109,6 +109,22 @@
     "requirements/_sources/sales/quoteflow.md#angebotsfluss": {
       "fingerprint": "48016ee3834448eb66e03561a7a94788323e159b1e73b2854d2ab308143b1fcf",
       "kind": "markdown"
+    },
+    "requirements/_sources/sales/quotescreen.png#abgabeknopf": {
+      "fingerprint": "8bb497ada4fc03b4820af438f2237442f7607fbe83d9235c595341763635bfc4",
+      "kind": "image"
+    },
+    "requirements/_sources/sales/quotescreen.png#angebotsliste": {
+      "fingerprint": "0eea4ebad438405e350fdd69845fe54b10977a7c56323cdd0c74ae0698089b5f",
+      "kind": "image"
+    },
+    "requirements/_sources/sales/quotescreen.png#kopfleiste": {
+      "fingerprint": "225ca4181a596e32ad9a01ca04f53b426ac9b6ac0cc78d698b62cd2d7877e2d7",
+      "kind": "image"
+    },
+    "requirements/_sources/sales/quotescreen.png#kundenfeld": {
+      "fingerprint": "d3af1c4dde4270352f306553f72dfa6e033aa88a3c27499f9b5bd90f25c31dbf",
+      "kind": "image"
     }
   }
 }

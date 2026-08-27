@@ -16,5 +16,6 @@ var RQuoteSubmit = spec.Requirement{
 	DerivedFrom: []spec.Requirement{dec.RDecNumbering},
 	Sources: []spec.Source{
 		{Doc: "requirements/_sources/sales/quoteflow.md", Anchor: "8-abgabe"},
+		{Doc: "requirements/_sources/sales/quotescreen.png", Anchor: "abgabeknopf"},
 	},
 }

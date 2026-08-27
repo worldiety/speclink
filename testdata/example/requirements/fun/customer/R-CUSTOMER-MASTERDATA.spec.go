@@ -12,5 +12,6 @@ var RCustomerMasterdata = spec.Requirement{
 	Text:       "A customer MUST be held with the name it currently trades under and the internal notes kept about them.",
 	Sources: []spec.Source{
 		{Doc: "requirements/_sources/sales/quoteflow.md", Anchor: "2-kunde"},
+		{Doc: "requirements/_sources/sales/quotescreen.png", Anchor: "kundenfeld"},
 	},
 }

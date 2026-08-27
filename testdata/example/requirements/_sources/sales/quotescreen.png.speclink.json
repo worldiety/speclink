@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "regions": [
+    {
+      "name": "kopfleiste",
+      "title": "Kopfleiste",
+      "rect": { "x": 0, "y": 0, "w": 240, "h": 28 },
+      "informative": true
+    },
+    {
+      "name": "kundenfeld",
+      "title": "Kundenfeld",
+      "rect": { "x": 12, "y": 44, "w": 216, "h": 24 }
+    },
+    {
+      "name": "angebotsliste",
+      "title": "Angebotsliste",
+      "rect": { "x": 12, "y": 80, "w": 216, "h": 40 }
+    },
+    {
+      "name": "abgabeknopf",
+      "title": "Abgabeknopf",
+      "rect": { "x": 148, "y": 128, "w": 80, "h": 22 }
+    }
+  ]
+}

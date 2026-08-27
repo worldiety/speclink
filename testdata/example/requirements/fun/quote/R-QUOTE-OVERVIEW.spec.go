@@ -11,5 +11,6 @@ var RQuoteOverview = spec.Requirement{
 	Text:       "Sales MUST see per customer how many quotes have been submitted and which number the last one carries.",
 	Sources: []spec.Source{
 		{Doc: "requirements/_sources/sales/quoteflow.md", Anchor: "10-übersicht"},
+		{Doc: "requirements/_sources/sales/quotescreen.png", Anchor: "angebotsliste"},
 	},
 }
