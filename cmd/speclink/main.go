@@ -53,6 +53,8 @@ func run(args []string) error {
 		return inventory(args[1:])
 	case "impact":
 		return impact(args[1:])
+	case "evidence":
+		return evidence(args[1:])
 	case "help", "-h", "--help":
 		usage()
 		return nil
@@ -71,6 +73,7 @@ usage:
   speclink freeze       [flags] [packages]
   speclink inventory    [flags] [packages]
   speclink impact       [flags] <requirement|doc.md#anchor|path>...
+  speclink evidence     [flags] [packages]
 
 commands:
   verify        check requirements, annotations and architecture rules
@@ -79,6 +82,8 @@ commands:
   inventory     list what the recognisers found, with kind, name and binding
   impact        report what a change to a requirement, a source segment or a
                 file reaches
+  evidence      record which tests demonstrated which requirements, reading
+                the output of "go test -json"
 
 run "speclink <command> -h" for the flags of a command.
 `)
@@ -229,6 +234,12 @@ func verify(args []string) error {
 	// rewritten under the requirements derived from it. Neither is visible to
 	// any other check, because in both cases every reference still resolves.
 	check.Drift(tree, docs, sourceDocs, cov, src, base, ir.CollectWaivers(bindings), findings)
+
+	// And whether the claims the tests make were ever borne out. Reading the
+	// source finds the test nobody wrote; only the record finds the test nobody
+	// ran.
+	shown := check.Demonstrated(tree, ver, cov, base, ir.CollectWaivers(bindings), findings)
+	ver.Shown = shown
 
 	// A collision is not a broken promise but a corruption in progress, so it
 	// is checked for drafts too.
@@ -448,10 +459,10 @@ func report(format string, findings *diag.Set, cov check.Coverage, str check.Str
 			return err
 		}
 		fmt.Fprintf(os.Stderr,
-			"\n%d source segments (%.0f%% accounted), %d constructs (%.0f%% bound), %d normative requirements (%.0f%% covered, %.0f%% verified), %d bindings, %s\n",
+			"\n%d source segments (%.0f%% accounted), %d constructs (%.0f%% bound), %d normative requirements (%.0f%% covered, %.0f%% verified, %.0f%% demonstrated), %d bindings, %s\n",
 			src.Total, src.Ratio()*100,
 			len(str.Constructs), str.Ratio()*100,
-			cov.Normative, cov.Ratio()*100, ver.Ratio()*100,
+			cov.Normative, cov.Ratio()*100, ver.Ratio()*100, ver.ShownRatio()*100,
 			bindings, plural(findings.Len(), "finding", "findings"))
 		return nil
 	default:

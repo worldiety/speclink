@@ -35,6 +35,9 @@
 //     resolves. The literature treats this one as unsolved and answers it by
 //     hand — a revision number somebody remembers to increment, a suspect flag
 //     somebody remembers to review. Here it is computed.
+//   - A test can demonstrate a requirement, and no amount of reading the source
+//     will ever show that it did. The claim is in the code; the demonstration
+//     happened at a moment that has already passed.
 //
 // In all three cases the answer is the same and so is the workflow: the run
 // reports what moved, `speclink freeze` records the new state, and the diff of
@@ -87,6 +90,27 @@ type File struct {
 	// Sources are the recorded document segments, keyed by segment reference
 	// in the form "path/to/doc.md#anchor".
 	Sources map[string]Segment `json:"sources,omitempty"`
+	// Verifications are the tests that demonstrated a requirement, keyed by
+	// requirement ID.
+	Verifications map[string][]Verification `json:"verifications,omitempty"`
+}
+
+// Verification is one test that demonstrated a requirement and passed.
+//
+// It is the only entry here recording something that happened rather than
+// something that is. The others are hashes of text that can be read again at
+// any time; a test run cannot. That asymmetry is the reason it has to be
+// written down at all: nothing in the working tree remembers that a test once
+// went green.
+//
+// Text is the hash of the requirement as it read when the test ran, taken with
+// [HashText] like the requirement record beside it. Binding the two is what
+// makes a rewritten requirement void its own evidence, without a second
+// mechanism: the words the test was written against are no longer the words it
+// would be asked about.
+type Verification struct {
+	Test string `json:"test"`
+	Text string `json:"text"`
 }
 
 // Requirement is one recorded requirement text.
@@ -202,6 +226,9 @@ func (f *File) fill() {
 	if f.Sources == nil {
 		f.Sources = map[string]Segment{}
 	}
+	if f.Verifications == nil {
+		f.Verifications = map[string][]Verification{}
+	}
 }
 
 // Save writes the baseline to the project root.
@@ -236,6 +263,22 @@ func (f *File) RequirementIDs() []string { return sortedKeys(f.Requirements) }
 
 // SegmentRefs returns the recorded segment references in a stable order.
 func (f *File) SegmentRefs() []string { return sortedKeys(f.Sources) }
+
+// VerifiedBy returns the tests recorded as having demonstrated a requirement at
+// the given wording, empty when none did.
+//
+// The wording is part of the question, not a detail of it. A test that passed
+// against a sentence that has since been rewritten demonstrated something else.
+func (f *File) VerifiedBy(id, text string) []string {
+	var out []string
+	for _, v := range f.Verifications[id] {
+		if v.Text == text {
+			out = append(out, v.Test)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
 
 // RequirementOf returns the ID already recorded for a source segment.
 //

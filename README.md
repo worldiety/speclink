@@ -15,8 +15,10 @@ also enforces the architecture of a nago project.
 ## 1. The rules you must not break
 
 1. **Build order is fixed.** `go build ./...` → `speclink verify ./...` →
-   `go test ./...`. If the Go build is broken, speclink refuses to run and tells
-   you so; fix the compile error first.
+   `go test -json ./... | speclink evidence`. If the Go build is broken,
+   speclink refuses to run and tells you so; fix the compile error first. The
+   last step hands the test results back, because a claim that a test verifies
+   something is not evidence that it did.
 2. **Every finding is an error.** There are no warnings, no severities and no
    tolerance mode. The run either has zero findings or it fails.
 3. **The only escape hatch is `spec.Waive(rule, reason)`**, and the reason is
@@ -48,6 +50,7 @@ speclink impact       [flags] <requirement|doc.md#anchor|path>...
   -config <file>      layout configuration; defaults to speclink.json in the root
   -n                  freeze only: report what would be recorded, write nothing
   -reviewer <who>     freeze only: record that this person read the requirements
+  -in <file>          evidence only: read the test stream from a file
   -kind <kind>        inventory only: restrict to one kind, e.g. event
 ```
 
@@ -1055,8 +1058,37 @@ when it executes, which is what makes a *present* one believable.
 | in the source | recorded | meaning |
 |---|---|---|
 | no call | – | nothing claims to verify it — `K14-REQ-UNVERIFIED` |
-| a call | nothing, or against an older wording | claimed, not demonstrated |
+| a call | nothing, or against an older wording | claimed, not shown — `K14-VERIFICATION-STALE` |
 | a call | matching, from a passing test | demonstrated |
+
+### Handing the results back
+
+```
+go test -json ./... | speclink evidence
+```
+
+This is the fourth step of the build order, and the only one that writes
+evidence rather than reading it. It records which tests passed while claiming
+which requirements, bound to the wording the requirement had at the time.
+
+speclink does not run the tests itself. The build order puts them after it, and
+a command that invoked the suite would either break that or duplicate it. It
+also makes the evidence something CI hands over rather than something speclink
+produces, which is the right way round.
+
+Only passing tests are recorded, and a run is the whole truth: a requirement
+nothing demonstrated this time loses its record. `K14-VERIFICATION-STALE` then
+reports it, and the same finding covers three mistakes that look identical from
+the source and are all fixed the same way:
+
+- the call sits behind a condition that never holds
+- the test fails before reaching the end
+- the requirement was rewritten after the last run, so the evidence was for
+  other words
+
+The summary reports both figures, and the gap between them is the interesting
+number: `100% verified, 88% demonstrated` means a test exists, compiles, claims
+something, and has not been seen doing it.
 
 This is the one place in speclink where a fact is produced at run time, and it
 is not the exception it looks like. P9 bans constructs that turn *static* facts
@@ -1124,6 +1156,7 @@ Every rule ID is stable and may be used in `spec.Waive`.
 | `K12-SOURCE-UNCOVERED` | `V6-100` | a section or region became no requirement |
 | `K13-SOURCE-DRIFT` | `V6-111` | a source segment was rewritten under the requirements derived from it |
 | `K14-REQ-UNVERIFIED` | `V6-120` | no test demonstrates a normative requirement |
+| `K14-VERIFICATION-STALE` | `V6-121` | a test claims a requirement but no run has shown it |
 
 `K12-SOURCE-UNCOVERED` has no per-segment waiver; mark the segment informative
 in the document instead. The undirected `spec.Waive` switches the whole rule

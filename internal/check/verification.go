@@ -3,6 +3,10 @@ package check
 
 import (
 	"sort"
+	"strconv"
+	"strings"
+
+	"github.com/worldiety/speclink/internal/baseline"
 
 	"github.com/worldiety/speclink/internal/diag"
 	"github.com/worldiety/speclink/internal/ir"
@@ -33,6 +37,22 @@ import (
 // this is the sharper answer, and it costs one extra lookup.
 const RuleRequirementUnverified = "K14-REQ-UNVERIFIED"
 
+// RuleVerificationStale fires when a test claims a requirement but no run has
+// shown it doing so.
+//
+// It is the difference between what is written and what happened, and it is the
+// only rule in speclink that can report a defect nothing in the working tree
+// contains. The call is there, the test compiles, the source is beyond
+// reproach — and the last recorded run either never reached the call, ended in
+// a failure, or was made against a wording the requirement no longer has.
+//
+// Three quite different mistakes reduce to it, which is deliberate. A call
+// behind a condition that never holds, a test that fails before reaching the
+// end, and a requirement rewritten under a test that still passes are all the
+// same thing from here: nobody has shown this, whatever the source suggests.
+// The fix is the same too, which is why one rule is enough.
+const RuleVerificationStale = "K14-VERIFICATION-STALE"
+
 // Verification is the result of the verification direction.
 type Verification struct {
 	// Normative is the number of requirements that had to be demonstrated.
@@ -41,14 +61,30 @@ type Verification struct {
 	Verified int
 	// ByTest maps a requirement ID to the tests naming it.
 	ByTest map[string][]string
+	// Shown is how many were not merely claimed but borne out by a recorded
+	// run. It is filled in by [Demonstrated], which needs the baseline that
+	// CoverVerification deliberately does not read.
+	Shown int
 }
 
-// Ratio is the demonstrated share, 1 for an empty set.
+// Ratio is the claimed share, 1 for an empty set.
 func (v Verification) Ratio() float64 {
 	if v.Normative == 0 {
 		return 1
 	}
 	return float64(v.Verified) / float64(v.Normative)
+}
+
+// ShownRatio is the share that a recorded run actually bore out.
+//
+// It is reported next to Ratio rather than instead of it, because the gap
+// between them is the interesting number: it is exactly the set of tests that
+// exist, compile, claim something, and have not been seen to do it.
+func (v Verification) ShownRatio() float64 {
+	if v.Normative == 0 {
+		return 1
+	}
+	return float64(v.Shown) / float64(v.Normative)
 }
 
 // CoverVerification checks that every normative requirement is named by a test.
@@ -95,7 +131,7 @@ func CoverVerification(tree *reqtree.Tree, verifications []ir.Binding, cov Cover
 			v.Verified++
 			continue
 		}
-		if waivedForRequirement(r.ID, cov, waived) {
+		if waivedForRequirement(r.ID, cov, RuleRequirementUnverified, waived) {
 			v.Verified++
 			continue
 		}
@@ -113,16 +149,65 @@ func CoverVerification(tree *reqtree.Tree, verifications []ir.Binding, cov Cover
 
 // waivedForRequirement reports whether the rule is waived, either globally or
 // on one of the constructs written for this requirement.
-func waivedForRequirement(id string, cov Coverage, waived ir.Waivers) bool {
-	if waived.Has("", RuleRequirementUnverified) {
+func waivedForRequirement(id string, cov Coverage, rule string, waived ir.Waivers) bool {
+	if waived.Has("", rule) {
 		return true
 	}
 	for _, t := range cov.BySatisfier[id] {
-		if waived.Has(t.String(), RuleRequirementUnverified) {
+		if waived.Has(t.String(), rule) {
 			return true
 		}
 	}
 	return false
+}
+
+// Demonstrated checks the claims against the record of what actually ran.
+//
+// CoverVerification reads the source and reports the test nobody wrote.
+// This reads the baseline and reports the test nobody ran, which no reading of
+// the source can find: the call is there and the code is beyond reproach.
+//
+// A requirement with no claim at all is not reported twice. K14-REQ-UNVERIFIED
+// has already said the only thing worth saying about it, and a second finding
+// would only make the first one look like half of a bigger problem.
+func Demonstrated(tree *reqtree.Tree, v Verification, cov Coverage, base *baseline.File, waived ir.Waivers, out *diag.Set) int {
+	// Counted down from the whole rather than up from the parts, so the figure
+	// is by construction the share this rule did not object to. Counting up
+	// meant restating the waiver logic of the rule beside it, and the two
+	// drifting apart would have shown as a percentage nobody could account for.
+	stale := 0
+	for _, r := range tree.All() {
+		if !r.Status.MustBeCovered() {
+			continue
+		}
+		claimants := v.ByTest[r.ID]
+		if len(claimants) == 0 {
+			continue // K14-REQ-UNVERIFIED, or waived there
+		}
+		if len(base.VerifiedBy(r.ID, baseline.HashText(r.Text, r.Title))) > 0 {
+			continue
+		}
+		if waivedForRequirement(r.ID, cov, RuleVerificationStale, waived) {
+			continue
+		}
+		stale++
+		out.Add(diag.Finding{
+			Code: diag.Code(diag.PhaseSemantic, 121),
+			Rule: RuleVerificationStale,
+			Pos:  r.Pos,
+			What: staleWhat(claimants) + " " + r.ID + ", but no run has shown it.",
+			Why:  "spec.Verified writes its line when control reaches it, and only a passing test has its line recorded. So one of three things is true and the source cannot tell them apart: the call was never reached, the test failed before the end, or the requirement was rewritten after the last run and the evidence was against the old wording.",
+			How:  "Run the tests and hand the result over: go test -json ./... | speclink evidence. If they do not pass, that is the finding.",
+		})
+	}
+	return v.Normative - stale
+}
+
+func staleWhat(claimants []string) string {
+	if len(claimants) == 1 {
+		return shortName(claimants[0]) + " claims"
+	}
+	return strconv.Itoa(len(claimants)) + " tests claim"
 }
 
 // callSiteName renders a requirement's Go identifier the way it is written at a
@@ -179,4 +264,67 @@ func satisfierHint(id string, cov Coverage) string {
 	}
 	sort.Strings(names)
 	return names[0]
+}
+
+// RecordVerifications folds a set of demonstrations into the baseline.
+//
+// demonstrated maps a requirement ID to the tests that passed while claiming
+// it. Each record is bound to the wording the requirement has now, which is the
+// wording those tests just ran against — that binding is what makes a later
+// rewrite void its own evidence without a second mechanism.
+//
+// Records for a requirement are replaced rather than merged. The input is one
+// complete test run, so a test that no longer demonstrates a requirement has to
+// disappear from the record; merging would keep it alive forever.
+func RecordVerifications(base *baseline.File, tree *reqtree.Tree, demonstrated map[string][]string) (changed []string, unknown []string) {
+	for _, id := range sortedKeys(demonstrated) {
+		r := tree.ByID[id]
+		if r == nil {
+			unknown = append(unknown, id)
+			continue
+		}
+		text := baseline.HashText(r.Text, r.Title)
+
+		tests := append([]string(nil), demonstrated[id]...)
+		sort.Strings(tests)
+
+		records := make([]baseline.Verification, 0, len(tests))
+		for _, test := range tests {
+			records = append(records, baseline.Verification{Test: test, Text: text})
+		}
+		if !sameVerifications(base.Verifications[id], records) {
+			changed = append(changed, "verified  "+id+" ("+strings.Join(tests, ", ")+")")
+		}
+		base.Verifications[id] = records
+	}
+
+	// A requirement nothing demonstrated in this run keeps no record. The run
+	// is the whole truth about what passed, and leaving an old entry would let
+	// a deleted test go on vouching for something.
+	//
+	// A removal is a change like any other. Reporting only additions was a real
+	// bug: with nothing new to record the caller returned early and never wrote
+	// the file, so the evidence for a test that had just stopped passing stayed
+	// in the baseline and the run went green.
+	for _, id := range sortedKeys(base.Verifications) {
+		if _, ran := demonstrated[id]; ran {
+			continue
+		}
+		delete(base.Verifications, id)
+		changed = append(changed, "withdrawn "+id+": no passing test demonstrated it in this run")
+	}
+	sort.Strings(changed)
+	return changed, unknown
+}
+
+func sameVerifications(a, b []baseline.Verification) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

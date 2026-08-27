@@ -126,5 +126,53 @@
       "fingerprint": "d3af1c4dde4270352f306553f72dfa6e033aa88a3c27499f9b5bd90f25c31dbf",
       "kind": "image"
     }
+  },
+  "verifications": {
+    "R-CUSTOMER-MASTERDATA": [
+      {
+        "test": "TestCustomerMappingKeepsEveryField",
+        "text": "b2e8b2f3084aea7c7551d0a791d7deaafd9b05614141adbbd81946d6f314f1f6"
+      }
+    ],
+    "R-DEC-QUOTE-EVENTSOURCED": [
+      {
+        "test": "TestQuoteStateIsFoldedFromItsFacts",
+        "text": "f232951aace120dff16e12f65862ac611370427618e7a7a1aed974f78c9f5efe"
+      }
+    ],
+    "R-NFR-TRACEABILITY": [
+      {
+        "test": "TestEveryStoredFactIdentifiesItsSubject",
+        "text": "1dfd3106b8d4b1249509c5f7f79cf7c24762c25ae14b94716e01c2e05ded2fd4"
+      }
+    ],
+    "R-QUOTE-APPROVE": [
+      {
+        "test": "TestApproveQuoteRequiresLegalSignOff",
+        "text": "970ef61d9861676ea0fb67090ecad6e3b75a5509018749e3130824b2540020e9"
+      }
+    ],
+    "R-QUOTE-CHANNEL": [
+      {
+        "test": "TestSubmissionRecordsTheChannel",
+        "text": "9cf68906e55b34959f2fdb8c2304c4c31d76b139487df6a5c6e7b450605be309"
+      }
+    ],
+    "R-QUOTE-OVERVIEW": [
+      {
+        "test": "TestOverviewCountsSubmissionsAndKeepsTheLastNumber",
+        "text": "6ad3b0aaabe63b7dd78766ef138028a5f1e02f5781b622b59cc7e88aef01e370"
+      }
+    ],
+    "R-QUOTE-SUBMIT": [
+      {
+        "test": "TestSubmitQuoteDrawsAGaplessNumber",
+        "text": "f020cd386063d66da712d2d605cb8ab2ef92ec1c6560d40e9fd047d85e8d792b"
+      },
+      {
+        "test": "TestSubmitQuoteFailsWhenNoNumberCanBeDrawn",
+        "text": "f020cd386063d66da712d2d605cb8ab2ef92ec1c6560d40e9fd047d85e8d792b"
+      }
+    ]
   }
 }
