@@ -27,11 +27,11 @@ const (
 	// and by a process that has no notion of which parts were load bearing.
 	//
 	// The literature answers this by hand: OpenFastTrace puts a revision in the
-	// identifier that an author increments when the meaning changed, Sphinx
-	// -Needs lets a link carry a predicate, DOORS raises a suspect flag for a
-	// human to clear. All three depend on somebody deciding that a change was
-	// semantic. Here the change is computed, so nobody has to decide and nobody
-	// can forget.
+	// identifier that an author increments when the meaning changed,
+	// Sphinx-Needs lets a link carry a predicate, DOORS raises a suspect flag
+	// for a human to clear. All three depend on somebody deciding that a change
+	// was semantic, and the last is famously cleared in bulk. Here the change is
+	// computed, so nobody has to decide and nobody can forget.
 	RuleReqChanged = "K10-REQ-CHANGED"
 
 	// RuleSourceDrift fires when a source segment no longer matches what was

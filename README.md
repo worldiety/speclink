@@ -59,13 +59,23 @@ Exit code is `1` if there is any finding, `0` otherwise. The summary goes to
 stderr:
 
 ```
-11 constructs (100% bound), 3 normative requirements (100% covered), 9 bindings, 0 findings
+7 source segments (100% accounted), 19 constructs (100% bound), 8 normative requirements (100% covered), 30 bindings, 0 findings
 ```
 
-Two numbers, two directions. *Bound* is the forward direction: does every
-construct that carries business meaning name a requirement? *Covered* is the
-backward direction: is every normative requirement satisfied by at least one
-construct? Both must reach 100%.
+Three numbers, three directions, all of which must reach 100%.
+
+*Accounted* is the direction above the requirement tree: did every part of the
+documents people actually wrote become a requirement? *Bound* is the forward
+direction below it: does every construct that carries business meaning name a
+requirement? *Covered* is the backward direction: is every normative
+requirement satisfied by at least one construct?
+
+Read them in that order, because the first one decides what the other two are
+worth. Bound and covered measure the tree against the code, and the Go compiler
+is already holding most of that edge up. Accounted measures the tree against
+what was asked for, and nothing else in the chain does — a tree can be
+internally perfect, both other figures at a hundred percent, and a whole
+section of the specification simply absent.
 
 ### Checking the requirement tree on its own
 
@@ -843,6 +853,96 @@ wrong, it is merely too inflexible to carry a specification.
 
 ---
 
+## 10a. The source documents
+
+The requirement tree is not the top of the chain. Above it are the documents
+people wrote — Markdown and mockups — and the step from those into the tree is
+the only one with no formal semantics. Everything below the tree is held up by
+the Go compiler; this is the part that decides whether the coverage figures
+mean anything.
+
+### What a source is
+
+Two kinds, and no others. `sourceRoots` in `speclink.json` says where they
+live, defaulting to `requirements/_sources`.
+
+| Kind | Segmented by | Anchor is |
+|---|---|---|
+| `.md` | its headings | the heading slug |
+| `.png`, `.jpg` | a sidecar manifest | the region name |
+
+PDF is deliberately not supported. Convert it to Markdown: the conversion is
+then a visible step, and the result is diffable in the pull request.
+
+A document is a sequence of **segments**, not an atom, and `Source.Anchor`
+addresses one of them. An image region is an anchor like any other — there was
+never a difference from the requirement side between pointing at a section and
+pointing at part of a screen.
+
+### Mockups
+
+Regions are declared next to the image in `<image>.speclink.json`:
+
+```json
+{
+  "version": 1,
+  "regions": [
+    { "name": "kopfleiste", "rect": { "x": 0, "y": 0, "w": 240, "h": 28 }, "informative": true },
+    { "name": "abgabeknopf", "rect": { "x": 148, "y": 128, "w": 80, "h": 22 } }
+  ]
+}
+```
+
+They are declared rather than found because an image is not decomposable by any
+deterministic rule, and a model inventing regions would only move the
+invented-requirement problem one level down.
+
+Coordinates are what make drift specific: the fingerprint covers the pixels
+inside the rectangle, so recolouring one button reports the requirements of
+that button and nothing else. A layout shift moves everything below it and
+reports drift across the board — visible, resolved by one `freeze`, and
+preferable to a report so coarse that it gets ignored.
+
+### Sections that carry no obligation
+
+Every segment must produce at least one requirement. A title, an introduction,
+a glossary or a chrome element genuinely does not, and says so where it is
+written:
+
+```markdown
+# Einleitung
+
+<!-- speclink:informative -->
+```
+
+For a region, set `"informative": true` in the manifest.
+
+This is not `spec.Waive` and cannot be. A waiver attaches to a Go construct and
+a section has none, so a waiver narrowed to one section could not be written
+down at all. Stating it in the document puts the decision with the person who
+wrote the section and keeps the fact in one place.
+
+### Drift
+
+A requirement text and a source segment are the same kind of edge as a wire
+format: the compiler cannot re-derive them, so `speclink.lock` records what
+they used to say.
+
+Rewrite the text of a requirement and its identifier is unchanged, every
+`spec.Satisfies` still compiles and the coverage stays at 100%.
+`K10-REQ-CHANGED` is the only thing that notices. Rewrite the section it came
+from and the anchor still resolves; `K13-SOURCE-DRIFT` is the only thing that
+notices.
+
+Both are answered the same way: re-read what the finding names, change what has
+to change, then `speclink freeze`. The diff of `speclink.lock` is the review.
+
+Reformatting is not drift and reflowing is not a rewrite. Both are pinned by
+tests, because a rule that fires on a formatter is one that gets waived by
+habit.
+
+---
+
 ## 11. Rule index
 
 Every rule ID is stable and may be used in `spec.Waive`.
@@ -878,15 +978,27 @@ Every rule ID is stable and may be used in `spec.Waive`.
 | `K9-OPTIONAL-REVOKED` | `V6-097` | a field stopped being optional |
 | `K9-FIELD-ADDED-REQUIRED` | `V6-098` | a field added to a promised type without `spec.Optional()` |
 | `K9-DISCRIMINATOR-COLLISION` | `V6-099` | two persisted types claim the same serialisation tag |
+| `K10-REQ-CHANGED` | `V6-110` | a requirement's text was rewritten under its satisfiers |
+| `K11-REQ-UNSOURCED` | `V5-020` | a normative requirement cites no source |
+| `K11-SOURCE-UNANCHORED` | `V5-026` | a citation names a document but no part of it |
+| `K12-SOURCE-UNCOVERED` | `V6-100` | a section or region became no requirement |
+| `K13-SOURCE-DRIFT` | `V6-111` | a source segment was rewritten under the requirements derived from it |
+
+`K12-SOURCE-UNCOVERED` has no per-segment waiver; mark the segment informative
+in the document instead. The undirected `spec.Waive` switches the whole rule
+off, which is how a project adopts the rest of speclink before its documents
+are in shape.
 
 Requirement-tree findings (`V5`) are not waivable per construct, because they
-concern the requirement, not the code: `V5-001` missing ID, `V5-002` missing
+concern the requirement, not the code. The two exceptions are
+`K11-REQ-UNSOURCED` and `K11-SOURCE-UNANCHORED`, which are waivable because
+both can genuinely fail to hold. `V5-001` missing ID, `V5-002` missing
 Kind, `V5-003` missing Status, `V5-004` decision without rationale, `V5-005`
 missing Text, `V5-013` cycle in `DerivedFrom`, `V5-020` normative requirement
 without a source, `V5-021`/`V5-022` a source naming neither or both of
-`Doc`/`Extern`, `V5-023` source document missing, `V5-024` an `Anchor` set on a
-non-text document, `V5-025` the anchor names no heading in that document,
-`V5-030` file name ≠ ID, `V5-031` malformed ID, `V5-032` prefix contradicts
+`Doc`/`Extern`, `V5-023` source document missing or unsegmentable, `V5-025` the
+anchor names no segment of that document, `V5-027` a configured source root is
+missing, `V5-030` file name ≠ ID, `V5-031` malformed ID, `V5-032` prefix contradicts
 Kind, `V5-033` directory contradicts Kind, `V5-034` functional requirement
 directly in `fun/`, `V5-035` domain directory contradicts the ID prefix.
 
