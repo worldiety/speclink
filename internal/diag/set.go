@@ -94,9 +94,15 @@ func indent(s string) []string {
 	return out
 }
 
-// jsonFinding is the wire shape of a finding. Kept separate from Finding so the
+// JSONFinding is the wire shape of a finding. Kept separate from Finding so the
 // public JSON contract does not drift with internal refactoring.
-type jsonFinding struct {
+//
+// It is exported because more than one report embeds it, and two shapes for one
+// concept would be two contracts to keep in step. In particular a finding must
+// carry Why and How wherever it appears: the whole point of these diagnostics
+// is that they are prescriptive, and a report that dropped them would leave its
+// reader knowing something is wrong and nothing about what to do.
+type JSONFinding struct {
 	Code   string `json:"code"`
 	File   string `json:"file"`
 	Line   int    `json:"line"`
@@ -111,7 +117,7 @@ type jsonFinding struct {
 
 type jsonReport struct {
 	Version  int           `json:"version"`
-	Findings []jsonFinding `json:"findings"`
+	Findings []JSONFinding `json:"findings"`
 }
 
 // ReportVersion is the schema version of the JSON diagnostics.
@@ -124,20 +130,7 @@ const ReportVersion = 1
 // fields so a consumer can act on them individually.
 func (s *Set) WriteJSON(w io.Writer) error {
 	fs := s.Findings()
-	out := jsonReport{Version: ReportVersion, Findings: make([]jsonFinding, 0, len(fs))}
-	for _, f := range fs {
-		out.Findings = append(out.Findings, jsonFinding{
-			Code:  f.Code,
-			File:  f.Pos.File,
-			Line:  f.Pos.Line,
-			Col:   f.Pos.Col,
-			What:  f.What,
-			Why:   f.Why,
-			How:   f.How,
-			Rule:  f.Rule,
-			Phase: phaseOf(f.Code),
-		})
-	}
+	out := jsonReport{Version: ReportVersion, Findings: JSONFindings(fs)}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(out)
@@ -150,4 +143,23 @@ func phaseOf(code string) string {
 		return parts[1]
 	}
 	return ""
+}
+
+// JSONFindings converts findings into their wire shape.
+func JSONFindings(fs []Finding) []JSONFinding {
+	out := make([]JSONFinding, 0, len(fs))
+	for _, f := range fs {
+		out = append(out, JSONFinding{
+			Code:  f.Code,
+			File:  f.Pos.File,
+			Line:  f.Pos.Line,
+			Col:   f.Pos.Col,
+			What:  f.What,
+			Why:   f.Why,
+			How:   f.How,
+			Rule:  f.Rule,
+			Phase: phaseOf(f.Code),
+		})
+	}
+	return out
 }

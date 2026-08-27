@@ -59,7 +59,7 @@ func TestReviewIsBoundToTheWording(t *testing.T) {
 // because judging whether an extraction is faithful means reading it next to
 // its origin.
 func TestExportCarriesWhatAReviewerNeeds(t *testing.T) {
-	out, code := runSpeclink(t, "export", "../../testdata/example", "./...")
+	out, code := runSpeclink(t, "requirements", "../../testdata/example", "-format", "json", "./requirements/...")
 	if code != 0 {
 		t.Fatalf("export failed with %d:\n%s", code, out)
 	}
@@ -102,8 +102,14 @@ func TestExportCarriesWhatAReviewerNeeds(t *testing.T) {
 		t.Fatalf("R-QUOTE-SUBMIT missing from the export:\n%s", out)
 	}
 	r := report.Requirements[submit]
-	if r.Text == "" || len(r.Sources) == 0 || len(r.Satisfiers) == 0 {
-		t.Errorf("R-QUOTE-SUBMIT lacks text, origin or satisfiers: %+v", r)
+	if r.Text == "" || len(r.Sources) == 0 {
+		t.Errorf("R-QUOTE-SUBMIT lacks text or origin: %+v", r)
+	}
+	// This command reads no annotation on purpose, so it knows of no
+	// implementation. That is the case the reviewer works in, and the name of
+	// the Go type would tell them nothing anyway.
+	if len(r.Satisfiers) != 0 {
+		t.Errorf("requirements must not claim to know the implementation: %v", r.Satisfiers)
 	}
 
 	// Both source kinds have to be there, or a mockup is invisible to the very

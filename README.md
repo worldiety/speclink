@@ -41,7 +41,6 @@ speclink verify       [flags] [packages]
 speclink requirements [flags] [packages]
 speclink freeze       [flags] [packages]
 speclink inventory    [flags] [packages]
-speclink export       [flags] [packages]
 
   -format text|json   text is the default
   -root <dir>         repository root, default "."
@@ -952,25 +951,28 @@ Reviews are counted, never required. `speclink requirements` reports
 spot checks are the working model, and a rule demanding a hundred percent would
 be answered by a script.
 
-### `speclink export`
-
-The read surface for that audience, and the only output of speclink not aimed
-at an agent:
+### The read surface
 
 ```
-speclink export -root . ./... > tree.json
+speclink requirements -format json -root . ./requirements/... > tree.json
 ```
 
-It writes the requirement tree and the source segments as data — text, origin,
-satisfiers, review state, and for every segment the requirements extracted from
-it. That last part is what makes a review possible at all: judging whether an
-extraction is faithful means reading it next to the paragraph or the part of
-the screen it came from.
+`requirements` asks whether the tree is sound, so its machine readable answer
+is the tree: every requirement with its text, its origin, its status and its
+review state, every source segment with the requirements extracted from it, and
+the findings as one field among the rest.
 
-It is a command rather than a format of `requirements` because `-format json`
-is already the agent's contract, and redefining a contract is more expensive
-than adding an output. Like `requirements`, only the named packages have to
-compile.
+That last pairing is what makes a review possible at all. Judging whether an
+extraction is faithful means reading the requirement next to the paragraph or
+the part of the screen it came from, and this is the only output that puts the
+two together.
+
+It carries no satisfiers, because this command reads no annotation — that is
+what lets the tree be worked on while the code around it is in pieces, and the
+name of the Go type implementing a requirement tells a reviewer nothing anyway.
+
+`speclink verify -format json` is unchanged and stays a findings list. Its
+reader is an agent, which needs to know what is broken.
 
 ### Drift
 

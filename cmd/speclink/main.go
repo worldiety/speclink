@@ -51,8 +51,6 @@ func run(args []string) error {
 		return freeze(args[1:])
 	case "inventory":
 		return inventory(args[1:])
-	case "export":
-		return export(args[1:])
 	case "help", "-h", "--help":
 		usage()
 		return nil
@@ -70,15 +68,12 @@ usage:
   speclink requirements [flags] [packages]
   speclink freeze       [flags] [packages]
   speclink inventory    [flags] [packages]
-  speclink export       [flags] [packages]
 
 commands:
   verify        check requirements, annotations and architecture rules
   requirements  check the requirement tree on its own, before any code binds to it
   freeze        record the shape of every persisted type that is no longer a draft
   inventory     list what the recognisers found, with kind, name and binding
-  export        write the requirement tree and its sources as JSON, for a
-                collaboration surface rather than an agent
 
 run "speclink <command> -h" for the flags of a command.
 `)
@@ -315,7 +310,7 @@ func requirements(args []string) error {
 	}
 	check.Drift(tree, docs, sourceDocs, check.Coverage{BySatisfier: map[string][]ir.Target{}}, src, base, nil, findings)
 
-	if err := reportRequirements(*format, findings, tree, src, base); err != nil {
+	if err := reportRequirements(*format, absRoot, findings, tree, docs, sourceDocs, src, base); err != nil {
 		return err
 	}
 	if !findings.Empty() {
@@ -357,10 +352,16 @@ func loadSources(absRoot string, layout config.Config, findings *diag.Set) (*sou
 	return docs, found
 }
 
-func reportRequirements(format string, findings *diag.Set, tree *reqtree.Tree, src check.SourceCoverage, base *baseline.File) error {
+func reportRequirements(format string, root string, findings *diag.Set, tree *reqtree.Tree, docs *source.Set, sourceDocs []string, src check.SourceCoverage, base *baseline.File) error {
 	switch format {
 	case "json":
-		return findings.WriteJSON(os.Stdout)
+		// The tree itself, not a findings list. This command asks whether the
+		// tree is sound, so its machine readable answer is the tree; findings
+		// are one field of it. The audience is also different from everywhere
+		// else in speclink — a person who never sees Go, working through the
+		// requirements a model extracted from documents they wrote — and a
+		// list of what is broken says nothing about what is there.
+		return writeTree(os.Stdout, root, tree, docs, sourceDocs, src, nil, base, findings)
 	case "text":
 		if err := findings.WriteText(os.Stdout); err != nil {
 			return err
