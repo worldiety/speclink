@@ -192,6 +192,12 @@ func verify(args []string) error {
 	}
 	check.Evolution(schema, status, base, scope, bindings, findings)
 
+	// The same rule family for the two edges above the code: a requirement
+	// whose text was rewritten under its satisfiers, and a source segment
+	// rewritten under the requirements derived from it. Neither is visible to
+	// any other check, because in both cases every reference still resolves.
+	check.Drift(tree, docs, sourceDocs, cov, src, base, ir.CollectWaivers(bindings), findings)
+
 	// A collision is not a broken promise but a corruption in progress, so it
 	// is checked for drafts too.
 	check.Discriminators(schema, bindings, findings)

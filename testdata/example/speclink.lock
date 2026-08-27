@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "types": {
     "example.com/erp/app/sales.CustomerEntity": {
       "discriminator": "",
@@ -42,6 +42,73 @@
           "optional": true
         }
       ]
+    }
+  },
+  "requirements": {
+    "R-CUSTOMER-MASTERDATA": {
+      "text": "b2e8b2f3084aea7c7551d0a791d7deaafd9b05614141adbbd81946d6f314f1f6",
+      "title": "Customer master data",
+      "from": "requirements/_sources/sales/quoteflow.md#2-kunde"
+    },
+    "R-DEC-CUSTOMER-STATE": {
+      "text": "8ca1347ae5b30bb0448f78bdee8e61704dad2ba8d63e2b630ca5739bb6f73e4a",
+      "title": "Customers are kept as current state",
+      "from": "requirements/_sources/sales/quoteflow.md#2-kunde"
+    },
+    "R-DEC-NUMBERING": {
+      "text": "93273dba4c2505200ec0324fc5d8bedf730fd28bec5de6c8b060a9342ffe6f49",
+      "title": "Central number registry"
+    },
+    "R-DEC-QUOTE-EVENTSOURCED": {
+      "text": "f232951aace120dff16e12f65862ac611370427618e7a7a1aed974f78c9f5efe",
+      "title": "Quotations are kept as a log of facts",
+      "from": "requirements/_sources/sales/quoteflow.md#9-versand"
+    },
+    "R-NFR-TRACEABILITY": {
+      "text": "1dfd3106b8d4b1249509c5f7f79cf7c24762c25ae14b94716e01c2e05ded2fd4",
+      "title": "Stored facts are attributable"
+    },
+    "R-QUOTE-APPROVE": {
+      "text": "970ef61d9861676ea0fb67090ecad6e3b75a5509018749e3130824b2540020e9",
+      "title": "Approval gate",
+      "from": "requirements/_sources/sales/quoteflow.md#9-versand"
+    },
+    "R-QUOTE-CHANNEL": {
+      "text": "9cf68906e55b34959f2fdb8c2304c4c31d76b139487df6a5c6e7b450605be309",
+      "title": "Dispatch channel",
+      "from": "requirements/_sources/sales/quoteflow.md#9-versand"
+    },
+    "R-QUOTE-OVERVIEW": {
+      "text": "6ad3b0aaabe63b7dd78766ef138028a5f1e02f5781b622b59cc7e88aef01e370",
+      "title": "Quotation overview per customer",
+      "from": "requirements/_sources/sales/quoteflow.md#10-übersicht"
+    },
+    "R-QUOTE-SUBMIT": {
+      "text": "f020cd386063d66da712d2d605cb8ab2ef92ec1c6560d40e9fd047d85e8d792b",
+      "title": "Quote number on submission",
+      "from": "requirements/_sources/sales/quoteflow.md#8-abgabe"
+    }
+  },
+  "sources": {
+    "requirements/_sources/sales/quoteflow.md#10-übersicht": {
+      "fingerprint": "da8ae96c9beab311600989e4e68eacb199b05cea13475fbf42a2f7785cf7e997",
+      "kind": "markdown"
+    },
+    "requirements/_sources/sales/quoteflow.md#2-kunde": {
+      "fingerprint": "e99d99faf7baea137449e805622b5bab07b0cc143d601beb715750e6d83eb2e1",
+      "kind": "markdown"
+    },
+    "requirements/_sources/sales/quoteflow.md#8-abgabe": {
+      "fingerprint": "51f14183e870261977e85496cacb3f04403662c130bb43109b5dfd09a4fe91e2",
+      "kind": "markdown"
+    },
+    "requirements/_sources/sales/quoteflow.md#9-versand": {
+      "fingerprint": "117ce4e25121ec32fbf6f891daccad4f5da40c0cf3e193389bb68631151628e0",
+      "kind": "markdown"
+    },
+    "requirements/_sources/sales/quoteflow.md#angebotsfluss": {
+      "fingerprint": "48016ee3834448eb66e03561a7a94788323e159b1e73b2854d2ab308143b1fcf",
+      "kind": "markdown"
     }
   }
 }

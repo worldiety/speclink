@@ -9,17 +9,26 @@ import (
 
 	"github.com/worldiety/speclink/internal/baseline"
 	"github.com/worldiety/speclink/internal/check"
+	"github.com/worldiety/speclink/internal/config"
 	"github.com/worldiety/speclink/internal/diag"
 	"github.com/worldiety/speclink/internal/ir"
 	"github.com/worldiety/speclink/internal/lang/golang"
+	"github.com/worldiety/speclink/internal/reqtree"
 )
 
-// freeze records the current shape of every frozen persisted type.
+// freeze records the state of every edge the Go compiler cannot check: the
+// shape of a frozen persisted type, the text of a requirement, and the content
+// of a source segment.
 //
 // It is the act of promising, and the only thing in speclink that writes to the
-// repository. What it writes is not intent — that stays in the code — but the
-// record of what the code has committed to, so that a later run can tell a
-// rename from a break.
+// repository. What it writes is not intent — that stays in the code and in the
+// documents — but the record of what has been read and accepted, so that a
+// later run can tell a rename from a break, and a reformat from a rewrite.
+//
+// Its diff is where the review actually happens. That is the reason for doing
+// it this way rather than with a status field somebody maintains: a moment of
+// review that is a diff in a pull request survives contact with a project,
+// where a discipline does not.
 //
 // It refuses to record anything that would violate an evolution rule. Without
 // that refusal it would be the one command that launders a breaking change into
@@ -28,6 +37,7 @@ import (
 func freeze(args []string) error {
 	fs := flag.NewFlagSet("freeze", flag.ExitOnError)
 	root := fs.String("root", ".", "repository root, holding "+baseline.FileName)
+	cfgPath := fs.String("config", "", "layout configuration; defaults to "+config.FileName+" in the root")
 	dry := fs.Bool("n", false, "report what would be recorded, write nothing")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -36,6 +46,11 @@ func freeze(args []string) error {
 	absRoot, err := filepath.Abs(*root)
 	if err != nil {
 		return fmt.Errorf("resolve root: %w", err)
+	}
+
+	layout, err := loadLayout(absRoot, *cfgPath)
+	if err != nil {
+		return err
 	}
 
 	pkgs, err := golang.Load(absRoot, fs.Args()...)
@@ -53,12 +68,14 @@ func freeze(args []string) error {
 	var (
 		bindings []ir.Binding
 		schema   []ir.SchemaType
+		reqs     []*ir.Requirement
 		scope    = map[string]bool{}
 	)
 	discard := &diag.Set{}
 	models := map[string]bool{}
 	for _, p := range pkgs {
 		bindings = append(bindings, p.ReadBindings(discard)...)
+		reqs = append(reqs, p.ReadRequirements(discard)...)
 		scope[p.PkgPath()] = true
 		for name := range p.PersistedModels() {
 			models[name] = true
@@ -88,8 +105,18 @@ func freeze(args []string) error {
 	}
 
 	added, updated := merge(base, schema, status)
-	if len(added) == 0 && len(updated) == 0 {
-		fmt.Fprintln(os.Stderr, "nothing to record; every frozen shape is already promised.")
+
+	// The requirement texts and source segments are recorded without a guard of
+	// their own. There is nothing to refuse: unlike a shape, which can break a
+	// promise made to data already written, a rewritten requirement breaks
+	// nothing by being recorded. Recording it is precisely the statement that
+	// somebody has now read it.
+	tree := reqtree.Build(absRoot, reqs, discard)
+	docs, sourceDocs := loadSources(absRoot, layout, discard)
+	changedReqs, changedSegs := check.Record(base, tree, docs, sourceDocs)
+
+	if len(added) == 0 && len(updated) == 0 && changedReqs == 0 && changedSegs == 0 {
+		fmt.Fprintln(os.Stderr, "nothing to record; every frozen shape, requirement and source segment is already recorded.")
 		return nil
 	}
 
@@ -98,6 +125,12 @@ func freeze(args []string) error {
 	}
 	for _, name := range updated {
 		fmt.Fprintln(os.Stderr, "extend   "+name)
+	}
+	if changedReqs > 0 {
+		fmt.Fprintf(os.Stderr, "read     %s\n", plural(changedReqs, "requirement", "requirements"))
+	}
+	if changedSegs > 0 {
+		fmt.Fprintf(os.Stderr, "read     %s\n", plural(changedSegs, "source segment", "source segments"))
 	}
 	if *dry {
 		fmt.Fprintln(os.Stderr, "\nnothing written (-n).")
