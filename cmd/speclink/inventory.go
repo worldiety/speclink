@@ -10,7 +10,6 @@ import (
 
 	"github.com/worldiety/speclink/internal/diag"
 	"github.com/worldiety/speclink/internal/ir"
-	"github.com/worldiety/speclink/internal/lang/golang"
 )
 
 // inventory lists what the recognisers found.
@@ -38,16 +37,9 @@ func inventory(args []string) error {
 		return fmt.Errorf("resolve root: %w", err)
 	}
 
-	pkgs, err := golang.Load(absRoot, fs.Args()...)
+	pkgs, err := load(absRoot, false, "list anything", fs.Args())
 	if err != nil {
 		return err
-	}
-	if errs := golang.TypeErrors(pkgs); len(errs) > 0 {
-		fmt.Fprintln(os.Stderr, "the Go build is broken; nothing can be recognised until it compiles:")
-		for _, e := range errs {
-			fmt.Fprintln(os.Stderr, "  "+e.Error())
-		}
-		return errFindings
 	}
 
 	// Bindings are read so the listing can say which constructs already name a

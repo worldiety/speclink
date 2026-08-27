@@ -122,7 +122,7 @@ func verify(args []string) error {
 	// verify is the only command that asks for test variants, because only K14
 	// asks a question about tests. It roughly doubles the load, so nothing else
 	// pays for it.
-	loaded, err := golang.LoadWithTests(absRoot, fs.Args()...)
+	loaded, err := load(absRoot, true, "check anything", fs.Args())
 	if err != nil {
 		return err
 	}
@@ -145,20 +145,6 @@ func verify(args []string) error {
 	pkgs := golang.InScope(all, layout, absRoot)
 	skipped := golang.OutOfScope(all, layout, absRoot)
 	testPkgs := golang.InScope(golang.Tests(loaded), layout, absRoot)
-
-	// Phase V2 is the Go compilation itself. If it failed there is nothing
-	// meaningful to say about annotations, and saying it anyway would bury the
-	// real cause under follow-up noise.
-	// Type errors are reported over everything loaded, tests included: a test
-	// that does not compile is a broken build like any other, and speclink
-	// would otherwise read half a model from it.
-	if errs := golang.TypeErrors(loaded); len(errs) > 0 {
-		fmt.Fprintln(os.Stderr, "the Go build is broken; fix it before speclink can check anything:")
-		for _, e := range errs {
-			fmt.Fprintln(os.Stderr, "  "+e.Error())
-		}
-		return errFindings
-	}
 
 	findings := &diag.Set{}
 
@@ -283,10 +269,7 @@ func verify(args []string) error {
 
 	// V6: the architecture rules. They read the project layout, which is the
 	// one thing speclink cannot infer and the only thing speclink.json states.
-	golang.CheckUseCases(all, layout, absRoot, ir.CollectWaivers(bindings), findings)
-	golang.CheckBoundedContexts(all, layout, absRoot, findings)
-	golang.CheckInfrastructure(all, layout, absRoot, findings)
-	golang.CheckMainPackages(all, layout, absRoot, findings)
+	golang.CheckArchitecture(all, layout, absRoot, ir.CollectWaivers(bindings), findings)
 
 	if err := report(*format, findings, cov, str, src, ver, len(bindings), len(skipped)); err != nil {
 		return err
@@ -332,20 +315,12 @@ func requirements(args []string) error {
 	}
 
 	patterns := fs.Args()
-	pkgs, err := golang.Load(absRoot, patterns...)
-	if err != nil {
-		return err
-	}
-
 	// Only the loaded packages have to compile. That is the point of narrowing
 	// the patterns: the tree can be checked while the implementation around it
 	// is still in pieces.
-	if errs := golang.TypeErrors(pkgs); len(errs) > 0 {
-		fmt.Fprintln(os.Stderr, "the Go build is broken; fix it before speclink can check anything:")
-		for _, e := range errs {
-			fmt.Fprintln(os.Stderr, "  "+e.Error())
-		}
-		return errFindings
+	pkgs, err := load(absRoot, false, "check anything", patterns)
+	if err != nil {
+		return err
 	}
 
 	findings := &diag.Set{}
@@ -542,3 +517,32 @@ func plural(n int, one, many string) string {
 // has to say how to change it, and this is the variable that will stop being a
 // constant.
 var dialect ir.Dialect = golang.Dialect{}
+
+// load reads the named packages, refusing when the Go build is broken.
+//
+// Phase V2 is the Go compilation itself. When it fails there is nothing
+// meaningful to say about annotations, and saying it anyway would bury the real
+// cause under follow-up noise — so every command stops here rather than
+// reporting a model it read from half a program.
+//
+// verb finishes the sentence "fix it before speclink can …", because the
+// commands do different things and a message that said "check" while recording
+// evidence would be a small lie in the one place a reader is already confused.
+func load(root string, withTests bool, verb string, patterns []string) ([]*golang.Package, error) {
+	loader := golang.Load
+	if withTests {
+		loader = golang.LoadWithTests
+	}
+	pkgs, err := loader(root, patterns...)
+	if err != nil {
+		return nil, err
+	}
+	if errs := golang.TypeErrors(pkgs); len(errs) > 0 {
+		fmt.Fprintln(os.Stderr, "the Go build is broken; fix it before speclink can "+verb+":")
+		for _, e := range errs {
+			fmt.Fprintln(os.Stderr, "  "+e.Error())
+		}
+		return nil, errFindings
+	}
+	return pkgs, nil
+}

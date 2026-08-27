@@ -92,16 +92,9 @@ type specModel struct {
 // refusing to render until everything is green would make it useless in the
 // only situation that needs it.
 func readModel(absRoot string, layout config.Config, patterns []string) (*specModel, error) {
-	loaded, err := golang.LoadWithTests(absRoot, patterns...)
+	loaded, err := load(absRoot, true, "derive anything", patterns)
 	if err != nil {
 		return nil, err
-	}
-	if errs := golang.TypeErrors(loaded); len(errs) > 0 {
-		fmt.Fprintln(os.Stderr, "the Go build is broken; fix it before speclink can derive anything:")
-		for _, e := range errs {
-			fmt.Fprintln(os.Stderr, "  "+e.Error())
-		}
-		return nil, errFindings
 	}
 
 	all := golang.NonTests(loaded)

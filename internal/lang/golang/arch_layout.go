@@ -219,3 +219,22 @@ func (p *Package) firstUseCaseSignature() (string, ir.Position, bool) {
 	}
 	return "", ir.Position{}, false
 }
+
+// CheckArchitecture runs every architecture rule this frontend has.
+//
+// They are collected behind one call because they are one thing: the invariants
+// of a nago project, which another frontend has no counterpart for and would
+// replace wholesale rather than pick from. A caller naming them individually
+// would be a caller that knows which of them exist, and that knowledge belongs
+// on this side of the boundary.
+//
+// The set is not decoration. The recognisers only work because the architecture
+// holds: K4-NO-GENERIC-CRUD bans factories that produce specification facts at
+// run time precisely so that a static analysis can see them at all. Enforcing
+// the architecture is what makes inferring the model possible.
+func CheckArchitecture(pkgs []*Package, cfg config.Config, root string, waived ir.Waivers, out *diag.Set) {
+	CheckUseCases(pkgs, cfg, root, waived, out)
+	CheckBoundedContexts(pkgs, cfg, root, out)
+	CheckInfrastructure(pkgs, cfg, root, out)
+	CheckMainPackages(pkgs, cfg, root, out)
+}

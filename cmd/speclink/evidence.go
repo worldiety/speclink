@@ -15,7 +15,6 @@ import (
 	"github.com/worldiety/speclink/internal/check"
 	"github.com/worldiety/speclink/internal/diag"
 	"github.com/worldiety/speclink/internal/ir"
-	"github.com/worldiety/speclink/internal/lang/golang"
 	"github.com/worldiety/speclink/internal/reqtree"
 	"github.com/worldiety/speclink/spec"
 )
@@ -74,16 +73,9 @@ func evidence(args []string) error {
 	// record is bound to the wording a test ran against, and the wording lives
 	// in the tree.
 	discard := &diag.Set{}
-	pkgs, err := golang.Load(absRoot, fs.Args()...)
+	pkgs, err := load(absRoot, false, "record anything", fs.Args())
 	if err != nil {
 		return err
-	}
-	if errs := golang.TypeErrors(pkgs); len(errs) > 0 {
-		fmt.Fprintln(os.Stderr, "the Go build is broken; fix it before speclink can record anything:")
-		for _, e := range errs {
-			fmt.Fprintln(os.Stderr, "  "+e.Error())
-		}
-		return errFindings
 	}
 	var reqs []*ir.Requirement
 	for _, p := range pkgs {

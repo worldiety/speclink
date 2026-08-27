@@ -13,7 +13,6 @@ import (
 	"github.com/worldiety/speclink/internal/config"
 	"github.com/worldiety/speclink/internal/diag"
 	"github.com/worldiety/speclink/internal/ir"
-	"github.com/worldiety/speclink/internal/lang/golang"
 	"github.com/worldiety/speclink/internal/reqtree"
 )
 
@@ -60,16 +59,9 @@ func impact(args []string) error {
 		return err
 	}
 
-	pkgs, err := golang.Load(absRoot, strings.Fields(*patterns)...)
+	pkgs, err := load(absRoot, false, "trace anything", strings.Fields(*patterns))
 	if err != nil {
 		return err
-	}
-	if errs := golang.TypeErrors(pkgs); len(errs) > 0 {
-		fmt.Fprintln(os.Stderr, "the Go build is broken; fix it before speclink can trace anything:")
-		for _, e := range errs {
-			fmt.Fprintln(os.Stderr, "  "+e.Error())
-		}
-		return errFindings
 	}
 
 	// Diagnostics are discarded on purpose. This command asks where a change
@@ -253,7 +245,8 @@ func (g *graph) fromFile(target string) traced {
 	out := traced{Target: target, Kind: "file"}
 
 	want := filepath.ToSlash(strings.TrimPrefix(target, "./"))
-	sidecar := strings.TrimSuffix(want, ".go") + golang.AnnotationSuffix
+	// The sidecar name is the frontend's convention, not this command's.
+	sidecar := filepath.ToSlash(filepath.Join(filepath.Dir(want), dialect.AnnotationFile(want)))
 
 	reached := map[string]bool{}
 	constructs := map[string]bool{}
