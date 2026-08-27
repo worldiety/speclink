@@ -51,6 +51,8 @@ func run(args []string) error {
 		return freeze(args[1:])
 	case "inventory":
 		return inventory(args[1:])
+	case "impact":
+		return impact(args[1:])
 	case "help", "-h", "--help":
 		usage()
 		return nil
@@ -68,12 +70,15 @@ usage:
   speclink requirements [flags] [packages]
   speclink freeze       [flags] [packages]
   speclink inventory    [flags] [packages]
+  speclink impact       [flags] <requirement|doc.md#anchor|path>...
 
 commands:
   verify        check requirements, annotations and architecture rules
   requirements  check the requirement tree on its own, before any code binds to it
   freeze        record the shape of every persisted type that is no longer a draft
   inventory     list what the recognisers found, with kind, name and binding
+  impact        report what a change to a requirement, a source segment or a
+                file reaches
 
 run "speclink <command> -h" for the flags of a command.
 `)

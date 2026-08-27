@@ -41,6 +41,7 @@ speclink verify       [flags] [packages]
 speclink requirements [flags] [packages]
 speclink freeze       [flags] [packages]
 speclink inventory    [flags] [packages]
+speclink impact       [flags] <requirement|doc.md#anchor|path>...
 
   -format text|json   text is the default
   -root <dir>         repository root, default "."
@@ -97,6 +98,32 @@ grown while the implementation around it is still in pieces.
 ```
 343 requirements (298 normative), 0 findings
 ```
+
+### Tracing what a change reaches
+
+```
+speclink impact -root . R-QUOTE-SUBMIT
+speclink impact -root . requirements/_sources/sales/quoteflow.md#8-abgabe
+speclink impact -root . app/sales/uc_submit_quote.go
+```
+
+The chain runs source segment → requirement → derived requirement → construct.
+Every one of those edges was already being computed for a percentage and thrown
+away; this walks them.
+
+It answers the two questions the loop keeps asking. Somebody edits a paragraph
+and has to know which code that reaches. An agent is handed a diff and has to
+know which requirements it touches. Neither is answerable by reading the code,
+because the chain runs through the tree, and neither by reading the tree,
+because it runs through the document.
+
+The file direction matches per file, not per package. The sidecar convention is
+what makes that exact: `<base>.annotation.go` names precisely the constructs
+declared in `<base>.go`. Matching on the package instead would return every
+requirement the package has, which is not an answer to anything.
+
+This command reports rather than judges. There are no findings, and reaching
+nothing is an answer, not an error.
 
 ### Listing what was recognised
 
