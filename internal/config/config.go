@@ -2,9 +2,10 @@
 // keeps its bounded contexts, its commands and its infrastructure packages.
 //
 // Everything else is hardcoded. Rules and recognisers know the framework, never
-// the project (docs/annotations.md §1.7) — but a directory layout is genuinely
-// project knowledge, and no amount of framework insight reveals whether
-// contexts live under app/, application/ or at the module root.
+// the project: a framework is shared by many projects and that knowledge
+// amortises, while project knowledge never does. A directory layout is the
+// exception, because no amount of framework insight reveals whether contexts
+// live under app/, application/ or at the module root.
 //
 // The defaults are the convention. A speclink.json is the exception, not the
 // normal case, and a project that follows the convention needs none.

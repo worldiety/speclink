@@ -72,8 +72,15 @@ func TestReadmeListsEveryRule(t *testing.T) {
 // are discussion drafts, not a contract, and following them produces code that
 // the tool then rejects.
 //
-// The single reference at the bottom is addressed to maintainers and is
-// deliberately kept, so the check is on how often they appear, not whether.
+// There used to be German design records beside it, and the check was on how
+// often the README pointed at them. They have been deleted: they described a
+// tool that no longer existed, and a design record that is wrong is worse than
+// none, because it is read with the same trust as a right one. What was still
+// live in them — the reasoning behind having no severities, and the measured
+// blockers of the reference ERP — was moved into the code and into section 12.
+//
+// The check now guards the absence, so that reintroducing a second document
+// takes a deliberate decision rather than a commit.
 func TestReadmeIsSelfContained(t *testing.T) {
 	readme, err := os.ReadFile("../../README.md")
 	if err != nil {
@@ -82,8 +89,8 @@ func TestReadmeIsSelfContained(t *testing.T) {
 	text := string(readme)
 
 	for _, doc := range []string{"docs/annotations.md", "docs/plan.md", "konzept-annotationscompiler.md"} {
-		if n := strings.Count(text, doc); n > 1 {
-			t.Errorf("README points at %s %d times; an agent must not be sent into the design records", doc, n)
+		if strings.Contains(text, doc) {
+			t.Errorf("README points at %s, which no longer exists", doc)
 		}
 	}
 }

@@ -1226,6 +1226,23 @@ Do not invoke or assume these; they do not exist:
 - any rule that checks a projection is not persisted, or that a repository is
   not reached from `ui*` beyond the existing import ban
 
+### Known blockers
+
+These are measured, not suspected. They are recorded here because forgetting
+them would mean measuring them again.
+
+- **Generated code.** In the reference ERP, 226 of 644 requirement-bearing
+  constructs live in `*_gen.go` files carrying `DO NOT EDIT`. Nothing about
+  annotating or testing them is decided, and both K1 and K14 ask for exactly
+  that. Nothing else about a rollout matters until it is.
+- **Constructor naming.** The same project names use case constructors with a
+  `UC` suffix rather than `New<Type>`: 193 are a naming convention, 45 a file
+  convention, 9 are genuine duplicates. K5-UC-CONSTRUCTOR reports all of them
+  alike.
+- **Event identity.** Whether the stable identifier of an event is its
+  discriminator or a versioned type field is open, and it has to be settled
+  before the first context is frozen rather than after.
+
 ---
 
 ## 13. Worked example
@@ -1260,7 +1277,4 @@ rule on purpose. Read them when a diagnostic is unclear.
 
 ---
 
-*Maintainers only:* the design record lives in `docs/annotations.md`,
-`docs/plan.md` and `konzept-annotationscompiler.md`. They are German discussion
-documents, not a contract, and an agent should not use them as a reference — this
-README is the contract.
+This README is the contract. There is no second document.

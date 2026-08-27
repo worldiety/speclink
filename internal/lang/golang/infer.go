@@ -2,9 +2,9 @@ package golang
 
 // Recognisers for the nago framework.
 //
-// speclink knows the framework, never the project (docs/annotations.md §1.7).
-// A recogniser must know its framework, and a framework is shared by many
-// projects, so that knowledge amortises. Project knowledge never does.
+// speclink knows the framework, never the project. A recogniser must know its
+// framework, and a framework is shared by many projects, so that knowledge
+// amortises. Project knowledge never does.
 //
 // Everything here decides over resolved types, never over the spelling of an
 // identifier: an alias import, a dot import or a shadowed name cannot fool it.

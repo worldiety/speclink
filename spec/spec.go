@@ -8,7 +8,7 @@
 // Both file kinds are ordinary Go and are part of the normal build. The Go
 // compiler therefore checks arity, argument types, field names, enum values and
 // every identifier reference. speclink itself never executes these terms; it
-// reads the typed AST. See docs/annotations.md.
+// reads the typed AST.
 //
 // The declarations in this file are the schema. There is no separate schema
 // language and no code generation.

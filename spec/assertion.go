@@ -84,7 +84,7 @@ func Rationale(text string) Assertion {
 // appears in the gap report, so the exemption leaves a trace.
 //
 // This is the only escape hatch of the tool. There are no severities and no
-// tolerance mode: a finding is an error (see docs/annotations.md §1.8).
+// tolerance mode: a finding is an error.
 func Waive(rule RuleID, reason string) Assertion {
 	return Assertion{kind: kindWaive, rule: rule, text: reason}
 }

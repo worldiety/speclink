@@ -2,8 +2,8 @@
 // the host language and lowers them into the language neutral ir.
 //
 // It is the only package allowed to know go/ast and go/types. Everything it
-// produces is ir, so rules, diagnostics and backends stay language agnostic
-// (see docs/plan.md §3.1).
+// produces is ir, so rules, diagnostics and backends stay language agnostic and
+// a second language frontend can be added without rewriting them.
 //
 // There is no extraction step, no synthetic file and no position mapping:
 // annotation files are ordinary Go and part of the normal build, so the Go

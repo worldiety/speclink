@@ -11,7 +11,8 @@ func TestSlug(t *testing.T) {
 		heading string
 		want    string
 	}{
-		// The example from docs/annotations.md §5.2.
+		// A heading carrying a section number, punctuation and a bracket, which
+		// is what a real specification document looks like.
 		{"## 8.1 Angebot (Kopf)", "81-angebot-kopf"},
 		{"# 8. Abgabe", "8-abgabe"},
 		{"### Angebot: Datenmodell", "angebot-datenmodell"},

@@ -6,10 +6,15 @@
 // and what to do about it. The quality of these messages determines how fast
 // the loop converges and thus whether the whole approach is practical.
 //
-// There are no severities. A finding is an error and the run fails. See
-// docs/annotations.md §1.8 for the reasoning; in short: the Go compiler behaves
-// the same way, warnings get ignored, and because annotations are part of the
-// normal build a compile error cannot be warned past anyway.
+// There are no severities. A finding is an error and the run fails. The Go
+// compiler behaves the same way; softening would be incoherent regardless,
+// because annotations are part of the normal build and a compile error cannot
+// be warned past; warnings meant for a migration become a permanent excuse; and
+// the reader is a model, for which a suppressed warning is invisibly unfinished
+// where commented-out code would at least be visible.
+//
+// The single dial is the scope, which says which packages are measured at all.
+// A codebase is brought in package by package rather than rule by rule.
 package diag
 
 import (
