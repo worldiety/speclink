@@ -9,12 +9,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/worldiety/speclink/internal/baseline"
 	"github.com/worldiety/speclink/internal/check"
-	"github.com/worldiety/speclink/internal/config"
 	"github.com/worldiety/speclink/internal/diag"
 	"github.com/worldiety/speclink/internal/ir"
 	"github.com/worldiety/speclink/internal/lang/golang"
@@ -47,7 +45,6 @@ import (
 func evidence(args []string) error {
 	fs := flag.NewFlagSet("evidence", flag.ExitOnError)
 	root := fs.String("root", ".", "repository root, holding "+baseline.FileName)
-	cfgPath := fs.String("config", "", "layout configuration; defaults to "+config.FileName+" in the root")
 	in := fs.String("in", "", "`file` holding the output of \"go test -json\"; standard input by default")
 	dry := fs.Bool("n", false, "report what would be recorded, write nothing")
 	if err := fs.Parse(args); err != nil {
@@ -58,11 +55,6 @@ func evidence(args []string) error {
 	if err != nil {
 		return fmt.Errorf("resolve root: %w", err)
 	}
-	layout, err := loadLayout(absRoot, *cfgPath)
-	if err != nil {
-		return err
-	}
-
 	source := io.Reader(os.Stdin)
 	if *in != "" {
 		f, err := os.Open(*in)
@@ -98,7 +90,6 @@ func evidence(args []string) error {
 		reqs = append(reqs, p.ReadRequirements(discard)...)
 	}
 	tree := reqtree.Build(absRoot, reqs, discard)
-	_ = layout
 
 	base, err := baseline.Load(absRoot)
 	if err != nil {
@@ -236,10 +227,4 @@ func appendUnique(list []string, s string) []string {
 		}
 	}
 	return append(list, s)
-}
-
-func sortedStrings(in []string) []string {
-	out := append([]string(nil), in...)
-	sort.Strings(out)
-	return out
 }
