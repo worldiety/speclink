@@ -195,7 +195,7 @@ func verify(args []string) error {
 
 	// K1: forward coverage down to the field. Types are reviewed when they are
 	// created; fields accrete afterwards, which is where the drift is.
-	check.CoverFields(schema, bindings, domain, findings)
+	check.CoverFields(schema, constructs, bindings, domain, findings)
 
 	// V6: the architecture rules. They read the project layout, which is the
 	// one thing speclink cannot infer and the only thing speclink.json states.

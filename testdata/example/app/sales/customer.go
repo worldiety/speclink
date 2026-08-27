@@ -23,8 +23,9 @@ func (c Customer) Identity() CustomerID { return c.ID }
 
 // CustomerEntity is the stored form, and the only one that is promised.
 type CustomerEntity struct {
-	ID   CustomerID `json:"id"`
-	Name string     `json:"name"`
+	ID    CustomerID `json:"id"`
+	Name  string     `json:"name"`
+	Notes []string   `json:"notes"`
 }
 
 // Identity makes the entity addressable in the store.
@@ -39,10 +40,10 @@ func NewCustomerRepository(store blob.Store) CustomerRepository {
 	return json.NewJSONRepository[Customer, CustomerID, CustomerEntity, CustomerID](
 		store,
 		func(e CustomerEntity) (Customer, error) {
-			return Customer{ID: e.ID, Name: e.Name}, nil
+			return Customer{ID: e.ID, Name: e.Name, Notes: e.Notes}, nil
 		},
 		func(c Customer) (CustomerEntity, error) {
-			return CustomerEntity{ID: c.ID, Name: c.Name}, nil
+			return CustomerEntity{ID: c.ID, Name: c.Name, Notes: c.Notes}, nil
 		},
 	)
 }

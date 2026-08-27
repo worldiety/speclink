@@ -331,19 +331,23 @@ func TestPersistenceDecisionAcceptsEveryReasonableForm(t *testing.T) {
 	}
 }
 
-// TestFieldCoverageReachesEveryStoredField pins that forward coverage goes down
-// to the field, and that the conformant fixture can actually satisfy it.
+// TestFieldCoverageReachesEveryField pins that forward coverage goes down to
+// the field on both sides, and that the conformant fixture can satisfy it.
 //
 // Binding a type is not the same as accounting for what is in it. Types are
-// created deliberately and reviewed; fields accrete afterwards, and a field is
-// the one thing that cannot be renegotiated once messages carry it.
+// created deliberately and reviewed; fields accrete afterwards.
 //
-// The fixture binds every stored field, including the ones that answer no
-// business question on their own. QuoteID is bound to the traceability
-// requirement rather than exempted, because an identifier on a stored fact is
-// not self evident — it is what makes the sequence of events reconstructable,
-// which is a requirement like any other.
-func TestFieldCoverageReachesEveryStoredField(t *testing.T) {
+// Both the domain model and the stored shape are asked, and the fixture is
+// what showed why that is not pedantry. Customer.Notes existed in the domain
+// and nowhere in CustomerEntity, and the mapping functions did not mention it:
+// every note was dropped on save and read back empty. Both types compiled and
+// both round tripped, so nothing else in the project could see it. The loss
+// showed only as a domain field that traced to no requirement.
+//
+// Envelope fields are bound rather than exempted. QuoteID answers no business
+// question on its own — it is what makes the sequence of events on a quote
+// reconstructable, which is a requirement like any other.
+func TestFieldCoverageReachesEveryField(t *testing.T) {
 	out, code := runVerify(t, "../../testdata/example")
 	if code != 0 {
 		t.Fatalf("a project that binds its stored fields must pass, got exit %d:\n%s", code, out)

@@ -34,3 +34,28 @@ var _ = spec.ForField[CustomerEntity]("ID",
 var _ = spec.ForField[CustomerEntity]("Name",
 	spec.Satisfies(customer.RCustomerMasterdata),
 )
+
+// Added after the shape had been promised, so the messages stored until now do
+// not carry it.
+var _ = spec.ForField[CustomerEntity]("Notes",
+	spec.Satisfies(customer.RCustomerMasterdata),
+	spec.Optional(),
+)
+
+// The domain model is asked separately from the stored form, and the two are
+// not a formality apart. Notes existed here and nowhere in CustomerEntity, so
+// every note was dropped on save and read back empty — the mapping functions
+// simply did not mention the field. Nothing else in the project could see that:
+// both types compiled, both round tripped, and the loss only showed as a domain
+// field that traced to nothing.
+var _ = spec.ForField[Customer]("ID",
+	spec.Satisfies(nfr.RNfrTraceability),
+)
+
+var _ = spec.ForField[Customer]("Name",
+	spec.Satisfies(customer.RCustomerMasterdata),
+)
+
+var _ = spec.ForField[Customer]("Notes",
+	spec.Satisfies(customer.RCustomerMasterdata),
+)

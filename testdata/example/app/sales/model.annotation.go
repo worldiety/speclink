@@ -16,6 +16,14 @@ var _ = spec.For[QuoteAggregate](
 	spec.Satisfies(dec.RDecQuoteEventSourced),
 )
 
+var _ = spec.ForField[QuoteAggregate]("ID",
+	spec.Satisfies(nfr.RNfrTraceability),
+)
+
+var _ = spec.ForField[QuoteAggregate]("Status",
+	spec.Satisfies(quote.RQuoteApprove),
+)
+
 var _ = spec.For[QuoteRepository](
 	spec.Satisfies(dec.RDecQuoteEventSourced),
 	spec.Rationale("The repository serves the folded state of the log, not a second source of truth: it is rebuilt from the events and may be dropped at any time."),

@@ -103,6 +103,9 @@ func (p *Package) inferType(ts *ast.TypeSpec, folded map[string]bool) (ir.Constr
 		Package: p.PkgPath(),
 		Pos:     p.pos(ts.Pos()),
 	}
+	if st, ok := named.Underlying().(*types.Struct); ok {
+		base.Fields = p.readFields(st)
+	}
 
 	// A repository is a named type standing for the framework interface, the
 	// idiom being `type Repository data.Repository[Quote, ID]`. Both the

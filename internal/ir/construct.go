@@ -115,7 +115,15 @@ type Construct struct {
 	// Evidence names the framework marker that revealed the construct. It goes
 	// into diagnostics so a reader can see why speclink believes this.
 	Evidence string
-	Pos      Position
+	// Fields are the exported fields when the construct is a struct, empty
+	// otherwise.
+	//
+	// This is the domain shape, which is not the same set as the persisted one
+	// and is not covered by it. A stored entity carries the historical values,
+	// which is what a review or a migration has to work from; the domain type
+	// beside it carries the meaning. Neither answers for the other.
+	Fields []SchemaField
+	Pos    Position
 }
 
 // Target renders the construct as the binding target that would annotate it.
