@@ -79,7 +79,7 @@ func TestEvolutionHolds(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			out := &diag.Set{}
-			Evolution(tt.schema, freezeWith(tt.optional), promised(), scope, nil, out)
+			Evolution(tt.schema, freezeWith(tt.optional), promised(), scope, nil, plainDialect{}, out)
 			if !out.Empty() {
 				t.Errorf("expected no finding, got:\n%s", render(out))
 			}
@@ -147,7 +147,7 @@ func TestEvolutionBreaks(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			out := &diag.Set{}
-			Evolution(tt.schema, nil, promised(), scope, nil, out)
+			Evolution(tt.schema, nil, promised(), scope, nil, plainDialect{}, out)
 			if !strings.Contains(render(out), tt.want) {
 				t.Errorf("expected %s, got:\n%s", tt.want, render(out))
 			}
@@ -162,7 +162,7 @@ func TestEvolutionIgnoresDrafts(t *testing.T) {
 	empty := &baseline.File{Version: baseline.Version, Types: map[string]baseline.Entry{}}
 
 	out := &diag.Set{}
-	Evolution(current(field("Totally", "different", "int")), status, empty, scope, nil, out)
+	Evolution(current(field("Totally", "different", "int")), status, empty, scope, nil, plainDialect{}, out)
 	if !out.Empty() {
 		t.Errorf("a draft must not be held to a promise:\n%s", render(out))
 	}
@@ -175,7 +175,7 @@ func TestEvolutionIgnoresDrafts(t *testing.T) {
 func TestEvolutionCannotUnpromise(t *testing.T) {
 	status := map[string]Freeze{evName: {Type: evName, Draft: true}}
 	out := &diag.Set{}
-	Evolution(current(field("QuoteID", "quoteID", "string")), status, promised(), scope, nil, out)
+	Evolution(current(field("QuoteID", "quoteID", "string")), status, promised(), scope, nil, plainDialect{}, out)
 
 	if !strings.Contains(render(out), RuleDraftFrozen) {
 		t.Errorf("expected %s, got:\n%s", RuleDraftFrozen, render(out))
@@ -191,7 +191,7 @@ func TestEvolutionCannotUnpromise(t *testing.T) {
 func TestEvolutionMissingBaseline(t *testing.T) {
 	empty := &baseline.File{Version: baseline.Version, Types: map[string]baseline.Entry{}}
 	out := &diag.Set{}
-	Evolution(current(field("QuoteID", "quoteID", "string")), nil, empty, scope, nil, out)
+	Evolution(current(field("QuoteID", "quoteID", "string")), nil, empty, scope, nil, plainDialect{}, out)
 
 	if !strings.Contains(render(out), RuleBaselineMissing) {
 		t.Errorf("an unrecorded frozen shape must ask for a decision:\n%s", render(out))
@@ -203,7 +203,7 @@ func TestEvolutionMissingBaseline(t *testing.T) {
 // removed.
 func TestEvolutionScope(t *testing.T) {
 	out := &diag.Set{}
-	Evolution(nil, nil, promised(), map[string]bool{"example.com/m/billing": true}, nil, out)
+	Evolution(nil, nil, promised(), map[string]bool{"example.com/m/billing": true}, nil, plainDialect{}, out)
 	if !out.Empty() {
 		t.Errorf("a package that was not loaded says nothing about its types:\n%s", render(out))
 	}
@@ -237,14 +237,14 @@ func TestOptionalCannotBeRevoked(t *testing.T) {
 	schema := current(field("QuoteID", "quoteID", "string"), field("Reason", "reason", "string"))
 
 	out := &diag.Set{}
-	Evolution(schema, freezeWith(nil), base, scope, nil, out)
+	Evolution(schema, freezeWith(nil), base, scope, nil, plainDialect{}, out)
 	if !strings.Contains(render(out), RuleOptionalRevoked) {
 		t.Errorf("expected %s, got:\n%s", RuleOptionalRevoked, render(out))
 	}
 
 	// Still declared: nothing to report.
 	out = &diag.Set{}
-	Evolution(schema, freezeWith(map[string]bool{"Reason": true}), base, scope, nil, out)
+	Evolution(schema, freezeWith(map[string]bool{"Reason": true}), base, scope, nil, plainDialect{}, out)
 	if !out.Empty() {
 		t.Errorf("a field that keeps its optionality is fine:\n%s", render(out))
 	}
@@ -265,7 +265,7 @@ func TestIntegerWidthIsNotAShapeChange(t *testing.T) {
 		},
 	}
 	out := &diag.Set{}
-	Evolution(current(field("Count", "count", "int")), freezeWith(nil), base, scope, nil, out)
+	Evolution(current(field("Count", "count", "int")), freezeWith(nil), base, scope, nil, plainDialect{}, out)
 	if !out.Empty() {
 		t.Errorf("an integer stays an integer:\n%s", render(out))
 	}

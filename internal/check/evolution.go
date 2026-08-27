@@ -9,7 +9,7 @@ import (
 )
 
 // Rule IDs of the evolution checks. They appear in diagnostics and in
-// spec.Waive calls, so they are public surface and must stay stable.
+// waiver terms, so they are public surface and must stay stable.
 const (
 	// RuleBaselineMissing fires when a promised type has never been recorded.
 	RuleBaselineMissing = "K9-BASELINE-MISSING"
@@ -105,7 +105,7 @@ func Discriminators(schema []ir.SchemaType, bindings []ir.Binding, out *diag.Set
 // it as removed; taken from the schema instead, deleting the last event of a
 // package would take the package out of scope and hide the very removal that
 // has to be reported.
-func Evolution(schema []ir.SchemaType, freeze map[string]Freeze, base *baseline.File, scope map[string]bool, bindings []ir.Binding, out *diag.Set) {
+func Evolution(schema []ir.SchemaType, freeze map[string]Freeze, base *baseline.File, scope map[string]bool, bindings []ir.Binding, d ir.Dialect, out *diag.Set) {
 	waived := ir.CollectWaivers(bindings)
 	current := map[string]ir.SchemaType{}
 
@@ -116,15 +116,15 @@ func Evolution(schema []ir.SchemaType, freeze map[string]Freeze, base *baseline.
 		entry, recorded := base.Types[t.Name]
 		if f, ok := freeze[t.Name]; ok && f.Draft {
 			if recorded {
-				reportDraftFrozen(t, waived, out)
+				reportDraftFrozen(t, waived, d, out)
 			}
 			continue
 		}
 		if !recorded {
-			reportBaselineMissing(t, waived, out)
+			reportBaselineMissing(t, waived, d, out)
 			continue
 		}
-		compare(t, entry, optionalOf(freeze, t.Name), waived, out)
+		compare(t, entry, optionalOf(freeze, t.Name), waived, d, out)
 	}
 
 	reportRemoved(base, current, scope, waived, out)
@@ -136,7 +136,7 @@ func Evolution(schema []ir.SchemaType, freeze map[string]Freeze, base *baseline.
 // recorded that is simply untrue: messages may already be stored under it.
 // Allowing the demotion would make the baseline a suggestion rather than a
 // record, and every rule that reads it worthless.
-func reportDraftFrozen(t ir.SchemaType, waived ir.Waivers, out *diag.Set) {
+func reportDraftFrozen(t ir.SchemaType, waived ir.Waivers, d ir.Dialect, out *diag.Set) {
 	if waived.Has(t.Name, RuleDraftFrozen) {
 		return
 	}
@@ -146,7 +146,7 @@ func reportDraftFrozen(t ir.SchemaType, waived ir.Waivers, out *diag.Set) {
 		Rule: RuleDraftFrozen,
 		What: shortName(t.Name) + " is marked as a draft, but its shape has already been promised.",
 		Why:  "A draft says that nothing has been committed to yet. Once the shape is recorded that is no longer true — messages may already be stored under it, and no marker in the source can unwrite them.",
-		How:  "Remove the spec.Draft term. If the shape really has to change, introduce a new type beside this one and retire this one deliberately.",
+		How:  "Remove the " + d.Term("Draft") + " term. If the shape really has to change, introduce a new type beside this one and retire this one deliberately.",
 	})
 }
 
@@ -155,7 +155,7 @@ func reportDraftFrozen(t ir.SchemaType, waived ir.Waivers, out *diag.Set) {
 //
 // This is what drives adoption. Without it an empty baseline would stay empty
 // and the whole guard would never engage, because nothing would ever ask.
-func reportBaselineMissing(t ir.SchemaType, waived ir.Waivers, out *diag.Set) {
+func reportBaselineMissing(t ir.SchemaType, waived ir.Waivers, d ir.Dialect, out *diag.Set) {
 	if waived.Has(t.Name, RuleBaselineMissing) {
 		return
 	}
@@ -165,7 +165,7 @@ func reportBaselineMissing(t ir.SchemaType, waived ir.Waivers, out *diag.Set) {
 		Rule: RuleBaselineMissing,
 		What: shortName(t.Name) + " is persisted and frozen, but its shape has never been recorded.",
 		Why:  "Everything persisted is frozen unless it says otherwise, so this shape counts as promised — but nothing states what was promised, and a promise nobody wrote down cannot be kept.",
-		How:  "Run `speclink freeze` to record it, or mark it as `spec.Draft()` while it is still being worked out.",
+		How:  "Run `speclink freeze` to record it, or mark it as `" + d.Term("Draft") + "` while it is still being worked out.",
 	})
 }
 
@@ -178,7 +178,7 @@ func optionalOf(freeze map[string]Freeze, name string) map[string]bool {
 }
 
 // compare checks one type against its record.
-func compare(t ir.SchemaType, e baseline.Entry, optional map[string]bool, waived ir.Waivers, out *diag.Set) {
+func compare(t ir.SchemaType, e baseline.Entry, optional map[string]bool, waived ir.Waivers, d ir.Dialect, out *diag.Set) {
 	if t.Discriminator != e.Discriminator && !waived.Has(t.Name, RuleDiscriminatorFrozen) {
 		out.Add(diag.Finding{
 			Code: diag.Code(diag.PhaseSemantic, 91),
@@ -238,12 +238,12 @@ func compare(t ir.SchemaType, e baseline.Entry, optional map[string]bool, waived
 				Rule: RuleOptionalRevoked,
 				What: "field " + f.Name + " of " + shortName(t.Name) + " was promised as optional and no longer says so.",
 				Why:  "Messages written before the field existed do not carry it. Claiming it is always present is a statement about data that cannot be rewritten.",
-				How:  "Put `spec.Optional()` back on the field. Optionality is not something a later release can withdraw.",
+				How:  "Put `" + d.Term("Optional") + "` back on the field. Optionality is not something a later release can withdraw.",
 			})
 		}
 	}
 
-	reportAdded(t, e, optional, waived, out)
+	reportAdded(t, e, optional, waived, d, out)
 }
 
 // reportAdded requires a field that is new to a promised type to say that it
@@ -252,7 +252,7 @@ func compare(t ir.SchemaType, e baseline.Entry, optional map[string]bool, waived
 // This is the one rule of the family that does not stop a change but shapes it.
 // Adding a field is always allowed and is how a persisted model grows; what is
 // not allowed is pretending that the messages written yesterday contain it.
-func reportAdded(t ir.SchemaType, e baseline.Entry, optional map[string]bool, waived ir.Waivers, out *diag.Set) {
+func reportAdded(t ir.SchemaType, e baseline.Entry, optional map[string]bool, waived ir.Waivers, d ir.Dialect, out *diag.Set) {
 	for _, cur := range t.Fields {
 		if _, promised := e.ByWire(cur.Wire); promised {
 			continue
@@ -272,7 +272,7 @@ func reportAdded(t ir.SchemaType, e baseline.Entry, optional map[string]bool, wa
 			Rule: RuleFieldAddedRequired,
 			What: "field " + cur.Name + " was added to " + shortName(t.Name) + " without being declared optional.",
 			Why:  "The shape of this type was promised before the field existed, so every message stored until now lacks it. Nothing the writer does from here on changes that.",
-			How:  "Add `var _ = spec.ForField[" + shortName(t.Name) + "](\"" + cur.Name + "\", spec.Optional())`, then record it with `speclink freeze`.",
+			How:  "Add `" + d.BindFieldOptional(t.Name, cur.Name) + "`, then record it with `speclink freeze`.",
 		})
 	}
 }

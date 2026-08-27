@@ -128,8 +128,8 @@ func readModel(absRoot string, layout config.Config, patterns []string) (*specMo
 	m.src = check.CoverSources(m.tree, m.docs, m.segments, nil, discard)
 
 	measured := measuredRequirements(m.tree, layout, absRoot)
-	m.cov = check.CoverRequirements(m.tree, bindings, measured, discard)
-	m.ver = check.CoverVerification(m.tree, verifications, m.cov, measured, ir.CollectWaivers(bindings), discard)
+	m.cov = check.CoverRequirements(m.tree, bindings, measured, dialect, discard)
+	m.ver = check.CoverVerification(m.tree, verifications, m.cov, measured, ir.CollectWaivers(bindings), dialect, discard)
 
 	m.waived = ir.CollectWaivers(bindings)
 	m.base, err = baseline.Load(absRoot)

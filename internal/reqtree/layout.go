@@ -18,10 +18,12 @@ import (
 //
 // Layout:
 //
-//	requirements/dec/R-DEC-EVENTSOURCING.spec.go        Kind = Decision
-//	requirements/nfr/R-NFR-AUDIT.spec.go                Kind = NonFunctional
-//	requirements/cst/R-CST-TENANT.spec.go               Kind = Constraint
-//	requirements/fun/quote/R-QUOTE-SUBMIT.spec.go       Kind = Functional
+//	requirements/dec/R-DEC-EVENTSOURCING…       Kind = Decision
+//	requirements/nfr/R-NFR-AUDIT…               Kind = NonFunctional
+//	requirements/cst/R-CST-TENANT…              Kind = Constraint
+//	requirements/fun/quote/R-QUOTE-SUBMIT…      Kind = Functional
+//
+// The file extension is the frontend's, which is why it is elided here.
 //	requirements/fun/quote/R-QUOTE-SUBMIT/              attachments, no .go
 //
 // Cross cutting kinds are grouped by kind because they have no domain home by
@@ -31,22 +33,25 @@ import (
 
 // CheckLayout verifies the directory, file name and ID prefix of every
 // requirement against its Kind.
-func (t *Tree) CheckLayout(out *diag.Set) {
+func (t *Tree) CheckLayout(d ir.Dialect, out *diag.Set) {
 	for _, id := range t.sortedIDs() {
 		r := t.ByID[id]
 		if r.Kind == 0 {
 			continue // already reported
 		}
-		t.checkFileName(r, out)
+		t.checkFileName(r, d, out)
 		t.checkPrefix(r, out)
 		t.checkDir(r, out)
 	}
 }
 
-// checkFileName requires <ID>.spec.go.
-func (t *Tree) checkFileName(r *ir.Requirement, out *diag.Set) {
+// checkFileName requires the requirement to live in a file named after its ID.
+//
+// What the file is called is the frontend's business; that there is one per
+// requirement and that it is named after the ID is this rule's.
+func (t *Tree) checkFileName(r *ir.Requirement, d ir.Dialect, out *diag.Set) {
 	base := filepath.Base(r.Pos.File)
-	want := r.ID + ".spec.go"
+	want := d.RequirementFile(r.ID)
 	if base == want {
 		return
 	}

@@ -7,7 +7,7 @@
 // snapshot.
 //
 // It is deliberately not a second source of intent. Intent stays in the code —
-// the field type states the shape, spec.Draft states the status. This file
+// the field type states the shape, a draft term states the status. This file
 // records facts: what was actually committed to. It has the same relationship
 // to the source that go.sum has to go.mod, and the same rule follows from it:
 // it is written by the tool and never edited by hand.
@@ -116,14 +116,14 @@ type Verification struct {
 // Requirement is one recorded requirement text.
 //
 // Text is a hash rather than the words themselves. The words are in the
-// .spec.go file, and repeating them here would make this a second source of
-// intent, which it must never be. A hash records only the fact that a review
+// requirement declaration, and repeating them here would make this a second
+// source of intent, which it must never be. A hash records only the fact that a review
 // happened against a particular wording.
 //
 // From is the segment the requirement was written against. It is what keeps an
 // identifier stable across a regeneration of the tree: a generator that reuses
 // the ID already recorded for a segment does not rename RQuoteSubmit on every
-// run, and every spec.Satisfies in the code keeps compiling. Without it the
+// run, and every reference to it in the code keeps compiling. Without it the
 // property that a rename is a refactoring rather than a broken link only holds
 // for trees written by hand.
 //
@@ -131,8 +131,8 @@ type Verification struct {
 // nobody has.
 //
 // It is recorded rather than declared, and that distinction is the whole point.
-// A field in the .spec.go file would be written by the same model that wrote
-// the requirement — a generator certifying its own output, which is worth
+// A field on the requirement itself would be written by the same model that
+// wrote the requirement — a generator certifying its own output, which is worth
 // nothing. This is written by `speclink freeze -reviewer`, a command somebody
 // runs on behalf of a named person, and it is bound to the text hash beside it:
 // rewrite the requirement and the review it carried is gone, because what was

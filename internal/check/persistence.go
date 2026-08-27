@@ -34,7 +34,7 @@ const RulePersistenceUnjustified = "K1-PERSISTENCE-UNJUSTIFIED"
 // one context as a matter of course: the write side of a domain can be event
 // sourced while its reference data sits in a repository, and that is not a
 // defect but the normal shape.
-func JustifyPersistence(tree *reqtree.Tree, constructs []ir.Construct, bindings []ir.Binding, domain map[string]bool, out *diag.Set) {
+func JustifyPersistence(tree *reqtree.Tree, constructs []ir.Construct, bindings []ir.Binding, domain map[string]bool, d ir.Dialect, out *diag.Set) {
 	decided := decisionTargets(tree, bindings)
 	waived := ir.CollectWaivers(bindings)
 
@@ -65,7 +65,7 @@ func JustifyPersistence(tree *reqtree.Tree, constructs []ir.Construct, bindings 
 			Rule: RulePersistenceUnjustified,
 			What: short + " is " + c.Kind.WithArticle() + " and rests on no recorded decision.",
 			Why:  "Keeping every change as a fact and keeping only the current state answer different questions, and the choice is close to irreversible once there is data. A system that cannot say why it stores things the way it does cannot weigh the cost of that later.",
-			How:  "Bind a requirement with Kind spec.Decision, e.g. `var _ = spec.For[" + short + "](spec.Satisfies(dec.RDecEventSourcing))` — on the type, on its constructor, or on the package when the whole context made one choice.",
+			How:  "Bind a requirement of kind decision, e.g. `" + d.BindDecision(c.Name) + "` — on the type, on its constructor, or on the package when the whole context made one choice.",
 		})
 	}
 }

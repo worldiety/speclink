@@ -16,7 +16,7 @@ import (
 	"github.com/worldiety/speclink/internal/reqtree"
 )
 
-// Rule IDs. They appear in diagnostics and in spec.Waive calls, so they are
+// Rule IDs. They appear in diagnostics and in waiver terms, so they are
 // part of the public surface and must stay stable.
 const (
 	// RuleRequirementUncovered fires when a normative requirement is
@@ -69,7 +69,7 @@ func (c Coverage) Ratio() float64 {
 // construct may bind to any requirement, and a tree missing the far end of that
 // reference would make the construct read as unbound. So the scope decides what
 // is *asked of* a requirement, not whether it exists.
-func CoverRequirements(tree *reqtree.Tree, bindings []ir.Binding, measured map[string]bool, out *diag.Set) Coverage {
+func CoverRequirements(tree *reqtree.Tree, bindings []ir.Binding, measured map[string]bool, d ir.Dialect, out *diag.Set) Coverage {
 	cov := Coverage{BySatisfier: map[string][]ir.Target{}}
 	waived := ir.CollectWaivers(bindings)
 
@@ -85,7 +85,7 @@ func CoverRequirements(tree *reqtree.Tree, bindings []ir.Binding, measured map[s
 					continue // unresolvable references are a Go compile error
 				}
 				cov.BySatisfier[r.ID] = append(cov.BySatisfier[r.ID], b.Target)
-				checkSatisfiable(r, b, a, waived, out)
+				checkSatisfiable(r, b, a, waived, d, out)
 			}
 		}
 	}
@@ -114,14 +114,14 @@ func CoverRequirements(tree *reqtree.Tree, bindings []ir.Binding, measured map[s
 			Rule: RuleRequirementUncovered,
 			What: "normative requirement " + r.ID + " is satisfied by no construct.",
 			Why:  "Backward coverage is what makes a forgotten requirement visible at all. A requirement nobody references appears nowhere and therefore breaks no test.",
-			How:  "Bind an implementing construct with spec.Satisfies(" + shortIdent(r) + "), or mark the requirement as spec.Planned, spec.OutOfScope or spec.Informative if it is deliberately not implemented.",
+			How:  "Bind an implementing construct with " + d.Satisfy(shortIdent(r)) + ", or mark the requirement as " + d.Status("Planned") + ", " + d.Status("OutOfScope") + " or " + d.Status("Informative") + " if it is deliberately not implemented.",
 		})
 	}
 	return cov
 }
 
 // checkSatisfiable rejects references to requirements that must not be covered.
-func checkSatisfiable(r *ir.Requirement, b ir.Binding, a ir.Assertion, waived ir.Waivers, out *diag.Set) {
+func checkSatisfiable(r *ir.Requirement, b ir.Binding, a ir.Assertion, waived ir.Waivers, d ir.Dialect, out *diag.Set) {
 	switch r.Status {
 	case ir.Abstract:
 		if waived.Has(b.Target.String(), RuleAbstractCovered) {

@@ -86,7 +86,7 @@ func freeze(args []string) error {
 		schema = append(schema, p.ReadSchema(models)...)
 	}
 	check.SortSchema(schema)
-	status := check.Drafts(schema, bindings, discard)
+	status := check.Drafts(schema, bindings, dialect, discard)
 
 	base, err := baseline.Load(absRoot)
 	if err != nil {
@@ -96,7 +96,7 @@ func freeze(args []string) error {
 	// A refusal is reported through the ordinary diagnostic channel, because it
 	// is the same finding the next verify would produce anyway.
 	blocking := &diag.Set{}
-	check.Evolution(schema, status, base, scope, bindings, blocking)
+	check.Evolution(schema, status, base, scope, bindings, dialect, blocking)
 	if broken := withoutMissing(blocking); !broken.Empty() {
 		if err := broken.WriteText(os.Stdout); err != nil {
 			return err

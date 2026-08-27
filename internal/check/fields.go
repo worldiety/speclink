@@ -39,7 +39,7 @@ const RuleFieldUnbound = "K1-FIELD-UNBOUND"
 // events is not thereby self evident: it is the audit trail, it exists because
 // somebody must be able to reconstruct who did what, and that is a requirement
 // like any other.
-func CoverFields(schema []ir.SchemaType, constructs []ir.Construct, bindings []ir.Binding, domain map[string]bool, out *diag.Set) {
+func CoverFields(schema []ir.SchemaType, constructs []ir.Construct, bindings []ir.Binding, domain map[string]bool, d ir.Dialect, out *diag.Set) {
 	bound := boundFields(bindings)
 	waived := ir.CollectWaivers(bindings)
 
@@ -95,7 +95,7 @@ func CoverFields(schema []ir.SchemaType, constructs []ir.Construct, bindings []i
 				Rule: RuleFieldUnbound,
 				What: what,
 				Why:  why,
-				How:  "Add `var _ = spec.ForField[" + short + "](\"" + f.Name + "\", spec.Satisfies(…))` naming the requirement it serves — the business requirement it answers, or the audit requirement it exists for when it carries who acted or when.",
+				How:  "Add `" + d.BindField(s.name, f.Name) + "` naming the requirement it serves — the business requirement it answers, or the audit requirement it exists for when it carries who acted or when.",
 			})
 		}
 	}

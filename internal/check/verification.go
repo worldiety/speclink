@@ -30,9 +30,9 @@ import (
 // a waiver with a reason.
 //
 // The waiver goes on a construct satisfying the requirement, not on the
-// requirement. spec.Waive attaches to a Go construct and a requirement
-// declaration is not one, so the narrow form has to be written where the
-// implementation is: the same place somebody would look to decide whether a
+// requirement. A waiver attaches to a construct of the host language and a
+// requirement declaration is not one, so the narrow form has to be written
+// where the implementation is: the same place somebody would look to decide whether a
 // test is possible. K3-REQ-UNCOVERED settles for the undirected waiver here;
 // this is the sharper answer, and it costs one extra lookup.
 const RuleRequirementUnverified = "K14-REQ-UNVERIFIED"
@@ -89,8 +89,8 @@ func (v Verification) ShownRatio() float64 {
 
 // CoverVerification checks that every normative requirement is named by a test.
 //
-// It reads claims, not evidence. A spec.Verified call proves that somebody
-// wrote it down, and that is all this can see: the call may sit behind a
+// It reads claims, not evidence. A verification term proves that somebody
+// wrote it down, and that is all this can see: the term may sit behind a
 // condition that never holds, or in a test that fails before reaching it.
 // Distinguishing a claim from a demonstration needs the line the call writes
 // when it runs, which is recorded separately and checked separately.
@@ -98,7 +98,7 @@ func (v Verification) ShownRatio() float64 {
 // Reporting the claim is still worth doing on its own, because it is the half
 // that can be forgotten. A test that was never written leaves nothing behind at
 // all, and no amount of reading test output will produce it.
-func CoverVerification(tree *reqtree.Tree, verifications []ir.Binding, cov Coverage, measured map[string]bool, waived ir.Waivers, out *diag.Set) Verification {
+func CoverVerification(tree *reqtree.Tree, verifications []ir.Binding, cov Coverage, measured map[string]bool, waived ir.Waivers, d ir.Dialect, out *diag.Set) Verification {
 	v := Verification{ByTest: map[string][]string{}}
 
 	for _, b := range verifications {
@@ -144,7 +144,7 @@ func CoverVerification(tree *reqtree.Tree, verifications []ir.Binding, cov Cover
 			Pos:  r.Pos,
 			What: "no test demonstrates " + r.ID + ".",
 			Why:  "Coverage says code was written for this requirement. It has never said the code does what the requirement asks, and nothing else does either: the implementation and the tests come from the same place, and a review that samples will not find the one that is missing.",
-			How:  "Write a test and end it with spec.Verified(t, " + callSiteName(r.GoIdent) + "). If it cannot be demonstrated by a test, put spec.Waive(" + quoted(RuleRequirementUnverified) + ", …) with a reason on a construct that satisfies it: " + satisfierHint(r.ID, cov) + ".",
+			How:  "Write a test and end it with " + d.Verify(callSiteName(r.GoIdent)) + ". If it cannot be demonstrated by a test, put " + d.Waive(RuleRequirementUnverified) + " with a reason on a construct that satisfies it: " + satisfierHint(r.ID, cov) + ".",
 		})
 	}
 	return v
@@ -202,7 +202,7 @@ func Demonstrated(tree *reqtree.Tree, v Verification, cov Coverage, measured map
 			Rule: RuleVerificationStale,
 			Pos:  r.Pos,
 			What: staleWhat(claimants) + " " + r.ID + ", but no run has shown it.",
-			Why:  "spec.Verified writes its line when control reaches it, and only a passing test has its line recorded. So one of three things is true and the source cannot tell them apart: the call was never reached, the test failed before the end, or the requirement was rewritten after the last run and the evidence was against the old wording.",
+			Why:  "A verification term writes its line when control reaches it, and only a passing test has its line recorded. So one of three things is true and the source cannot tell them apart: the call was never reached, the test failed before the end, or the requirement was rewritten after the last run and the evidence was against the old wording.",
 			How:  "Run the tests and hand the result over: go test -json ./... | speclink evidence. If they do not pass, that is the finding.",
 		})
 	}
@@ -252,9 +252,6 @@ func dedupe(in []string) []string {
 	}
 	return out
 }
-
-// quoted renders a rule ID as it is written in a spec.Waive call.
-func quoted(s string) string { return `"` + s + `"` }
 
 // satisfierHint names a construct the waiver can go on, so the fix is a place
 // rather than a search. Without one there is nothing satisfying the requirement

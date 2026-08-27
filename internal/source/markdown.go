@@ -12,8 +12,8 @@ import (
 // leaking into somebody else's document.
 //
 // This is the exemption for the forward coverage, and deliberately not a
-// waiver. spec.Waive attaches to a Go construct and a section has none, so a
-// waiver narrowed to one section could not be written down. Stating it in the
+// waiver. A waiver attaches to a construct of the host language and a section
+// has none, so a waiver narrowed to one section could not be written down. Stating it in the
 // document instead puts the decision with the person who wrote the section and
 // keeps the fact in exactly one place.
 const InformativeMarker = "<!-- speclink:informative -->"

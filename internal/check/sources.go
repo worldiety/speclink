@@ -28,7 +28,8 @@ import (
 //
 // The exemption is not a waiver but a marker in the document.
 //
-// spec.Waive attaches to a Go construct, and a source segment has none, so a
+// A waiver attaches to a construct of the host language, and a source segment
+// has none, so a
 // waiver narrowed to one section could not be written down at all. Rather than
 // invent a second escape hatch, the statement is made where it belongs: a
 // section that carries no obligation says so in the document, in a comment no

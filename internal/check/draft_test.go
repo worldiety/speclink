@@ -60,7 +60,7 @@ func TestDraftCascade(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := Drafts([]ir.SchemaType{event("Opened")}, tt.bindings, &diag.Set{})
+			got := Drafts([]ir.SchemaType{event("Opened")}, tt.bindings, plainDialect{}, &diag.Set{})
 			f, ok := got[pkg+".Opened"]
 			if !ok {
 				t.Fatal("the event carries no freeze status at all")
@@ -87,7 +87,7 @@ func TestDraftScopeIsTheSchema(t *testing.T) {
 	got := Drafts([]ir.SchemaType{
 		{Name: "m.Opened", Package: "m"},
 		{Name: "m.PersonEntity", Package: "m"},
-	}, nil, &diag.Set{})
+	}, nil, plainDialect{}, &diag.Set{})
 
 	for _, name := range []string{"m.Opened", "m.PersonEntity"} {
 		if _, ok := got[name]; !ok {

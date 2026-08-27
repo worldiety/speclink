@@ -90,7 +90,7 @@ func impact(args []string) error {
 	tree := reqtree.Build(absRoot, reqs, discard)
 	docs, sourceDocs := loadSources(absRoot, layout, discard)
 	srcCov := check.CoverSources(tree, docs, sourceDocs, nil, discard)
-	cov := check.CoverRequirements(tree, bindings, nil, discard)
+	cov := check.CoverRequirements(tree, bindings, nil, dialect, discard)
 
 	g := &graph{
 		root:     absRoot,

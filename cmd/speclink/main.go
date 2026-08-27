@@ -206,11 +206,11 @@ func verify(args []string) error {
 	// V4: reject annotations that state a fact already established elsewhere.
 	// The freeze status is the first thing the language can say twice, because
 	// it cascades: package, then type, then field.
-	status := check.Drafts(schema, bindings, findings)
+	status := check.Drafts(schema, bindings, dialect, findings)
 
 	// V5: resolve identity, layout, the derivation graph and the outer edge.
 	tree := reqtree.Build(absRoot, reqs, findings)
-	tree.CheckLayout(findings)
+	tree.CheckLayout(dialect, findings)
 	docs, sourceDocs := loadSources(absRoot, layout, findings)
 	tree.CheckSources(docs, findings)
 
@@ -218,13 +218,13 @@ func verify(args []string) error {
 	for _, p := range pkgs {
 		p.CheckGenericCRUD(findings)
 	}
-	str := check.CoverConstructs(constructs, bindings, findings)
+	str := check.CoverConstructs(constructs, bindings, dialect, findings)
 	// Which requirements the backward direction applies to. The tree is always
 	// read in full — an in-scope construct may bind anywhere — but a
 	// requirement declared outside the scope is not asked to be covered by the
 	// code that was deliberately not looked at.
 	measured := measuredRequirements(tree, layout, absRoot)
-	cov := check.CoverRequirements(tree, bindings, measured, findings)
+	cov := check.CoverRequirements(tree, bindings, measured, dialect, findings)
 
 	// V6: and whether anything demonstrates the requirement, which coverage
 	// never asked. Read from the tests, whose claims are the half that can be
@@ -237,7 +237,7 @@ func verify(args []string) error {
 	for _, p := range pkgs {
 		p.CheckVerifiedOutsideTests(findings)
 	}
-	ver := check.CoverVerification(tree, verifications, cov, measured, ir.CollectWaivers(bindings), findings)
+	ver := check.CoverVerification(tree, verifications, cov, measured, ir.CollectWaivers(bindings), dialect, findings)
 
 	// V6: and the direction above the tree. Everything below it is already
 	// held by the Go compiler; this is the only step in the chain that has no
@@ -253,7 +253,7 @@ func verify(args []string) error {
 	if err != nil {
 		return err
 	}
-	check.Evolution(schema, status, base, scope, bindings, findings)
+	check.Evolution(schema, status, base, scope, bindings, dialect, findings)
 
 	// The same rule family for the two edges above the code: a requirement
 	// whose text was rewritten under its satisfiers, and a source segment
@@ -275,11 +275,11 @@ func verify(args []string) error {
 	// not ask because aggregates and repositories carry no requirement of
 	// their own.
 	domain := golang.DomainPackages(all, layout, absRoot)
-	check.JustifyPersistence(tree, constructs, bindings, domain, findings)
+	check.JustifyPersistence(tree, constructs, bindings, domain, dialect, findings)
 
 	// K1: forward coverage down to the field. Types are reviewed when they are
 	// created; fields accrete afterwards, which is where the drift is.
-	check.CoverFields(schema, constructs, bindings, domain, findings)
+	check.CoverFields(schema, constructs, bindings, domain, dialect, findings)
 
 	// V6: the architecture rules. They read the project layout, which is the
 	// one thing speclink cannot infer and the only thing speclink.json states.
@@ -363,7 +363,7 @@ func requirements(args []string) error {
 	}
 
 	tree := reqtree.Build(absRoot, reqs, findings)
-	tree.CheckLayout(findings)
+	tree.CheckLayout(dialect, findings)
 	docs, sourceDocs := loadSources(absRoot, layout, findings)
 	tree.CheckSources(docs, findings)
 	src := check.CoverSources(tree, docs, sourceDocs, nil, findings)
@@ -533,3 +533,12 @@ func plural(n int, one, many string) string {
 	}
 	return fmt.Sprintf("%d %s", n, many)
 }
+
+// dialect is how findings phrase their fixes.
+//
+// It is a package level value rather than a parameter of run, because there is
+// exactly one frontend and picking it is not yet a decision anybody makes. When
+// there are two it becomes one: the frontend that read the code is the one that
+// has to say how to change it, and this is the variable that will stop being a
+// constant.
+var dialect ir.Dialect = golang.Dialect{}

@@ -53,7 +53,7 @@ func (f Freeze) Frozen(field string) bool {
 // was deliberately given no directive at all, so there was nothing to be
 // redundant with. The cascade is the first place where the language can state
 // the same fact twice, and it is therefore the first place the phase has work.
-func Drafts(schema []ir.SchemaType, bindings []ir.Binding, out *diag.Set) map[string]Freeze {
+func Drafts(schema []ir.SchemaType, bindings []ir.Binding, d ir.Dialect, out *diag.Set) map[string]Freeze {
 	var (
 		packages = map[string]ir.Assertion{}
 		types    = map[string]ir.Assertion{}
@@ -87,10 +87,10 @@ func Drafts(schema []ir.SchemaType, bindings []ir.Binding, out *diag.Set) map[st
 		}
 	}
 
-	for _, f := range redundantTypes(types, packages) {
+	for _, f := range redundantTypes(types, packages, d) {
 		out.Add(f)
 	}
-	for _, f := range redundantFields(fields, types, packages) {
+	for _, f := range redundantFields(fields, types, packages, d) {
 		out.Add(f)
 	}
 
@@ -116,7 +116,7 @@ func Drafts(schema []ir.SchemaType, bindings []ir.Binding, out *diag.Set) map[st
 }
 
 // redundantTypes reports a draft on a type whose package is already one.
-func redundantTypes(types, packages map[string]ir.Assertion) []diag.Finding {
+func redundantTypes(types, packages map[string]ir.Assertion, d ir.Dialect) []diag.Finding {
 	var out []diag.Finding
 	for _, name := range sortedKeys(types) {
 		pkg := packageOf(name)
@@ -129,7 +129,7 @@ func redundantTypes(types, packages map[string]ir.Assertion) []diag.Finding {
 			Rule: RuleDraftRedundant,
 			What: shortName(name) + " is marked as a draft, but its package already is one.",
 			Why:  "A draft cascades downwards. Stating it again says nothing new, and the two terms will be removed at different times, leaving the type promised while the package still claims it is not.",
-			How:  "Remove this term. If only this type is still open, delete the spec.Draft on the package instead and keep this one.",
+			How:  "Remove this term. If only this type is still open, delete the " + d.Term("Draft") + " on the package instead and keep this one.",
 		})
 	}
 	return out
@@ -141,7 +141,7 @@ func redundantTypes(types, packages map[string]ir.Assertion) []diag.Finding {
 // This is the case that has to be right: a field level term is only meaningful
 // once the type itself is frozen. Before that it is noise, and noise in an
 // exception marker is how an exception survives its reason.
-func redundantFields(fields map[string]map[string]ir.Assertion, types, packages map[string]ir.Assertion) []diag.Finding {
+func redundantFields(fields map[string]map[string]ir.Assertion, types, packages map[string]ir.Assertion, d ir.Dialect) []diag.Finding {
 	var out []diag.Finding
 	for _, owner := range sortedKeys(fields) {
 		pkg := packageOf(owner)
@@ -164,7 +164,7 @@ func redundantFields(fields map[string]map[string]ir.Assertion, types, packages 
 				Rule: RuleDraftRedundant,
 				What: shortName(owner) + "." + field + " is marked as a draft, but " + level + " already is one.",
 				Why:  "A draft cascades downwards, so a field term only means something once the type itself is frozen. Until then it is an exception without a rule to except it from.",
-				How:  "Remove this term. Once the spec.Draft on " + covered + " is gone, mark the field again if it alone is still open.",
+				How:  "Remove this term. Once the " + d.Term("Draft") + " on " + covered + " is gone, mark the field again if it alone is still open.",
 			})
 		}
 	}

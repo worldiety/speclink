@@ -38,7 +38,7 @@ func (s Structure) Ratio() float64 {
 // which measures nothing. The framework already states the architectural role
 // unambiguously; the annotation only adds what the code cannot say, namely
 // which requirement the construct exists for.
-func CoverConstructs(constructs []ir.Construct, bindings []ir.Binding, out *diag.Set) Structure {
+func CoverConstructs(constructs []ir.Construct, bindings []ir.Binding, d ir.Dialect, out *diag.Set) Structure {
 	s := Structure{Constructs: constructs}
 
 	bound := map[string]bool{}
@@ -84,23 +84,10 @@ func CoverConstructs(constructs []ir.Construct, bindings []ir.Binding, out *diag
 			Rule: RuleConstructUnbound,
 			What: shortName(c.Name) + " is " + c.Kind.WithArticle() + " but is bound to no requirement.",
 			Why:  "Recognised because it " + c.Evidence + ". A construct carrying business meaning must trace back to something that was asked for, otherwise nobody can tell whether it should exist.",
-			How:  "Add `var _ = spec.For[" + shortName(c.Name) + "](spec.Satisfies(…))` in " + annotationFileHint(c) + ", or waive the rule with a reason.",
+			How:  "Add `" + d.BindConstruct(c.Name) + "` in " + d.AnnotationFile(c.Pos.File) + ", or waive the rule with a reason.",
 		})
 	}
 	return s
-}
-
-// annotationFileHint names the file the binding belongs in, so the message can
-// be acted on without knowing the convention.
-func annotationFileHint(c ir.Construct) string {
-	file := c.Pos.File
-	if i := lastIndexByte(file, '/'); i >= 0 {
-		file = file[i+1:]
-	}
-	if len(file) > 3 && file[len(file)-3:] == ".go" {
-		return file[:len(file)-3] + ".annotation.go"
-	}
-	return "the annotation file next to it"
 }
 
 func shortName(qualified string) string {
