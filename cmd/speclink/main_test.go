@@ -434,3 +434,43 @@ func rewrite(t *testing.T, root, rel, old, new string) {
 		t.Fatal(err)
 	}
 }
+
+// TestTestFilesDoNotChangeTheVerdict pins the split that made test loading
+// possible.
+//
+// verify asks go/packages for test variants, and a test variant is the same
+// source seen twice. Both hazards were measured before the filter was written:
+// the in-package variant answers PkgPath identically to its subject, so every
+// construct and every schema would be read twice, and the generated <pkg>.test
+// binary is a main package outside cmd/, which K8-MAIN-LOCATION would report in
+// every package that has a test.
+func TestTestFilesDoNotChangeTheVerdict(t *testing.T) {
+	before, code := runVerify(t, "../../testdata/example")
+	if code != 0 {
+		t.Fatalf("the reference project is not clean: %s", before)
+	}
+
+	dir := copyFixture(t, "../../testdata/example")
+	for name, body := range map[string]string{
+		"app/sales/probe_test.go":     "package sales\n\nimport \"testing\"\n\nfunc TestProbe(t *testing.T) { _ = SubmitQuoteCmd{} }\n",
+		"app/sales/probe_ext_test.go": "package sales_test\n\nimport \"testing\"\n\nfunc TestProbeExternal(t *testing.T) {}\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	after, code := runVerify(t, dir)
+	if code != 0 {
+		t.Fatalf("adding a test file broke the run:\n%s", after)
+	}
+	if summary(before) != summary(after) {
+		t.Errorf("adding a test file changed the verdict:\nbefore: %s\nafter:  %s", summary(before), summary(after))
+	}
+}
+
+// summary returns the last non-empty line, which is the counts line.
+func summary(out string) string {
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	return strings.TrimSpace(lines[len(lines)-1])
+}

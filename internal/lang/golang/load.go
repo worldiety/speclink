@@ -35,6 +35,9 @@ const (
 	// RequirementSuffix marks a requirement declaration file in the
 	// requirement tree: R-QUOTE-SUBMIT.spec.go.
 	RequirementSuffix = ".spec.go"
+	// TestSuffix marks a test file. Go requires it to be the final suffix, so
+	// a test file can never also carry one of the two above.
+	TestSuffix = "_test.go"
 )
 
 // loadMode is deliberately explicit. NeedTypes and NeedTypesInfo are what makes
@@ -73,10 +76,32 @@ type Package struct {
 	// sourceNames holds the base names of ordinary Go files, used to detect
 	// orphaned annotation files.
 	sourceNames map[string]bool
+	// testFiles are the *_test.go files, empty unless the load asked for them.
+	testFiles []*ast.File
+	// isTest marks a test variant of a package rather than the package itself.
+	isTest bool
 }
 
 // PkgPath returns the import path of the package.
+//
+// It is not an identity. go/packages gives the in-package test variant the same
+// PkgPath as the package it tests, so two entries in one load can answer this
+// identically — measured on the reference project the moment a single _test.go
+// file exists. Anything keying on a package must therefore ask IsTest as well,
+// or ask ID.
 func (p *Package) PkgPath() string { return p.pkg.PkgPath }
+
+// ID is the unique identity of a loaded package, which PkgPath is not.
+func (p *Package) ID() string { return p.pkg.ID }
+
+// IsTest reports whether this is a test variant rather than a package proper.
+//
+// Every rule that existed before test loading was introduced must skip these.
+// They are the same source seen twice, so letting them through would double
+// every construct, every schema and every finding derived from them — and the
+// generated <pkg>.test binary is a main package outside cmd/, which K8-MAIN
+// -LOCATION would report in every package that has a test.
+func (p *Package) IsTest() bool { return p.isTest }
 
 // Load loads the given patterns from dir with full type information.
 //
@@ -84,10 +109,28 @@ func (p *Package) PkgPath() string { return p.pkg.PkgPath }
 // loaded packages are reported through TypeErrors, because they belong to phase
 // V2 which is the Go compilation and not a speclink phase.
 func Load(dir string, patterns ...string) ([]*Package, error) {
+	return load(dir, false, patterns...)
+}
+
+// LoadWithTests additionally loads the test variants of the matched packages.
+//
+// It is separate because it is not free. Asking for tests roughly doubles the
+// load: go/packages returns the package, the package recompiled with its
+// in-package tests, the external test package and a generated main, and every
+// one of them is parsed and type checked. On the reference project the load
+// step went from 0.35s to 0.71s the moment one test file existed.
+//
+// Only verify needs it, because only K14 asks a question about tests. freeze,
+// inventory and impact would pay the same price for nothing.
+func LoadWithTests(dir string, patterns ...string) ([]*Package, error) {
+	return load(dir, true, patterns...)
+}
+
+func load(dir string, tests bool, patterns ...string) ([]*Package, error) {
 	if len(patterns) == 0 {
 		patterns = []string{"./..."}
 	}
-	cfg := &packages.Config{Mode: loadMode, Dir: dir, Tests: false}
+	cfg := &packages.Config{Mode: loadMode, Dir: dir, Tests: tests}
 	loaded, err := packages.Load(cfg, patterns...)
 	if err != nil {
 		return nil, fmt.Errorf("load packages: %w", err)
@@ -95,10 +138,12 @@ func Load(dir string, patterns ...string) ([]*Package, error) {
 
 	out := make([]*Package, 0, len(loaded))
 	for _, lp := range loaded {
-		p := &Package{pkg: lp, sourceNames: map[string]bool{}}
+		p := &Package{pkg: lp, sourceNames: map[string]bool{}, isTest: isTestVariant(lp)}
 		for _, f := range lp.Syntax {
 			name := filepath.Base(lp.Fset.Position(f.Pos()).Filename)
 			switch {
+			case strings.HasSuffix(name, TestSuffix):
+				p.testFiles = append(p.testFiles, f)
 			case strings.HasSuffix(name, AnnotationSuffix):
 				p.annotationFiles = append(p.annotationFiles, f)
 			case strings.HasSuffix(name, RequirementSuffix):
@@ -110,6 +155,38 @@ func Load(dir string, patterns ...string) ([]*Package, error) {
 		out = append(out, p)
 	}
 	return out, nil
+}
+
+// isTestVariant reports whether a loaded package is a test build rather than
+// the package itself.
+//
+// The decision is made on ID, never on PkgPath. go/packages gives the
+// in-package test variant the same PkgPath as its subject and distinguishes
+// them only in the ID, which carries the bracketed form
+// "example.com/erp/app/sales [example.com/erp/app/sales.test]". A check on
+// PkgPath would therefore separate nothing at all, silently, and every rule
+// would see the package twice.
+func isTestVariant(p *packages.Package) bool {
+	return strings.Contains(p.ID, ".test]") || strings.HasSuffix(p.ID, ".test")
+}
+
+// Tests returns the loaded packages that are test variants.
+func Tests(pkgs []*Package) []*Package { return filterTests(pkgs, true) }
+
+// NonTests returns the loaded packages that are not test variants.
+//
+// Every rule written before test loading existed takes this, so that asking
+// for tests cannot change what any of them see.
+func NonTests(pkgs []*Package) []*Package { return filterTests(pkgs, false) }
+
+func filterTests(pkgs []*Package, want bool) []*Package {
+	out := make([]*Package, 0, len(pkgs))
+	for _, p := range pkgs {
+		if p.isTest == want {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // TypeErrors collects the Go compiler errors of the loaded packages.

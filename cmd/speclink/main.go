@@ -110,15 +110,30 @@ func verify(args []string) error {
 		return err
 	}
 
-	pkgs, err := golang.Load(absRoot, fs.Args()...)
+	// verify is the only command that asks for test variants, because only K14
+	// asks a question about tests. It roughly doubles the load, so nothing else
+	// pays for it.
+	loaded, err := golang.LoadWithTests(absRoot, fs.Args()...)
 	if err != nil {
 		return err
 	}
 
+	// Every rule that existed before test loading was introduced takes the
+	// packages proper. A test variant is the same source seen twice: letting it
+	// through would double every construct, every schema and every finding
+	// derived from them, and the generated <pkg>.test main package would make
+	// K8-MAIN-LOCATION fire in every package that has a test.
+	pkgs := golang.NonTests(loaded)
+	testPkgs := golang.Tests(loaded)
+	_ = testPkgs
+
 	// Phase V2 is the Go compilation itself. If it failed there is nothing
 	// meaningful to say about annotations, and saying it anyway would bury the
 	// real cause under follow-up noise.
-	if errs := golang.TypeErrors(pkgs); len(errs) > 0 {
+	// Type errors are reported over everything loaded, tests included: a test
+	// that does not compile is a broken build like any other, and speclink
+	// would otherwise read half a model from it.
+	if errs := golang.TypeErrors(loaded); len(errs) > 0 {
 		fmt.Fprintln(os.Stderr, "the Go build is broken; fix it before speclink can check anything:")
 		for _, e := range errs {
 			fmt.Fprintln(os.Stderr, "  "+e.Error())
