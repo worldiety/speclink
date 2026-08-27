@@ -34,7 +34,16 @@ func CheckBoundedContexts(pkgs []*Package, cfg config.Config, root string, out *
 
 		switch role := contextRole(rel, cfg); role {
 		case roleUI:
-			p.checkUIPackageName(ctx, out)
+			// Only the ui directory itself carries the naming rule. The
+			// presentation layer of a context is free to be more than one
+			// package — an editor for one widget, a shared table renderer —
+			// and those are ordinary Go packages named after what they do.
+			// Demanding uiplatform of every one of them would force a dozen
+			// identically named packages that could then only be imported
+			// through aliases, which is the very thing the rule prevents.
+			if isUIDir(rel) {
+				p.checkUIPackageName(ctx, out)
+			}
 		case roleDomain:
 			p.checkNoUIImport(rel, out)
 			p.checkUseCaseBundle(ctx, out)
@@ -66,6 +75,12 @@ func contextRole(rel string, cfg config.Config) ctxRole {
 		}
 	}
 	return roleDomain
+}
+
+// isUIDir reports whether this directory is the ui directory of a context,
+// rather than a package nested below it.
+func isUIDir(rel string) bool {
+	return filepath.Base(filepath.ToSlash(rel)) == "ui"
 }
 
 // checkUIPackageName enforces that a directory named ui declares ui<ctx>.

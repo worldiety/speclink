@@ -356,3 +356,25 @@ func TestFieldCoverageReachesEveryField(t *testing.T) {
 		t.Errorf("a bound field was still reported:\n%s", out)
 	}
 }
+
+// TestUINamingAppliesToTheUIDirectoryOnly pins that the rule stops at the ui
+// directory and does not reach the packages below it.
+//
+// The presentation layer of a context is regularly more than one package: an
+// editor for one widget, a shared table renderer. Those are ordinary Go
+// packages named after what they do. Demanding uibilling of every one of them
+// would force a dozen identically named packages across the system, which
+// could then only be imported through aliases — the very confusion the naming
+// rule exists to prevent.
+//
+// The fixture holds both: a ui directory with the wrong name, which must be
+// reported, and a package below it with an ordinary name, which must not.
+func TestUINamingAppliesToTheUIDirectoryOnly(t *testing.T) {
+	out, _ := runVerify(t, "../../testdata/arch")
+	if n := strings.Count(out, "[SPEC-V6-040]"); n != 1 {
+		t.Errorf("expected SPEC-V6-040 exactly once, found %d times:\n%s", n, out)
+	}
+	if strings.Contains(out, "amounteditor") {
+		t.Errorf("a package below ui was reported:\n%s", out)
+	}
+}
