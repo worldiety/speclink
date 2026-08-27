@@ -38,6 +38,7 @@ func freeze(args []string) error {
 	fs := flag.NewFlagSet("freeze", flag.ExitOnError)
 	root := fs.String("root", ".", "repository root, holding "+baseline.FileName)
 	cfgPath := fs.String("config", "", "layout configuration; defaults to "+config.FileName+" in the root")
+	reviewer := fs.String("reviewer", "", "record that this person read the requirement texts as they now stand")
 	dry := fs.Bool("n", false, "report what would be recorded, write nothing")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -113,7 +114,7 @@ func freeze(args []string) error {
 	// somebody has now read it.
 	tree := reqtree.Build(absRoot, reqs, discard)
 	docs, sourceDocs := loadSources(absRoot, layout, discard)
-	changedReqs, changedSegs := check.Record(base, tree, docs, sourceDocs)
+	changedReqs, changedSegs := check.Record(base, tree, docs, sourceDocs, *reviewer)
 
 	if len(added) == 0 && len(updated) == 0 && changedReqs == 0 && changedSegs == 0 {
 		fmt.Fprintln(os.Stderr, "nothing to record; every frozen shape, requirement and source segment is already recorded.")
@@ -127,7 +128,12 @@ func freeze(args []string) error {
 		fmt.Fprintln(os.Stderr, "extend   "+name)
 	}
 	if changedReqs > 0 {
-		fmt.Fprintf(os.Stderr, "read     %s\n", plural(changedReqs, "requirement", "requirements"))
+		what := plural(changedReqs, "requirement", "requirements")
+		if *reviewer != "" {
+			fmt.Fprintf(os.Stderr, "reviewed %s (%s)\n", what, *reviewer)
+		} else {
+			fmt.Fprintf(os.Stderr, "read     %s\n", what)
+		}
 	}
 	if changedSegs > 0 {
 		fmt.Fprintf(os.Stderr, "read     %s\n", plural(changedSegs, "source segment", "source segments"))

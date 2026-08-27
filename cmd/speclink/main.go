@@ -51,6 +51,8 @@ func run(args []string) error {
 		return freeze(args[1:])
 	case "inventory":
 		return inventory(args[1:])
+	case "export":
+		return export(args[1:])
 	case "help", "-h", "--help":
 		usage()
 		return nil
@@ -68,12 +70,15 @@ usage:
   speclink requirements [flags] [packages]
   speclink freeze       [flags] [packages]
   speclink inventory    [flags] [packages]
+  speclink export       [flags] [packages]
 
 commands:
   verify        check requirements, annotations and architecture rules
   requirements  check the requirement tree on its own, before any code binds to it
   freeze        record the shape of every persisted type that is no longer a draft
   inventory     list what the recognisers found, with kind, name and binding
+  export        write the requirement tree and its sources as JSON, for a
+                collaboration surface rather than an agent
 
 run "speclink <command> -h" for the flags of a command.
 `)
@@ -300,7 +305,17 @@ func requirements(args []string) error {
 	src := check.CoverSources(tree, docs, sourceDocs, nil, findings)
 	reqtree.ReportDocuments(docs, findings)
 
-	if err := reportRequirements(*format, findings, tree, src); err != nil {
+	// The tree question now also has an audience that is not an agent, so the
+	// drift and review state have to be available here. requirements is the
+	// command a collaboration surface runs: it needs no code to compile beyond
+	// the tree itself, which is the point of it existing.
+	base, err := baseline.Load(absRoot)
+	if err != nil {
+		return err
+	}
+	check.Drift(tree, docs, sourceDocs, check.Coverage{BySatisfier: map[string][]ir.Target{}}, src, base, nil, findings)
+
+	if err := reportRequirements(*format, findings, tree, src, base); err != nil {
 		return err
 	}
 	if !findings.Empty() {
@@ -342,7 +357,7 @@ func loadSources(absRoot string, layout config.Config, findings *diag.Set) (*sou
 	return docs, found
 }
 
-func reportRequirements(format string, findings *diag.Set, tree *reqtree.Tree, src check.SourceCoverage) error {
+func reportRequirements(format string, findings *diag.Set, tree *reqtree.Tree, src check.SourceCoverage, base *baseline.File) error {
 	switch format {
 	case "json":
 		return findings.WriteJSON(os.Stdout)
@@ -357,8 +372,15 @@ func reportRequirements(format string, findings *diag.Set, tree *reqtree.Tree, s
 				normative++
 			}
 		}
-		fmt.Fprintf(os.Stderr, "\n%s (%d normative), %d source segments (%.0f%% accounted), %s\n",
-			plural(len(all), "requirement", "requirements"), normative,
+		reviewed := 0
+		for _, r := range all {
+			rec := base.Requirements[r.ID]
+			if rec.ReviewedBy != "" && rec.Text == baseline.HashText(r.Text, r.Title) {
+				reviewed++
+			}
+		}
+		fmt.Fprintf(os.Stderr, "\n%s (%d normative, %d reviewed), %d source segments (%.0f%% accounted), %s\n",
+			plural(len(all), "requirement", "requirements"), normative, reviewed,
 			src.Total, src.Ratio()*100,
 			plural(findings.Len(), "finding", "findings"))
 		return nil

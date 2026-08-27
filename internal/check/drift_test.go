@@ -136,13 +136,18 @@ func recorded(t *testing.T, root string, reqs ...*ir.Requirement) *baseline.File
 
 func record(t *testing.T, root string, base *baseline.File, reqs ...*ir.Requirement) {
 	t.Helper()
+	recordBy(t, root, base, "", reqs...)
+}
+
+func recordBy(t *testing.T, root string, base *baseline.File, reviewer string, reqs ...*ir.Requirement) {
+	t.Helper()
 	fill(base)
 
 	out := &diag.Set{}
 	tree := reqtree.Build(root, clone(reqs), out)
 	set := source.NewSet(root)
 	docs, _ := source.Walk(root, []string{"src"})
-	Record(base, tree, set, docs)
+	Record(base, tree, set, docs, reviewer)
 }
 
 func drift(t *testing.T, root string, base *baseline.File, reqs ...*ir.Requirement) []byte {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,8 +18,102 @@ func TestRequirementsCommand(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected a clean tree, got exit %d:\n%s", code, out)
 	}
-	if !strings.Contains(out, "9 requirements (8 normative)") {
+	if !strings.Contains(out, "9 requirements (8 normative, 0 reviewed)") {
 		t.Errorf("unexpected summary:\n%s", out)
+	}
+}
+
+// TestReviewIsBoundToTheWording pins what a recorded review means.
+//
+// The people this is for never see the source. They read a requirement that
+// was extracted for them and say whether it is right, and the record of that
+// is the only thing standing behind the claim that anybody read it. So it is
+// recorded rather than declared — a field in the .spec.go file would be
+// written by the same model that wrote the requirement — and it is bound to
+// the wording it was given for. Rewrite the text and the review is gone,
+// because what was read is not what is there.
+func TestReviewIsBoundToTheWording(t *testing.T) {
+	dir := copyFixture(t, "../../testdata/example")
+
+	out, code := runSpeclink(t, "freeze", dir, "-reviewer", "Frau Meier", "./...")
+	if code != 0 {
+		t.Fatalf("freeze failed with %d:\n%s", code, out)
+	}
+	if out, _ = runSpeclink(t, "requirements", dir, "./requirements/..."); !strings.Contains(out, "9 reviewed") {
+		t.Fatalf("the review was not recorded:\n%s", out)
+	}
+
+	rewrite(t, dir, "requirements/fun/quote/R-QUOTE-SUBMIT.spec.go",
+		"MUST be drawn", "MUST NOT be drawn")
+
+	out, _ = runSpeclink(t, "requirements", dir, "./requirements/...")
+	if !strings.Contains(out, "8 reviewed") {
+		t.Errorf("a rewritten requirement kept its review:\n%s", out)
+	}
+}
+
+// TestExportCarriesWhatAReviewerNeeds pins the read surface.
+//
+// The audience is a person working through extracted requirements in a browser.
+// They need the requirement as data and, above all, the segment it came from,
+// because judging whether an extraction is faithful means reading it next to
+// its origin.
+func TestExportCarriesWhatAReviewerNeeds(t *testing.T) {
+	out, code := runSpeclink(t, "export", "../../testdata/example", "./...")
+	if code != 0 {
+		t.Fatalf("export failed with %d:\n%s", code, out)
+	}
+
+	var report struct {
+		Version      int `json:"version"`
+		Requirements []struct {
+			ID         string   `json:"id"`
+			Text       string   `json:"text"`
+			Sources    []string `json:"sources"`
+			Satisfiers []string `json:"satisfiers"`
+			Reviewed   bool     `json:"reviewed"`
+			File       string   `json:"file"`
+		} `json:"requirements"`
+		Sources []struct {
+			Ref          string   `json:"ref"`
+			Kind         string   `json:"kind"`
+			Requirements []string `json:"requirements"`
+			Informative  bool     `json:"informative"`
+		} `json:"sources"`
+	}
+	if err := json.Unmarshal([]byte(out), &report); err != nil {
+		t.Fatalf("export is not valid JSON: %v\n%s", err, out)
+	}
+	if report.Version != TreeVersion {
+		t.Errorf("got version %d, want %d", report.Version, TreeVersion)
+	}
+
+	var submit int = -1
+	for i, r := range report.Requirements {
+		if r.ID == "R-QUOTE-SUBMIT" {
+			submit = i
+		}
+		// A surface has no notion of the machine the run happened on.
+		if filepath.IsAbs(r.File) {
+			t.Errorf("%s carries an absolute path %q", r.ID, r.File)
+		}
+	}
+	if submit < 0 {
+		t.Fatalf("R-QUOTE-SUBMIT missing from the export:\n%s", out)
+	}
+	r := report.Requirements[submit]
+	if r.Text == "" || len(r.Sources) == 0 || len(r.Satisfiers) == 0 {
+		t.Errorf("R-QUOTE-SUBMIT lacks text, origin or satisfiers: %+v", r)
+	}
+
+	// Both source kinds have to be there, or a mockup is invisible to the very
+	// surface that is supposed to let people edit it.
+	kinds := map[string]bool{}
+	for _, s := range report.Sources {
+		kinds[s.Kind] = true
+	}
+	if !kinds["markdown"] || !kinds["image"] {
+		t.Errorf("the export does not carry both source kinds: %v", kinds)
 	}
 }
 

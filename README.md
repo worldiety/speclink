@@ -41,11 +41,13 @@ speclink verify       [flags] [packages]
 speclink requirements [flags] [packages]
 speclink freeze       [flags] [packages]
 speclink inventory    [flags] [packages]
+speclink export       [flags] [packages]
 
   -format text|json   text is the default
   -root <dir>         repository root, default "."
   -config <file>      layout configuration; defaults to speclink.json in the root
   -n                  freeze only: report what would be recorded, write nothing
+  -reviewer <who>     freeze only: record that this person read the requirements
   -kind <kind>        inventory only: restrict to one kind, e.g. event
 ```
 
@@ -921,6 +923,54 @@ This is not `spec.Waive` and cannot be. A waiver attaches to a Go construct and
 a section has none, so a waiver narrowed to one section could not be written
 down at all. Stating it in the document puts the decision with the person who
 wrote the section and keeps the fact in one place.
+
+### Reviews
+
+The people who own the source documents do not read Go and never see a
+`.spec.go` file. They edit Markdown and mockups, read the requirements that were
+extracted from them, and say whether those say what they meant.
+
+That "yes" is recorded, not declared:
+
+```
+speclink freeze -reviewer "Frau Meier" ./...
+```
+
+There is deliberately no `Reviewed` field on `spec.Requirement`. It would be
+written by the same model that wrote the requirement — a generator certifying
+its own output, which is worth nothing. `freeze -reviewer` is run by a person,
+or by a surface acting for a named person, which is a different claim.
+
+A review is bound to the wording it was given for. Rewrite the text and the
+review is gone, because what was read is no longer what is there. Running
+`freeze` without `-reviewer` still records the text — the drift rules need
+something to compare against — and records no review, because none happened.
+That is what CI does.
+
+Reviews are counted, never required. `speclink requirements` reports
+`9 requirements (8 normative, 3 reviewed)`. Nothing fails for being unreviewed:
+spot checks are the working model, and a rule demanding a hundred percent would
+be answered by a script.
+
+### `speclink export`
+
+The read surface for that audience, and the only output of speclink not aimed
+at an agent:
+
+```
+speclink export -root . ./... > tree.json
+```
+
+It writes the requirement tree and the source segments as data — text, origin,
+satisfiers, review state, and for every segment the requirements extracted from
+it. That last part is what makes a review possible at all: judging whether an
+extraction is faithful means reading it next to the paragraph or the part of
+the screen it came from.
+
+It is a command rather than a format of `requirements` because `-format json`
+is already the agent's contract, and redefining a contract is more expensive
+than adding an output. Like `requirements`, only the named packages have to
+compile.
 
 ### Drift
 

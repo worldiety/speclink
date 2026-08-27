@@ -102,10 +102,27 @@ type File struct {
 // run, and every spec.Satisfies in the code keeps compiling. Without it the
 // property that a rename is a refactoring rather than a broken link only holds
 // for trees written by hand.
+//
+// ReviewedBy names the person who vouched for this exact wording, empty when
+// nobody has.
+//
+// It is recorded rather than declared, and that distinction is the whole point.
+// A field in the .spec.go file would be written by the same model that wrote
+// the requirement — a generator certifying its own output, which is worth
+// nothing. This is written by `speclink freeze -reviewer`, a command somebody
+// runs on behalf of a named person, and it is bound to the text hash beside it:
+// rewrite the requirement and the review it carried is gone, because what was
+// read is no longer what is there.
+//
+// There is deliberately no timestamp. It would make the file non-reproducible
+// for the sake of information the git history of the file already carries, and
+// carries better — the same reason the diff of this file is the review rather
+// than a status field somebody maintains.
 type Requirement struct {
-	Text  string `json:"text"`
-	Title string `json:"title,omitempty"`
-	From  string `json:"from,omitempty"`
+	Text       string `json:"text"`
+	Title      string `json:"title,omitempty"`
+	From       string `json:"from,omitempty"`
+	ReviewedBy string `json:"reviewedBy,omitempty"`
 }
 
 // Segment is one recorded source document segment.

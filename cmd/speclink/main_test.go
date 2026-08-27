@@ -378,3 +378,59 @@ func TestUINamingAppliesToTheUIDirectoryOnly(t *testing.T) {
 		t.Errorf("a package below ui was reported:\n%s", out)
 	}
 }
+
+// copyFixture makes a writable copy of a fixture.
+//
+// The tests that record a review have to write into the module they analyse,
+// and a fixture is shared: one of them freezing in place would decide the
+// outcome of every other test in the package depending on the order they ran.
+func copyFixture(t *testing.T, src string) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	root, err := filepath.Abs(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.CopyFS(dir, os.DirFS(root)); err != nil {
+		t.Fatal(err)
+	}
+
+	// The fixture replaces the spec module with a relative path, which stops
+	// meaning this repository the moment the module is somewhere else.
+	repo, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	gomod := filepath.Join(dir, "go.mod")
+	data, err := os.ReadFile(gomod)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixed := strings.ReplaceAll(string(data),
+		"replace github.com/worldiety/speclink => ../..",
+		"replace github.com/worldiety/speclink => "+filepath.ToSlash(repo))
+	if err := os.WriteFile(gomod, []byte(fixed), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// rewrite replaces a substring in a fixture file, failing when it is not there
+// rather than silently testing nothing.
+func rewrite(t *testing.T, root, rel, old, new string) {
+	t.Helper()
+
+	path := filepath.Join(root, rel)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), old) {
+		t.Fatalf("%s does not contain %q", rel, old)
+	}
+	updated := strings.Replace(string(data), old, new, 1)
+	if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}

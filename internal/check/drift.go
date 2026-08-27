@@ -113,14 +113,32 @@ func driftSources(tree *reqtree.Tree, set *source.Set, docs []string, cov Source
 }
 
 // Record folds the current state into the baseline. It is what freeze writes.
-func Record(base *baseline.File, tree *reqtree.Tree, set *source.Set, docs []string) (requirements, segments int) {
+//
+// reviewer names the person the run is being made on behalf of, empty when
+// nobody read anything. A run in CI records the text so the drift rules have
+// something to compare against next time, and records no review, because none
+// happened. Conflating the two would make the record claim a reading that never
+// took place, and the record is the only thing standing behind that claim.
+//
+// A review is bound to the wording it was given for. When the text changed, the
+// previous reviewer is dropped rather than carried over: what they read is not
+// what is there any more, and a name against the wrong sentence is worse than
+// no name at all.
+func Record(base *baseline.File, tree *reqtree.Tree, set *source.Set, docs []string, reviewer string) (requirements, segments int) {
 	for _, r := range tree.All() {
 		rec := baseline.Requirement{
 			Text:  baseline.HashText(r.Text, r.Title),
 			Title: r.Title,
 			From:  primarySource(r),
 		}
-		if base.Requirements[r.ID] != rec {
+		previous, existed := base.Requirements[r.ID]
+		if existed && previous.Text == rec.Text {
+			rec.ReviewedBy = previous.ReviewedBy
+		}
+		if reviewer != "" {
+			rec.ReviewedBy = reviewer
+		}
+		if !existed || previous != rec {
 			requirements++
 		}
 		base.Requirements[r.ID] = rec
