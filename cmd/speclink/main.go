@@ -55,6 +55,8 @@ func run(args []string) error {
 		return impact(args[1:])
 	case "evidence":
 		return evidence(args[1:])
+	case "generate":
+		return generate(args[1:])
 	case "help", "-h", "--help":
 		usage()
 		return nil
@@ -74,6 +76,7 @@ usage:
   speclink inventory    [flags] [packages]
   speclink impact       [flags] <requirement|doc.md#anchor|path>...
   speclink evidence     [flags] [packages]
+  speclink generate     [flags] [packages]
 
 commands:
   verify        check requirements, annotations and architecture rules
@@ -84,6 +87,7 @@ commands:
                 file reaches
   evidence      record which tests demonstrated which requirements, reading
                 the output of "go test -json"
+  generate      derive the specification document from the source
 
 run "speclink <command> -h" for the flags of a command.
 `)

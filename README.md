@@ -51,6 +51,7 @@ speclink impact       [flags] <requirement|doc.md#anchor|path>...
   -n                  freeze only: report what would be recorded, write nothing
   -reviewer <who>     freeze only: record that this person read the requirements
   -in <file>          evidence only: read the test stream from a file
+  -out <file>         generate only: write here instead of standard output
   -kind <kind>        inventory only: restrict to one kind, e.g. event
 ```
 
@@ -105,6 +106,28 @@ grown while the implementation around it is still in pieces.
 ```
 343 requirements (298 normative), 0 findings
 ```
+
+### Deriving the specification document
+
+```
+speclink generate -root . -out SPECIFICATION.md ./...
+```
+
+Every requirement with the words it was given, where those words came from, what
+implements them, what demonstrated them, who has read them — and a gap list of
+everything missing, each accepted gap carrying the reason somebody had to write
+for it.
+
+This is the part that decides whether the tool is worth having. As long as
+speclink exists *beside* a hand written specification, it makes the situation
+worse: one more thing to keep in step. Nothing can be removed until the document
+comes out of here.
+
+Markdown, and deliberately nothing cleverer. It renders everywhere and it diffs,
+and a diff is the form in which this document is actually reviewed.
+
+It renders a project with open findings, because that is exactly when somebody
+wants to read it.
 
 ### Tracing what a change reaches
 
@@ -1219,8 +1242,9 @@ directly in `fun/`, `V5-035` domain directory contradicts the ID prefix.
 
 Do not invoke or assume these; they do not exist:
 
-- `speclink generate` and the documentation backends
 - `speclink selfreport` and `verify --check-generated`
+- any documentation backend other than the Markdown one: no HTML, no AsciiDoc,
+  no JSON-LD
 - the evolution rules for storage other than the JSON repository and the event
   log. A type written through some other store is not part of the promised set.
 - any rule that checks a projection is not persisted, or that a repository is
