@@ -31,6 +31,9 @@ var allowedTargets = map[ir.AssertionKind][]ir.TargetKind{
 	// Verified is stated by a test about itself, so its only target is the
 	// test function it stands in.
 	ir.AssertVerified: {ir.TargetFunc},
+	// Persistence is a statement about a type: an interface is a port, a
+	// struct is a shape. A function has neither.
+	ir.AssertPersistence: {ir.TargetType},
 }
 
 // repeatable lists the assertions that may appear more than once per target.
@@ -46,11 +49,25 @@ var repeatable = map[ir.AssertionKind]bool{
 	ir.AssertVerified: true,
 }
 
-// checkTargetAllowed validates one binding against the rules above.
-func (p *Package) checkTargetAllowed(b ir.Binding, out *diag.Set) {
+// checkTargetAllowed validates one binding against the rules above and against
+// the style's vocabulary.
+func (p *Package) checkTargetAllowed(b ir.Binding, style Style, out *diag.Set) {
 	seen := map[ir.AssertionKind]bool{}
 
 	for _, a := range b.Assertions {
+		if !style.Admits(a.Kind) {
+			// Not a silent no-op. The author expected an effect, and the
+			// effect is that something else already provides it — which is
+			// only useful to know if it is said.
+			out.Add(diag.Finding{
+				Code: diag.Code(diag.PhaseBinding, 8),
+				Pos:  a.Pos,
+				What: "spec." + exportedName(a.Kind) + " is not available in this architecture.",
+				Why:  "It exists for architectures that cannot state the fact by themselves. Here " + styleReason(style, a.Kind) + ", so the term would be a second source for something that already has one.",
+				How:  "Remove it.",
+			})
+			continue
+		}
 		if !targetPermitted(a.Kind, b.Target.Kind) {
 			out.Add(diag.Finding{
 				Code: diag.Code(diag.PhaseBinding, 6),
@@ -71,6 +88,15 @@ func (p *Package) checkTargetAllowed(b ir.Binding, out *diag.Set) {
 		}
 		seen[a.Kind] = true
 	}
+}
+
+// styleReason explains what already states the fact, so the refusal is
+// actionable rather than merely correct.
+func styleReason(style Style, k ir.AssertionKind) string {
+	if why, ok := style.Why[k]; ok {
+		return why
+	}
+	return "the framework already states it"
 }
 
 func targetPermitted(a ir.AssertionKind, t ir.TargetKind) bool {
@@ -104,6 +130,10 @@ func exportedName(k ir.AssertionKind) string {
 		return "Draft"
 	case ir.AssertOptional:
 		return "Optional"
+	case ir.AssertPersistence:
+		return "Persistence"
+	case ir.AssertVerified:
+		return "Verified"
 	}
 	return "unknown"
 }

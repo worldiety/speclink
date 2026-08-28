@@ -15,6 +15,7 @@ const (
 	kindWaive
 	kindDraft
 	kindOptional
+	kindPersistence
 )
 
 // Assertion states one fact about the construct named by the surrounding
@@ -138,4 +139,21 @@ func Draft() Assertion {
 // false about messages nobody can rewrite.
 func Optional() Assertion {
 	return Assertion{kind: kindOptional}
+}
+
+// Persistence marks a type as storage: an interface as a port, a struct as a
+// shape that is written down.
+//
+// It exists because not every architecture says so by itself. A framework that
+// gives out a Repository type has already stated it, and marking it again would
+// be stating a fact twice — the one thing this language forbids. A hand written
+// interface states nothing, and without a mark speclink cannot tell it from any
+// other interface, so the questions that follow have nothing to attach to:
+// whether the fields trace to a requirement, whether the shape was promised,
+// whether the choice to store it this way was ever justified.
+//
+// It is therefore available only in the styles that need it, and a finding in
+// the ones that do not. Which of those a project is in, its profile says.
+func Persistence() Assertion {
+	return Assertion{kind: kindPersistence}
 }

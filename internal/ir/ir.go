@@ -104,6 +104,9 @@ const (
 	AssertWaive
 	AssertDraft
 	AssertOptional
+	// AssertPersistence marks a type as storage where the framework does not
+	// say so by itself: an interface as a port, a struct as a written shape.
+	AssertPersistence
 	// AssertVerified is the only assertion that is not read from an annotation
 	// file. It comes from a spec.Verified call inside a test, whose target is
 	// the test function.
@@ -130,6 +133,8 @@ func (k AssertionKind) String() string {
 		return "draft"
 	case AssertOptional:
 		return "optional"
+	case AssertPersistence:
+		return "persistence"
 	case AssertVerified:
 		return "verified"
 	}

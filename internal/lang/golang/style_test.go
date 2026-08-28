@@ -131,3 +131,29 @@ func TestTheSameCodeUnderTwoConventions(t *testing.T) {
 		t.Errorf("the finding still speaks the other style's convention:\n%s", buf.String())
 	}
 }
+
+// A style reaching into the language rather than into the rules is new, and it
+// earns that because the alternative is worse.
+//
+// A framework that hands out a Repository type has already said which types are
+// storage; marking them again would be stating a fact twice, which is the one
+// thing this language forbids. A framework of hand written interfaces has said
+// nothing, and without a mark there is no set of stored types at all. The same
+// term is therefore redundant in one architecture and indispensable in the next.
+func TestStyleDecidesWhichTermsExist(t *testing.T) {
+	bare := Style{Name: "bare", Terms: map[ir.AssertionKind]bool{ir.AssertPersistence: true}}
+
+	if DDD1.Admits(ir.AssertPersistence) {
+		t.Error("a style whose framework states persistence still admits the term")
+	}
+	if !bare.Admits(ir.AssertPersistence) {
+		t.Error("a style that cannot infer persistence does not admit the term")
+	}
+	// Everything a style does not decide about stays universal, so adding a
+	// term does not become a change to every style.
+	for _, k := range []ir.AssertionKind{ir.AssertSatisfies, ir.AssertWaive, ir.AssertDraft, ir.AssertVerified} {
+		if !DDD1.Admits(k) || !bare.Admits(k) {
+			t.Errorf("%v was refused by a style that never decided about it", k)
+		}
+	}
+}

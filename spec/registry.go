@@ -99,6 +99,8 @@ func (k assertionKind) String() string {
 		return "draft"
 	case kindOptional:
 		return "optional"
+	case kindPersistence:
+		return "persistence"
 	}
 	return "unknown"
 }

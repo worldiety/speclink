@@ -16,7 +16,7 @@ import (
 // different things: speclink resolves fully (via go/types) but never executes.
 // That is what makes order irrelevant — terms are collected in one pass, no
 // annotation can change the meaning of another.
-func (p *Package) ReadBindings(out *diag.Set) []ir.Binding {
+func (p *Package) ReadBindings(style Style, out *diag.Set) []ir.Binding {
 	var bindings []ir.Binding
 	for _, f := range p.annotationFiles {
 		for _, decl := range f.Decls {
@@ -33,7 +33,7 @@ func (p *Package) ReadBindings(out *diag.Set) []ir.Binding {
 				if !ok {
 					continue
 				}
-				if b, ok := p.readBinding(call, out); ok {
+				if b, ok := p.readBinding(call, style, out); ok {
 					bindings = append(bindings, b)
 				}
 			}
@@ -43,7 +43,7 @@ func (p *Package) ReadBindings(out *diag.Set) []ir.Binding {
 }
 
 // readBinding turns one spec.For… call into an ir.Binding.
-func (p *Package) readBinding(call *ast.CallExpr, out *diag.Set) (ir.Binding, bool) {
+func (p *Package) readBinding(call *ast.CallExpr, style Style, out *diag.Set) (ir.Binding, bool) {
 	name := p.specFuncName(call.Fun)
 	pos := p.pos(call.Pos())
 
@@ -110,7 +110,7 @@ func (p *Package) readBinding(call *ast.CallExpr, out *diag.Set) (ir.Binding, bo
 			b.Assertions = append(b.Assertions, as)
 		}
 	}
-	p.checkTargetAllowed(b, out)
+	p.checkTargetAllowed(b, style, out)
 	return b, true
 }
 
@@ -171,13 +171,16 @@ func (p *Package) readAssertion(call *ast.CallExpr, out *diag.Set) (ir.Assertion
 
 	case "Optional":
 		return ir.Assertion{Kind: ir.AssertOptional, Pos: pos}, true
+
+	case "Persistence":
+		return ir.Assertion{Kind: ir.AssertPersistence, Pos: pos}, true
 	}
 	return ir.Assertion{}, false
 }
 
 func isAssertionName(name string) bool {
 	switch name {
-	case "Satisfies", "Transition", "External", "Help", "Term", "Rationale", "Waive", "Draft", "Optional":
+	case "Satisfies", "Transition", "External", "Help", "Term", "Rationale", "Waive", "Draft", "Optional", "Persistence":
 		return true
 	}
 	return false

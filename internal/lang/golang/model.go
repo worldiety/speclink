@@ -55,7 +55,7 @@ func (m *Model) Requirements(out *diag.Set) []*ir.Requirement {
 func (m *Model) Bindings(out *diag.Set) []ir.Binding {
 	var bindings []ir.Binding
 	for _, p := range m.Measured {
-		bindings = append(bindings, p.ReadBindings(out)...)
+		bindings = append(bindings, p.ReadBindings(m.Style, out)...)
 	}
 	return bindings
 }

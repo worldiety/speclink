@@ -1,6 +1,10 @@
 package golang
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/worldiety/speclink/internal/ir"
+)
 
 // Style is the part of an architecture that is a convention rather than a rule.
 //
@@ -29,6 +33,43 @@ type Style struct {
 	Constructor func(typeName string) string
 	// PermissionVar returns the name of the permission guarding it.
 	PermissionVar func(typeName string) string
+
+	// Terms are the assertions this style admits beyond the universal ones.
+	//
+	// This is the one place a style reaches into the language rather than into
+	// the rules, and it earns that because the alternative is worse. A style
+	// whose framework hands out a Repository type has already said which types
+	// are storage; marking them again would be stating a fact twice, which is
+	// the single thing this language forbids. A style with hand written
+	// interfaces has said nothing, and without a mark there is no set of
+	// stored types at all — so the same term is redundant in one style and
+	// indispensable in the next.
+	//
+	// A term used where it is not admitted is a finding with the reason, not a
+	// silent no-op: the author expected an effect, and the effect is that the
+	// framework already provides it.
+	Terms map[ir.AssertionKind]bool
+
+	// Why explains, per term, what already states the fact. It is what makes
+	// the refusal actionable rather than merely correct.
+	Why map[ir.AssertionKind]string
+}
+
+// Admits reports whether this style allows an assertion.
+//
+// Everything not named in Terms is universal. Only the terms a style has to
+// decide about are listed, because listing all of them would make adding one
+// a change to every style.
+func (s Style) Admits(k ir.AssertionKind) bool {
+	if _, decided := styleSpecific[k]; !decided {
+		return true
+	}
+	return s.Terms[k]
+}
+
+// styleSpecific names the assertions whose availability a style decides.
+var styleSpecific = map[ir.AssertionKind]bool{
+	ir.AssertPersistence: true,
 }
 
 // DDD1 is the convention of the go_nago_ddd1 profile.
@@ -41,6 +82,13 @@ var DDD1 = Style{
 	UseCaseFile:   func(name string) string { return "uc_" + snakeCase(name) + ".go" },
 	Constructor:   func(name string) string { return "New" + name },
 	PermissionVar: func(name string) string { return "Perm" + name },
+
+	// No Persistence term: the framework hands out data.Repository, so a type
+	// either is one or is not, and saying so again would be the second source
+	// of a fact that already has one.
+	Why: map[ir.AssertionKind]string{
+		ir.AssertPersistence: "the framework already states it: a repository is a named type over data.Repository, and an aggregate has an Identity method",
+	},
 }
 
 // snakeCase converts a Go identifier into the file name convention for use
