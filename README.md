@@ -1344,10 +1344,14 @@ Do not invoke or assume these; they do not exist:
 These are measured, not suspected. They are recorded here because forgetting
 them would mean measuring them again.
 
-- **Generated code.** In the reference ERP, 226 of 644 requirement-bearing
-  constructs live in `*_gen.go` files carrying `DO NOT EDIT`. Nothing about
-  annotating or testing them is decided, and both K1 and K14 ask for exactly
-  that. Nothing else about a rollout matters until it is.
+Generated code used to head this list: 226 of the reference ERP's 644
+requirement-bearing constructs live in `*_gen.go` files carrying `DO NOT EDIT`,
+and both K1 and K14 ask for something that cannot be written into one. It is
+not a blocker, because those files come from the specification generator that
+speclink and hand written code replace. The constructs stop being generated
+rather than learning to carry annotations — which is the point of the tool
+rather than an obstacle to it.
+
 - **Constructor naming.** The same project names use case constructors with a
   `UC` suffix rather than `New<Type>`: 193 are a naming convention, 45 a file
   convention, 9 are genuine duplicates. K5-UC-CONSTRUCTOR reports all of them
