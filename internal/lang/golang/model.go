@@ -1,0 +1,109 @@
+package golang
+
+import (
+	"github.com/worldiety/speclink/internal/config"
+	"github.com/worldiety/speclink/internal/diag"
+	"github.com/worldiety/speclink/internal/ir"
+	"github.com/worldiety/speclink/internal/lang"
+)
+
+// Model is the Go frontend's view of a project.
+//
+// It implements every capability, which is why the interface was written after
+// a second frontend existed rather than before: against this one alone, the
+// distinction between what a frontend must do and what it happens to do could
+// not have been seen.
+type Model struct {
+	// All is every loaded package, kept whole for resolution. A rule that
+	// follows a helper one step has to see the helper even when the helper is
+	// out of scope, or it changes its verdict on untouched code.
+	All []*Package
+	// Measured is the subset the scope says is reported on.
+	Measured []*Package
+	// TestPackages are the test variants of the measured packages.
+	TestPackages []*Package
+
+	Layout config.Config
+	Root   string
+}
+
+var (
+	_ lang.Model              = (*Model)(nil)
+	_ lang.ConstructInferrer  = (*Model)(nil)
+	_ lang.SchemaReader       = (*Model)(nil)
+	_ lang.VerificationReader = (*Model)(nil)
+	_ lang.Checker            = (*Model)(nil)
+)
+
+func (m *Model) Name() string        { return "go" }
+func (m *Model) Dialect() ir.Dialect { return Dialect{} }
+
+func (m *Model) Requirements(out *diag.Set) []*ir.Requirement {
+	var reqs []*ir.Requirement
+	for _, p := range m.Measured {
+		reqs = append(reqs, p.ReadRequirements(out)...)
+	}
+	return reqs
+}
+
+func (m *Model) Bindings(out *diag.Set) []ir.Binding {
+	var bindings []ir.Binding
+	for _, p := range m.Measured {
+		bindings = append(bindings, p.ReadBindings(out)...)
+	}
+	return bindings
+}
+
+func (m *Model) Constructs(out *diag.Set) []ir.Construct {
+	var constructs []ir.Construct
+	for _, p := range m.Measured {
+		constructs = append(constructs, p.Infer()...)
+	}
+	return constructs
+}
+
+// Schemas reads the shape of every persisted type.
+//
+// The persisted set is collected from everything loaded rather than from the
+// measured packages, because a repository is usually built in the wiring
+// package, far from the type it stores. A scope excluding the wiring would
+// otherwise leave the stored shapes unrecognised rather than unmeasured.
+func (m *Model) Schemas(out *diag.Set) []ir.SchemaType {
+	models := map[string]bool{}
+	for _, p := range m.All {
+		for name := range p.PersistedModels() {
+			models[name] = true
+		}
+	}
+	var schema []ir.SchemaType
+	for _, p := range m.Measured {
+		schema = append(schema, p.ReadSchema(models)...)
+	}
+	return schema
+}
+
+func (m *Model) Scope() map[string]bool {
+	scope := map[string]bool{}
+	for _, p := range m.Measured {
+		scope[p.PkgPath()] = true
+	}
+	return scope
+}
+
+func (m *Model) Verifications(out *diag.Set) []ir.Binding {
+	var verifications []ir.Binding
+	for _, p := range m.TestPackages {
+		verifications = append(verifications, p.ReadVerifications(out)...)
+	}
+	return verifications
+}
+
+// Check runs the rules that belong to this language and its framework.
+func (m *Model) Check(out *diag.Set) {
+	for _, p := range m.Measured {
+		p.CheckWhitelist(out)
+		p.CheckOrphans(out)
+		p.CheckGenericCRUD(out)
+		p.CheckVerifiedOutsideTests(out)
+	}
+}

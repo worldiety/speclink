@@ -19,6 +19,7 @@ import (
 	"github.com/worldiety/speclink/internal/config"
 	"github.com/worldiety/speclink/internal/diag"
 	"github.com/worldiety/speclink/internal/ir"
+	"github.com/worldiety/speclink/internal/lang"
 	"github.com/worldiety/speclink/internal/lang/golang"
 	"github.com/worldiety/speclink/internal/reqtree"
 	"github.com/worldiety/speclink/internal/source"
@@ -298,6 +299,7 @@ func requirements(args []string) error {
 	format := fs.String("format", "text", "output format: text or json")
 	root := fs.String("root", ".", "repository root, used to resolve source documents")
 	cfgPath := fs.String("config", "", "layout configuration; defaults to "+config.FileName+" in the root")
+	frontend := fs.String("lang", "", "frontend to read the project with: go or jvm, detected by default")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -314,31 +316,29 @@ func requirements(args []string) error {
 		return err
 	}
 
-	patterns := fs.Args()
-	// Only the loaded packages have to compile. That is the point of narrowing
-	// the patterns: the tree can be checked while the implementation around it
-	// is still in pieces.
-	pkgs, err := load(absRoot, false, "check anything", patterns)
+	// This is the command that reads the tree and nothing else, which is
+	// exactly the overlap between the frontends — so it is the one that speaks
+	// to them through the interface rather than to one of them by name. Only
+	// the named packages have to compile, which is the point of narrowing the
+	// patterns: the tree can be checked while the implementation around it is
+	// still in pieces.
+	model, err := openModel(absRoot, layout, *frontend, fs.Args(), false, "check anything")
 	if err != nil {
 		return err
 	}
 
 	findings := &diag.Set{}
-
-	// V1 still applies. A requirement file is written in the same closed subset
-	// as an annotation file, and the whitelist is what keeps it readable
-	// without evaluating it.
-	for _, p := range pkgs {
-		p.CheckWhitelist(findings)
+	if c, ok := model.(lang.Checker); ok {
+		// A frontend's own rules — a syntax whitelist, an architecture — belong
+		// to it. A requirement file is written in the same closed subset as an
+		// annotation file, and the whitelist is what keeps it readable without
+		// evaluating it.
+		c.Check(findings)
 	}
 
-	var reqs []*ir.Requirement
-	for _, p := range pkgs {
-		reqs = append(reqs, p.ReadRequirements(findings)...)
-	}
-
+	reqs := model.Requirements(findings)
 	tree := reqtree.Build(absRoot, reqs, findings)
-	tree.CheckLayout(dialect, findings)
+	tree.CheckLayout(model.Dialect(), findings)
 	docs, sourceDocs := loadSources(absRoot, layout, findings)
 	tree.CheckSources(docs, findings)
 	src := check.CoverSources(tree, docs, sourceDocs, nil, findings)
@@ -356,6 +356,9 @@ func requirements(args []string) error {
 
 	if err := reportRequirements(*format, absRoot, findings, tree, docs, sourceDocs, src, base); err != nil {
 		return err
+	}
+	if *format == "text" {
+		reportCapabilities(model)
 	}
 	if !findings.Empty() {
 		return errFindings

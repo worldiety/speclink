@@ -46,6 +46,21 @@ type Config struct {
 	// feature goes missing without a single finding.
 	SourceRoots []string `json:"sourceRoots,omitempty"`
 
+	// ClassRoots are the directories a JVM build leaves compiled classes in.
+	// Empty means the conventions of Maven, Gradle and the Android Gradle
+	// Plugin, which is what almost every project follows.
+	ClassRoots []string `json:"classRoots,omitempty"`
+
+	// SourceCode names where a JVM project keeps its sources, used to recover
+	// declaration lines that the class file format does not carry.
+	SourceCode []string `json:"sourceCode,omitempty"`
+
+	// SpecPackage is where a JVM project declares the speclink annotations.
+	// They are not a library: a project writes them itself and speclink
+	// recognises them by name, so that one binary serves projects that are not
+	// all on the same version of anything.
+	SpecPackage string `json:"specPackage,omitempty"`
+
 	// Scope restricts speclink to the packages matching one of these patterns.
 	// Empty means the whole module, which is the normal case.
 	//

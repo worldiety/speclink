@@ -52,6 +52,7 @@ speclink impact       [flags] <requirement|doc.md#anchor|path>...
   -reviewer <who>     freeze only: record that this person read the requirements
   -in <file>          evidence only: read the test stream from a file
   -out <file>         generate only: write here instead of standard output
+  -lang go|jvm        requirements only: frontend to read with, detected by default
   -kind <kind>        inventory only: restrict to one kind, e.g. event
 ```
 
@@ -1235,6 +1236,61 @@ anchor names no segment of that document, `V5-027` a configured source root is
 missing, `V5-030` file name ≠ ID, `V5-031` malformed ID, `V5-032` prefix contradicts
 Kind, `V5-033` directory contradicts Kind, `V5-034` functional requirement
 directly in `fun/`, `V5-035` domain directory contradicts the ID prefix.
+
+---
+
+## 11a. Other languages
+
+`speclink requirements` reads a JVM project too, from compiled classes rather
+than from source:
+
+```
+speclink requirements -root . -lang jvm
+```
+
+The frontend is detected from what is on disk; the flag is for a repository that
+holds both.
+
+**Why bytecode.** A class file has already been resolved. Every type it names is
+fully qualified, every supertype is named outright, every annotation has had its
+import worked out — so there are no wildcards, no implicit `java.lang`, and
+inheritance does not stop at the project boundary. It also collapses three
+targets into one: Kotlin compiles to JVM bytecode and is only dexed afterwards,
+so Java on Spring, Kotlin on Spring and Kotlin on Android arrive in the same
+shape.
+
+**The carrier is a class.** A Java annotation may hold only compile time
+constants, so a requirement is a class and one requirement names another by
+class literal:
+
+```java
+@Requirement(id = "R-QUOTE-SUBMIT", kind = FUNCTIONAL, status = NORMATIVE,
+             text = "…", derivedFrom = RDecNumbering.class,
+             sources = @Source(doc = "…", anchor = "8-abgabe"))
+public final class RQuoteSubmit {}
+```
+```java
+@Satisfies(RQuoteSubmit.class)
+public interface SubmitQuote { … }
+```
+
+With a string there the reference would be unverified, which is the one thing
+this design will not accept.
+
+**There is no library to depend on.** A project declares these annotations
+itself — some forty lines — and speclink recognises them by fully qualified
+name, the same way it recognises a framework without linking it. Nothing to
+publish, nothing to pin.
+
+**What it cannot do yet.** It infers no constructs, so there is no forward
+coverage, no schema evolution and no verification. A run says so:
+
+```
+not measured: forward coverage, because this frontend infers no constructs
+```
+
+That line is not decoration. A direction that was never measured must not read
+as one that came out clean.
 
 ---
 
