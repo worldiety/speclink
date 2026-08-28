@@ -1226,26 +1226,35 @@ construct you can put it on.
 
 Every rule ID is stable and may be used in `spec.Waive`.
 
+Not every rule runs everywhere. The **K1, K3, K9 to K14** families and the
+requirement tree checks are universal: they are about requirements, sources,
+coverage and evidence, and know nothing about a language. **K4 to K8** belong to
+a profile's style, and a run that does not have them says so:
+
+```
+not measured: architecture, because profile java_springboot_ddd1 prescribes no rules yet
+```
+
 | Rule | Codes | Meaning |
 |---|---|---|
 | `K1-CONSTRUCT-UNBOUND` | `V6-020` | a use case, command, event or projection names no requirement |
 | `K3-REQ-UNCOVERED` | `V6-001` | a normative requirement is satisfied by nothing |
 | `K3-ABSTRACT-COVERED` | `V6-002` | an abstract requirement was satisfied directly |
 | `K3-SUPERSEDED-COVERED` | `V6-003` | a superseded requirement is still being satisfied |
-| `K4-NO-GENERIC-CRUD` | `V6-010`, `V6-011` | generic CRUD factory or its user interface |
-| `K5-UC-FILE` | `V6-050` | use case not in `uc_<name>.go` |
-| `K5-UC-SIGNATURE` | `V6-051` | use case does not return `error` last |
-| `K5-UC-CONSTRUCTOR` | `V6-052`, `V6-053`, `V6-054` | constructor missing, misplaced, or returns the wrong type |
-| `K5-UC-AUTHZ` | `V6-055` | nothing in the implementation looks like an authorisation check |
-| `K5-UC-PERMISSION` | `V6-056`, `V6-057` | no permission of its own, or one declared but never used |
-| `K5-UC-DEPS` | `V6-058` | use case reads a package-level variable |
-| `K5-UC-PERMISSION-I18N` | `V6-059` | permission carries hardcoded texts |
-| `K6-CTX-UI-PKG` | `V6-040` | the `ui` directory does not declare `ui<ctx>` |
-| `K6-CTX-NO-UI-IMPORT` | `V6-041` | a domain package imports the user interface |
-| `K6-CTX-USECASES` | `V6-042`, `V6-043`, `V6-044` | missing `UseCases`, missing `NewUseCases`, or a use case not in the bundle |
-| `K7-INFRA-DOMAIN-FREE` | `V6-032`, `V6-033` | infrastructure imports a context or declares a use case |
-| `K8-MAIN-LOCATION` | `V6-030` | a `main` package outside `cmd/` |
-| `K8-MAIN-EXISTS` | `V6-031` | the module has no entry point |
+| `K4-NO-GENERIC-CRUD` *(style)* | `V6-010`, `V6-011` | generic CRUD factory or its user interface |
+| `K5-UC-FILE` *(style)* | `V6-050` | use case not in the file the style names |
+| `K5-UC-SIGNATURE` *(style)* | `V6-051` | use case does not return `error` last |
+| `K5-UC-CONSTRUCTOR` *(style)* | `V6-052`, `V6-053`, `V6-054` | constructor missing, misplaced, or returns the wrong type; the name is the style's |
+| `K5-UC-AUTHZ` *(style)* | `V6-055` | nothing in the implementation looks like an authorisation check |
+| `K5-UC-PERMISSION` *(style)* | `V6-056`, `V6-057` | no permission of its own, or one declared but never used |
+| `K5-UC-DEPS` *(style)* | `V6-058` | use case reads a package-level variable |
+| `K5-UC-PERMISSION-I18N` *(style)* | `V6-059` | permission carries hardcoded texts |
+| `K6-CTX-UI-PKG` *(style)* | `V6-040` | the `ui` directory does not declare `ui<ctx>` |
+| `K6-CTX-NO-UI-IMPORT` *(style)* | `V6-041` | a domain package imports the user interface |
+| `K6-CTX-USECASES` *(style)* | `V6-042`, `V6-043`, `V6-044` | missing `UseCases`, missing `NewUseCases`, or a use case not in the bundle |
+| `K7-INFRA-DOMAIN-FREE` *(style)* | `V6-032`, `V6-033` | infrastructure imports a context or declares a use case |
+| `K8-MAIN-LOCATION` *(style)* | `V6-030` | a `main` package outside `cmd/` |
+| `K8-MAIN-EXISTS` *(style)* | `V6-031` | the module has no entry point |
 | `K9-DRAFT-REDUNDANT` | `V4-001`, `V4-002` | a draft term at a level the cascade already covers |
 | `K9-BASELINE-MISSING` | `V6-090` | a frozen shape that was never recorded |
 | `K9-DISCRIMINATOR-FROZEN` | `V6-091` | the serialisation tag of a promised type changed |
