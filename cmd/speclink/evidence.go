@@ -13,8 +13,9 @@ import (
 
 	"github.com/worldiety/speclink/internal/baseline"
 	"github.com/worldiety/speclink/internal/check"
+	"github.com/worldiety/speclink/internal/config"
 	"github.com/worldiety/speclink/internal/diag"
-	"github.com/worldiety/speclink/internal/ir"
+	"github.com/worldiety/speclink/internal/lang/jvm"
 	"github.com/worldiety/speclink/internal/reqtree"
 	"github.com/worldiety/speclink/spec"
 )
@@ -33,18 +34,28 @@ import (
 // cannot be reconstructed from the working tree at all, which is precisely why
 // it has to be written down.
 //
-// It reads `go test -json` rather than running it. speclink does not run tests:
-// the build order is Go compiler, then speclink, then tests, and a command that
-// invoked the test suite would either violate that or duplicate it. It also
-// makes the evidence something a CI system hands over rather than something
+// It reads what the build wrote rather than running anything. speclink does not
+// run tests: the build order is compiler, then speclink, then tests, and a
+// command that invoked the suite would either violate that or duplicate it. It
+// also makes the evidence something CI hands over rather than something
 // speclink produces, which is the right way round for evidence.
 //
-// Only passing tests are recorded. A test that wrote the line and then failed
-// claimed something it did not show.
+// Where that comes from differs by language, and the difference is instructive.
+// Go writes a line from inside the test, which proves control reached the
+// statement — at the cost of putting code in the test. The JVM reads the claim
+// from an annotation and the result from the report the build already wrote,
+// which costs nothing at all and proves the same thing, because the annotation
+// is on the method and a method that passed ran to its end.
+//
+// Only passing tests are recorded either way. A test that claimed something and
+// then failed showed nothing, and recording it would make the failure
+// invisible.
 func evidence(args []string) error {
 	fs := flag.NewFlagSet("evidence", flag.ExitOnError)
 	root := fs.String("root", ".", "repository root, holding "+baseline.FileName)
+	cfgPath := fs.String("config", "", "layout configuration; defaults to "+config.FileName+" in the root")
 	in := fs.String("in", "", "`file` holding the output of \"go test -json\"; standard input by default")
+	frontend := fs.String("lang", "", "frontend to read the project with: go or jvm, detected by default")
 	dry := fs.Bool("n", false, "report what would be recorded, write nothing")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -54,34 +65,47 @@ func evidence(args []string) error {
 	if err != nil {
 		return fmt.Errorf("resolve root: %w", err)
 	}
-	source := io.Reader(os.Stdin)
-	if *in != "" {
-		f, err := os.Open(*in)
-		if err != nil {
-			return err
+	layout, err := loadLayout(absRoot, *cfgPath)
+	if err != nil {
+		return err
+	}
+	kind := *frontend
+	if kind == "" {
+		kind = detectFrontend(absRoot)
+	}
+
+	var (
+		demonstrated map[string][]string
+		err2         error
+	)
+	switch kind {
+	case "jvm":
+		demonstrated, err2 = jvmEvidence(absRoot, layout)
+	default:
+		source := io.Reader(os.Stdin)
+		if *in != "" {
+			f, openErr := os.Open(*in)
+			if openErr != nil {
+				return openErr
+			}
+			defer f.Close()
+			source = f
 		}
-		defer f.Close()
-		source = f
+		demonstrated, err2 = readTestOutput(source)
+	}
+	if err2 != nil {
+		return err2
 	}
 
-	demonstrated, err := readTestOutput(source)
-	if err != nil {
-		return err
-	}
-
-	// The requirement tree is loaded to turn IDs back into requirements: the
-	// record is bound to the wording a test ran against, and the wording lives
-	// in the tree.
+	// The requirement tree is loaded to turn references back into requirements:
+	// the record is bound to the wording a test ran against, and the wording
+	// lives in the tree.
 	discard := &diag.Set{}
-	pkgs, err := load(absRoot, false, "record anything", fs.Args())
+	model, err := openModel(absRoot, layout, kind, fs.Args(), false, "record anything")
 	if err != nil {
 		return err
 	}
-	var reqs []*ir.Requirement
-	for _, p := range pkgs {
-		reqs = append(reqs, p.ReadRequirements(discard)...)
-	}
-	tree := reqtree.Build(absRoot, reqs, discard)
+	tree := reqtree.Build(absRoot, model.Requirements(discard), discard)
 
 	base, err := baseline.Load(absRoot)
 	if err != nil {
@@ -219,4 +243,47 @@ func appendUnique(list []string, s string) []string {
 		}
 	}
 	return append(list, s)
+}
+
+// jvmEvidence joins the claims in the bytecode with the results in the report.
+//
+// The join is on the name a report gives a test — the class, a hash, the method
+// — because that is the one spelling both sides have. A descriptor or a package
+// alias would be something one side knows and the other does not.
+func jvmEvidence(root string, layout config.Config) (map[string][]string, error) {
+	classes, errs := jvm.Load(root, layout.ClassRoots)
+	for _, e := range errs {
+		fmt.Fprintln(os.Stderr, "  "+e.Error())
+	}
+	if len(classes) == 0 {
+		return nil, fmt.Errorf("no compiled classes found under %s; build the project first", root)
+	}
+
+	passed, reportErrs := jvm.ReadTestReports(root, layout.ReportRoots)
+	for _, e := range reportErrs {
+		// A missing report directory is the whole of the answer, so it stops
+		// the command rather than producing an empty record. Recording nothing
+		// looks exactly like a suite in which nothing passed.
+		return nil, e
+	}
+
+	discard := &diag.Set{}
+	r := jvm.NewReader(root, classes, layout.SourceCode, layout.SpecPackage)
+	tree := reqtree.Build(root, r.ReadRequirements(discard), discard)
+
+	return jvm.Demonstrations(r.ReadVerifications(discard), passed, treeLookup{tree}), nil
+}
+
+// treeLookup is the one question the frontend has to ask of the tree, narrowed
+// so that it does not depend on the whole of it.
+type treeLookup struct{ tree *reqtree.Tree }
+
+func (t treeLookup) IDOf(ref string) (string, bool) {
+	if r := t.tree.ByGoIdent(ref); r != nil {
+		return r.ID, true
+	}
+	if r := t.tree.ByID[ref]; r != nil {
+		return r.ID, true
+	}
+	return "", false
 }

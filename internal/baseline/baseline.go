@@ -73,11 +73,18 @@ const FileName = "speclink.lock"
 // bump that stranded existing projects would be asking them to do the one thing
 // the file forbids.
 //
-// Version 2 added the requirement and source records. Upgrading from 1 leaves
-// both empty, which is exactly right: nothing has been recorded about them yet,
-// so nothing can have drifted, and the next freeze reads them for the first
-// time.
-const Version = 2
+// Version 2 added the requirement and source records, version 3 the
+// verifications. Upgrading leaves the new maps empty, which is exactly right:
+// nothing has been recorded about them yet, so nothing can have drifted, and
+// the next freeze or evidence run reads them for the first time.
+//
+// The bump for the verifications was missed once and the field shipped under
+// version 2. That is worth naming, because it is the failure the version exists
+// to prevent: an older binary reading such a file would not have refused it, it
+// would have parsed it, dropped the field it did not know, and written the
+// result back — losing evidence silently, which is the one direction this file
+// must never fail in.
+const Version = 3
 
 // File is the on disk form. Maps are used so the encoding is stable under
 // Go's sorted map marshalling, and so a diff stays readable per type.
@@ -96,6 +103,10 @@ type File struct {
 }
 
 // Verification is one test that demonstrated a requirement and passed.
+//
+// The test is named the way its language's report names it: a Go test by its
+// function, a JVM test by class, hash and method. Nothing here interprets it,
+// and nothing should — it exists to be recognised again by whoever produced it.
 //
 // It is the only entry here recording something that happened rather than
 // something that is. The others are hashes of text that can be read again at

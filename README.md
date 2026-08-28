@@ -1292,21 +1292,38 @@ annotations are exactly what a declaration level reader sees:
 | `@Entity` | entity | no, but its fields do |
 | `@Repository`, or extending Spring Data | repository | no |
 
+**Verification costs no runtime.** A test says what it demonstrates and the
+build's own report says whether it passed:
+
+```java
+@Test @Verifies(RQuoteSubmit.class)
+void submitDrawsANumber() { … }
+```
+```
+mvn test
+speclink evidence -root . -lang jvm
+```
+
+The claim is read from the bytecode, the result from Surefire's XML, and the two
+are joined on the name a report gives a test. Nothing runs, nothing is
+installed. The Go form has to write a line from inside the test to prove control
+reached it; here the annotation is on the method, and a method that passed ran
+to its end.
+
 ```
 speclink verify -root . -lang jvm
 
 2 source segments (100% accounted), 5 constructs (100% bound),
-3 normative requirements (100% covered), 5 bindings, 0 findings
+3 normative requirements (100% covered, 100% verified, 100% demonstrated),
+5 bindings, 0 findings
 not measured: schema evolution, because this frontend reads no persisted shapes
-not measured: verification, because this frontend finds no test claims
 ```
 
-**What it cannot do yet** it says, rather than answering anyway. Those two lines
-are not decoration: a direction that was never measured must not read as one
-that came out clean, and the rules for it are not run at all — reporting every
-requirement as unverified would fail a project for not doing something the tool
-never looked for. The figures behave the same way, and are absent rather than
-zero.
+**What it cannot do it says**, rather than answering anyway. That line is not
+decoration: a direction that was never measured must not read as one that came
+out clean, so the rules for it are not run at all — over an empty set they would
+report every recorded type as removed, which is a different claim from "nobody
+looked". The figure is absent rather than zero for the same reason.
 
 ---
 

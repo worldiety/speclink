@@ -55,6 +55,10 @@ type Config struct {
 	// declaration lines that the class file format does not carry.
 	SourceCode []string `json:"sourceCode,omitempty"`
 
+	// ReportRoots are where a JVM build leaves its test reports. Empty means
+	// the Surefire, Failsafe and Gradle conventions.
+	ReportRoots []string `json:"reportRoots,omitempty"`
+
 	// SpecPackage is where a JVM project declares the speclink annotations.
 	// They are not a library: a project writes them itself and speclink
 	// recognises them by name, so that one binary serves projects that are not

@@ -123,8 +123,13 @@ func TestVerifyMeasuresForwardCoverageOnSpring(t *testing.T) {
 	if !strings.Contains(out, "5 constructs (100% bound)") {
 		t.Errorf("forward coverage was not measured:\n%s", summary(out))
 	}
-	if !strings.Contains(out, "3 normative requirements (100% covered)") {
+	if !strings.Contains(out, "3 normative requirements (100% covered") {
 		t.Errorf("backward coverage was not measured:\n%s", summary(out))
+	}
+	// And the verification directions, which come from an annotation in the
+	// bytecode joined with the report the build wrote — no runtime code at all.
+	if !strings.Contains(out, "100% verified, 100% demonstrated") {
+		t.Errorf("verification was not measured:\n%s", summary(out))
 	}
 }
 
@@ -138,19 +143,20 @@ func TestVerifyMeasuresForwardCoverageOnSpring(t *testing.T) {
 func TestUnmeasuredDirectionsAreNotReportedAsFailing(t *testing.T) {
 	out, _ := runSpeclink(t, "verify", "../../testdata/java", "-lang", "jvm")
 
-	if strings.Contains(out, "no test demonstrates") {
-		t.Errorf("a frontend that finds no test claims reported requirements as unverified:\n%s", out)
+	// The JVM frontend reads no persisted shapes, so no promise can have been
+	// broken and none is reported. The rules for it are skipped rather than
+	// run over an empty set: running them would report every recorded type as
+	// removed, which is a different claim from "nobody looked".
+	if strings.Contains(out, "K9-") || strings.Contains(out, "was promised but no longer exists") {
+		t.Errorf("a frontend that reads no shapes reported an evolution finding:\n%s", out)
 	}
-	if strings.Contains(out, "% verified") {
-		t.Errorf("a figure was given for a direction that was not measured:\n%s", summary(out))
-	}
-	if !strings.Contains(out, "not measured: verification") {
+	if !strings.Contains(out, "not measured: schema evolution") {
 		t.Errorf("the gap was not disclosed:\n%s", out)
 	}
 
-	// The Go frontend measures it, so the figure must be there.
+	// The Go frontend measures everything, so it claims no gap at all.
 	out, _ = runVerify(t, "../../testdata/example")
-	if !strings.Contains(out, "% verified") {
-		t.Errorf("a measured direction lost its figure:\n%s", summary(out))
+	if strings.Contains(out, "not measured") {
+		t.Errorf("a frontend that measures everything claimed a gap:\n%s", out)
 	}
 }

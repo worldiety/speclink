@@ -8,15 +8,16 @@ import (
 
 // Model is the JVM frontend's view of a project.
 //
-// It reads a requirement tree, the bindings into it, and the architectural
-// roles a Spring project declares. It reads no persisted shapes and finds no
-// verification claims, and says so rather than reporting zero of either: an
-// unmeasured direction must not read as a clean one.
+// It reads a requirement tree, the bindings into it, the architectural roles a
+// Spring project declares, and the claims its tests make. It reads no persisted
+// shapes, and says so rather than reporting zero of them: an unmeasured
+// direction must not read as a clean one.
 type Model struct{ r *Reader }
 
 var (
-	_ lang.Model             = (*Model)(nil)
-	_ lang.ConstructInferrer = (*Model)(nil)
+	_ lang.Model              = (*Model)(nil)
+	_ lang.ConstructInferrer  = (*Model)(nil)
+	_ lang.VerificationReader = (*Model)(nil)
 )
 
 // NewModel wraps a reader as a frontend model.

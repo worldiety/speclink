@@ -1,0 +1,24 @@
+{
+  "version": 3,
+  "types": {},
+  "verifications": {
+    "R-DEC-NUMBERING": [
+      {
+        "test": "com.example.sales.NumberRegistryTest#nextIsSequentialAndNeverRepeats",
+        "text": "18e2795fc37bcfbdf245f80f1604e2338bac1975720b60cba2869d1bb6cc1f16"
+      }
+    ],
+    "R-QUOTE-APPROVE": [
+      {
+        "test": "com.example.sales.QuoteControllerTest#approvalNeedsLegalSignOff",
+        "text": "970ef61d9861676ea0fb67090ecad6e3b75a5509018749e3130824b2540020e9"
+      }
+    ],
+    "R-QUOTE-SUBMIT": [
+      {
+        "test": "com.example.sales.QuoteControllerTest#submitDrawsANumber",
+        "text": "f020cd386063d66da712d2d605cb8ab2ef92ec1c6560d40e9fd047d85e8d792b"
+      }
+    ]
+  }
+}
