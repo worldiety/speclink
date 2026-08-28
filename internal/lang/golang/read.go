@@ -174,13 +174,20 @@ func (p *Package) readAssertion(call *ast.CallExpr, out *diag.Set) (ir.Assertion
 
 	case "Persistence":
 		return ir.Assertion{Kind: ir.AssertPersistence, Pos: pos}, true
+
+	case "StoredAs":
+		t, ok := p.typeArg(call, 0)
+		if !ok {
+			return ir.Assertion{}, false
+		}
+		return ir.Assertion{Kind: ir.AssertStoredAs, Pos: pos, DomainType: typeName(t)}, true
 	}
 	return ir.Assertion{}, false
 }
 
 func isAssertionName(name string) bool {
 	switch name {
-	case "Satisfies", "Transition", "External", "Help", "Term", "Rationale", "Waive", "Draft", "Optional", "Persistence":
+	case "Satisfies", "Transition", "External", "Help", "Term", "Rationale", "Waive", "Draft", "Optional", "Persistence", "StoredAs":
 		return true
 	}
 	return false

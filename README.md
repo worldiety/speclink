@@ -303,10 +303,13 @@ Three rules the other style has no use for:
 | `K6-CTX-NO-PRESENTATION-IMPORT` | a context does not import another's presentation |
 | `K6-CTX-PRESENTATION-PKG` | the package is named `rest<ctx>`, `cli<ctx>` |
 
-And one term. `spec.Persistence()` marks an interface as a port or a struct as a
-stored shape, because a hand written interface says neither. Under
-`go_nago_ddd1` the same term is a finding: `data.Repository` already says it, and
-saying it twice is the one thing this language forbids.
+And two terms. `spec.Persistence()` marks an interface as a port or a struct as
+a stored shape, because a hand written interface says neither.
+`spec.StoredAs[Domain]()` marks a struct as the written form of a domain type,
+which moves the promise onto it and leaves the domain type free to change.
+Under `go_nago_ddd1` both are findings: `data.Repository` and the repository
+constructors already say it, and saying it twice is the one thing this language
+forbids.
 
 **speclink will not guess it.** A missing profile stops the run with the list
 above. Language could be worked out from a `go.mod` and framework from an
@@ -534,6 +537,7 @@ Assertions are pure and are passed into a binding. They are never standalone.
 | `spec.Waive(rule, reason)` | suspends one rule here; the reason is mandatory |
 | `spec.Draft()` | this persisted shape is not promised yet; see section 6 |
 | `spec.Optional()` | this field may be absent from stored data; see section 6 |
+| `spec.StoredAs[D]()` | this struct is the written form of domain type `D`; `go_bare_ddd1` only, see section 11a |
 
 A field binding satisfies a requirement for that field, not for the type it
 belongs to — annotating one field does not make the whole command covered.
@@ -1314,22 +1318,48 @@ not measured: architecture, because profile java_springboot_ddd1 prescribes no r
 
 The **K9** family is neither. Its rules are language independent, but they have
 nothing to run over until the framework's recognisers can point at a persisted
-type — and recognising one is not something a language does. Under
-`go_nago_ddd1` the repository constructors say which type is stored. Under
-`go_bare_ddd1` nothing does yet, so the set is empty and the rules pass without
-having looked:
+type — and recognising one is not something a language does. Each framework
+states it differently:
+
+| Profile | What says a type is stored |
+|---|---|
+| `go_nago_ddd1` | the repository constructor: `NewJSONRepository` names a persistence model distinct from the domain model, `NewSloppyJSONRepository` names none and ties the domain type to the wire |
+| `go_bare_ddd1` | the element type of a repository port, `type R data.Repository[E, ID]`; an adapter that keeps a shape of its own says so with `spec.StoredAs` |
+| `java_springboot_ddd1` | nothing yet |
+
+A profile with no such recogniser says so rather than reporting the family
+sound:
 
 ```
-not measured: schema evolution, because profile go_bare_ddd1 has no persistence recogniser
+not measured: schema evolution, because profile java_springboot_ddd1 has no persistence recogniser
 ```
 
 That line matters more than it looks. Without it such a run reports `0 findings`
 and a summary reading 100% in every column, which is a clean bill of health for
-stored data that no rule guarded. A direction that was not measured must never
-be reported as one that came out clean, and here the distinction cannot come
-from the frontend: both Go profiles share one reader, and it does read schemas.
-What has no notion of persistence is the framework, which is a property of the
-profile.
+stored data that no rule guarded. The distinction cannot come from the frontend:
+both Go profiles share one reader, and it does read schemas. What has or has not
+a notion of persistence is the framework, which is a property of the profile.
+
+### Which shape is promised
+
+Under `go_bare_ddd1` a repository names the domain type it stores, and where
+that is all there is, the domain type is what ends up on disk: every rename in
+it is a change to stored data. An adapter may instead keep a shape of its own
+and map between the two, which is what buys the freedom to restructure the
+domain without touching a byte. Nothing about the two structs says which
+arrangement is in force, so it is stated:
+
+```go
+var _ = spec.For[QuoteStore](
+	spec.StoredAs[sales.Quote](),
+)
+```
+
+The promise moves onto `QuoteStore`, and `sales.Quote` is released. Without it
+the promise stays on the domain type, which is the stricter reading and the
+safe default. `spec.StoredAs` is a term of this style only; under
+`go_nago_ddd1` the constructor already says it, and a second source of one fact
+is refused rather than accepted.
 
 | Rule | Codes | Meaning |
 |---|---|---|

@@ -38,6 +38,7 @@ type EntryAssertion struct {
 	Kind         string   `json:"kind"`
 	Requirements []string `json:"requirements,omitempty"`
 	EventType    string   `json:"eventType,omitempty"`
+	DomainType   string   `json:"domainType,omitempty"`
 	State        string   `json:"state,omitempty"`
 	Text         string   `json:"text,omitempty"`
 	Term         string   `json:"term,omitempty"`
@@ -68,6 +69,8 @@ func (a Assertion) entry() EntryAssertion {
 	case kindTransition:
 		ea.EventType = typeName(a.eventType)
 		ea.State = string(a.state)
+	case kindStoredAs:
+		ea.DomainType = typeName(a.domainType)
 	case kindHelp, kindRationale:
 		ea.Text = a.text
 	case kindTerm:
@@ -97,6 +100,8 @@ func (k assertionKind) String() string {
 		return "waive"
 	case kindDraft:
 		return "draft"
+	case kindStoredAs:
+		return "storedAs"
 	case kindOptional:
 		return "optional"
 	case kindPersistence:

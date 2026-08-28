@@ -2,6 +2,7 @@ package golang
 
 import (
 	"go/ast"
+	"go/token"
 	"go/types"
 
 	"github.com/worldiety/speclink/internal/ir"
@@ -164,4 +165,88 @@ func PersistenceMarks(bindings []ir.Binding) map[string]bool {
 		}
 	}
 	return out
+}
+
+// StoredForms maps a domain type to the shape it is written down as.
+//
+// Read from the bindings for the same reason PersistenceMarks is: the fact
+// lives in the annotation, not in the types. Two structs in two packages look
+// identical whether one maps to the other or neither knows the other exists.
+func StoredForms(bindings []ir.Binding) map[string]string {
+	out := map[string]string{}
+	for _, b := range bindings {
+		if b.Target.Kind != ir.TargetType {
+			continue
+		}
+		for _, a := range b.Assertions {
+			if a.Kind == ir.AssertStoredAs && a.DomainType != "" {
+				out[a.DomainType] = b.Target.Name
+			}
+		}
+	}
+	return out
+}
+
+// RepositoryElements returns the domain types this package's repositories store.
+//
+// A repository is declared as `type R data.Repository[E, ID]`, and E is what
+// ends up on disk. This is the whole of what a project without a framework
+// offers: there is no constructor naming a persistence model, so the element
+// type of the port is the only structural statement that anything is stored at
+// all.
+//
+// The element type is read from the syntax rather than the underlying type,
+// for the reason repositoryInstance already documents: a defined interface type
+// erases the generic it came from.
+func (p *Package) RepositoryElements(f Framework) []string {
+	if f.Data == "" {
+		return nil
+	}
+
+	var out []string
+	for _, file := range p.pkg.Syntax {
+		if p.isGeneratedByUs(file) {
+			continue
+		}
+		for _, decl := range file.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok || gen.Tok != token.TYPE {
+				continue
+			}
+			for _, s := range gen.Specs {
+				ts, ok := s.(*ast.TypeSpec)
+				if !ok {
+					continue
+				}
+				if _, isRepo := p.repositoryInstanceIn(ts, f.Data); !isRepo {
+					continue
+				}
+				if name := p.elementOf(ts); name != "" {
+					out = append(out, name)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// elementOf returns the qualified name of the first type argument of a
+// repository declaration, which is the aggregate it stores.
+func (p *Package) elementOf(ts *ast.TypeSpec) string {
+	var first ast.Expr
+	switch t := ts.Type.(type) {
+	case *ast.IndexListExpr:
+		if len(t.Indices) == 0 {
+			return ""
+		}
+		first = t.Indices[0]
+	case *ast.IndexExpr:
+		first = t.Index
+	default:
+		return ""
+	}
+	if tv, ok := p.pkg.TypesInfo.Types[first]; ok {
+		return typeName(tv.Type)
+	}
+	return ""
 }

@@ -107,6 +107,9 @@ const (
 	// AssertPersistence marks a type as storage where the framework does not
 	// say so by itself: an interface as a port, a struct as a written shape.
 	AssertPersistence
+	// AssertStoredAs marks a type as the written form of a domain type, which
+	// moves the promise onto it and leaves the domain type free.
+	AssertStoredAs
 	// AssertVerified is the only assertion that is not read from an annotation
 	// file. It comes from a spec.Verified call inside a test, whose target is
 	// the test function.
@@ -135,6 +138,8 @@ func (k AssertionKind) String() string {
 		return "optional"
 	case AssertPersistence:
 		return "persistence"
+	case AssertStoredAs:
+		return "storedAs"
 	case AssertVerified:
 		return "verified"
 	}
@@ -151,6 +156,8 @@ type Assertion struct {
 	Requirements []string
 	// EventType is the fully qualified event type of an AssertTransition.
 	EventType string
+	// DomainType is the fully qualified type an AssertStoredAs writes down.
+	DomainType string
 	// State is the target lifecycle state of an AssertTransition.
 	State string
 	// Text carries help, rationale or waiver reason.

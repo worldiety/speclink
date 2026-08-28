@@ -81,6 +81,7 @@ func init() {
 		},
 		Fields:       []string{"contextRoot", "cmdRoot", "infraRoots", "foundationRoot"},
 		Architecture: true,
+		Schemas:      true,
 
 		templates: []Template{{
 			Name:    "full",

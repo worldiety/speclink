@@ -30,6 +30,13 @@ When a stored shape changes on purpose, record the new one:
 That writes `speclink.lock`, which is committed. Its diff is meant to be read:
 it is where a change to something already persisted becomes visible.
 
+What is promised is the adapter's stored struct, not the domain model, because
+`spec.StoredAs` in `app/<context>/adapter/fs` says so. That is what lets the
+domain model be restructured freely while the shape on disk may only grow, and
+only by fields marked `spec.Optional()`. Remove that statement and the promise
+falls back onto the domain model, where every rename becomes a change to stored
+data.
+
 ## Where things go
 
     foundation/           the little framework this project has

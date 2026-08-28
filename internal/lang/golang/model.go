@@ -95,17 +95,56 @@ func (m *Model) Constructs(out *diag.Set) []ir.Construct {
 // package, far from the type it stores. A scope excluding the wiring would
 // otherwise leave the stored shapes unrecognised rather than unmeasured.
 func (m *Model) Schemas(out *diag.Set) []ir.SchemaType {
-	models := map[string]bool{}
-	for _, p := range m.All {
-		for name := range p.PersistedModels() {
-			models[name] = true
-		}
-	}
+	models := m.persisted()
 	var schema []ir.SchemaType
 	for _, p := range m.Measured {
 		schema = append(schema, p.ReadSchema(models)...)
 	}
 	return schema
+}
+
+// persisted names the types whose shape is promised.
+//
+// How they are found is the framework's business, and the two answers are not
+// variations of one another. nago states it in a constructor: NewJSONRepository
+// names a persistence model distinct from the domain model, NewSloppyJSON names
+// none and ties the domain type to the wire. A project with no framework has no
+// such call, so the structural statement is the element type of its repository
+// ports, and an adapter that keeps a shape of its own says so with StoredAs.
+//
+// The set is collected from everything loaded rather than from the measured
+// packages, because a repository is usually built in the wiring package, far
+// from the type it stores. A scope excluding the wiring would otherwise leave
+// the stored shapes unrecognised rather than unmeasured.
+func (m *Model) persisted() map[string]bool {
+	models := map[string]bool{}
+
+	if m.Framework.Name != "bare" {
+		for _, p := range m.All {
+			for name := range p.PersistedModels() {
+				models[name] = true
+			}
+		}
+		return models
+	}
+
+	for _, p := range m.All {
+		for _, name := range p.RepositoryElements(m.Framework) {
+			models[name] = true
+		}
+	}
+
+	// A declared mapping moves the promise onto the stored shape and releases
+	// the domain type. Without one the domain type stays promised, which is
+	// the stricter reading: whatever the adapter does with it, nothing has
+	// said the two may drift apart.
+	for domain, store := range StoredForms(m.Bindings(&diag.Set{})) {
+		if models[domain] {
+			delete(models, domain)
+			models[store] = true
+		}
+	}
+	return models
 }
 
 func (m *Model) Scope() map[string]bool {

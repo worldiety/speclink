@@ -1,6 +1,75 @@
 {
   "version": 3,
-  "types": {},
+  "types": {
+    "example.com/bare/app/sales/adapter/fs.QuoteStore": {
+      "discriminator": "",
+      "fields": [
+        {
+          "name": "ID",
+          "wire": "id",
+          "shape": "string"
+        },
+        {
+          "name": "Number",
+          "wire": "number",
+          "shape": "string"
+        },
+        {
+          "name": "Status",
+          "wire": "status",
+          "shape": "string"
+        }
+      ]
+    }
+  },
+  "requirements": {
+    "R-BILL-DRAFT": {
+      "text": "d9a5aa69ab3dd905f6766edd14d18143f2c530f8b213890152a9f89d9dff3584",
+      "title": "Draft an invoice from a quote",
+      "from": "requirements/_sources/sales/quoteflow.md#14-rechnung"
+    },
+    "R-DEC-NUMBERING": {
+      "text": "18e2795fc37bcfbdf245f80f1604e2338bac1975720b60cba2869d1bb6cc1f16",
+      "title": "Central number registry"
+    },
+    "R-DEC-QUOTE-STATE": {
+      "text": "c06f3f4637c572d2d4dbdad38345097cdeab36eec149e86fe59edf432ab92704",
+      "title": "Quotes are kept as current state",
+      "from": "requirements/_sources/sales/quoteflow.md#13-ablage"
+    },
+    "R-QUOTE-LOOKUP": {
+      "text": "88af7444ab75d6cdbb6170a2ef62e7a308fe511c0898527a5c054f348e189592",
+      "title": "Look up a quote",
+      "from": "requirements/_sources/sales/quoteflow.md#12-auskunft"
+    },
+    "R-QUOTE-SUBMIT": {
+      "text": "9a0ed169ba1ec026691cde138b3dcdba97eb74e262345d84ea81bce22c34b88d",
+      "title": "Quote number on submission",
+      "from": "requirements/_sources/sales/quoteflow.md#8-abgabe"
+    }
+  },
+  "sources": {
+    "requirements/_sources/sales/quoteflow.md#12-auskunft": {
+      "fingerprint": "5de320d2e2227aa53762350080c7092537eb35e6d5361ac5a0eabd56549acbb6",
+      "kind": "markdown"
+    },
+    "requirements/_sources/sales/quoteflow.md#13-ablage": {
+      "fingerprint": "5a2acca0d98b29f3762bffb80d6eac7114c67dcdf9f39b08e56ae6bbd37b93c2",
+      "kind": "markdown"
+    },
+    "requirements/_sources/sales/quoteflow.md#14-rechnung": {
+      "fingerprint": "e320f982306f709847a021dc6f2e06bf6dbe4cd3534d2ef222babfcf4795220e",
+      "kind": "markdown"
+    },
+    "requirements/_sources/sales/quoteflow.md#8-abgabe": {
+      "fingerprint": "51f14183e870261977e85496cacb3f04403662c130bb43109b5dfd09a4fe91e2",
+      "kind": "markdown"
+    },
+    "requirements/_sources/sales/quoteflow.md#angebotsfluss": {
+      "fingerprint": "3c7df0faebd576b71ecf915dc26208ec259a9417c9fc5e66cb5c6dae5f916dee",
+      "kind": "markdown"
+    }
+  },
   "verifications": {
     "R-BILL-DRAFT": [
       {

@@ -25,27 +25,51 @@ func TestBareProjectVerifies(t *testing.T) {
 	}
 }
 
-// A profile that cannot recognise a persisted type must say so, and this was a
-// real bug rather than a hypothetical one.
+// Adding a required field to a stored type is what K9-FIELD-ADDED-REQUIRED
+// exists to catch, because records written before it lack the field.
 //
-// Adding a required field to a stored type is the change K9-FIELD-ADDED-REQUIRED
-// exists to catch, because records written before it lack the field. Under nago
-// it is caught. Under this profile the recogniser matches nago's repository
-// constructors and nothing else, so the persisted set is empty, every K9 rule
-// iterates over nothing, and the run came out "0 findings" with 100% in every
-// column — the exact shape of a clean bill of health for something nobody
-// looked at.
-//
-// The capability lines could not catch it either: they ask the frontend type,
-// and both Go profiles share *golang.Model, which does read schemas. What has
-// no persistence notion is the framework, which is a property of the profile.
-func TestBareSaysItDoesNotGuardStoredShapes(t *testing.T) {
-	out, code := runVerify(t, "../../testdata/bare")
-	if code != 0 {
-		t.Fatalf("the bare fixture did not verify:\n%s", out)
+// This was silently unreachable under go_bare_ddd1. The recogniser matched
+// nago's repository constructors and nothing else, so the persisted set was
+// empty, every K9 rule iterated over nothing, and the change came out
+// "0 findings" with 100% in every column — a clean bill of health for something
+// nobody looked at. What this profile offers instead is the element type of a
+// repository port, and an adapter that keeps a shape of its own says so with
+// StoredAs, which moves the promise onto the shape that is actually written.
+func TestBareGuardsStoredShapes(t *testing.T) {
+	dir := copyFixture(t, "../../testdata/bare")
+	rewrite(t, dir, "app/sales/adapter/fs/quotes.go",
+		"\tStatus string `json:\"status\"`",
+		"\tStatus string `json:\"status\"`\n\tNote   string `json:\"note\"`")
+	rewrite(t, dir, "app/sales/adapter/fs/quotes.annotation.go",
+		`var _ = spec.ForField[QuoteStore]("Status", spec.Satisfies(dec.RDecQuoteState))`,
+		"var _ = spec.ForField[QuoteStore](\"Status\", spec.Satisfies(dec.RDecQuoteState))\nvar _ = spec.ForField[QuoteStore](\"Note\", spec.Satisfies(dec.RDecQuoteState))")
+
+	out, code := runVerify(t, dir)
+	if code == 0 {
+		t.Fatalf("a field was added to a promised shape without a word:\n%s", out)
 	}
-	if !strings.Contains(out, "not measured: schema evolution, because profile go_bare_ddd1 has no persistence recogniser") {
-		t.Errorf("a rule family that never ran reads as one that came out clean:\n%s", out)
+	if !strings.Contains(out, "field Note was added to QuoteStore without being declared optional") {
+		t.Errorf("expected K9-FIELD-ADDED-REQUIRED:\n%s", out)
+	}
+}
+
+// The promise sits on what is written, not on what happens to be in memory.
+//
+// The adapter maps the domain model onto a struct of its own, so freezing the
+// domain model would guard a shape no file ever held, and every rename in it
+// would read as a change to stored data. StoredAs says which of the two is on
+// disk; without it the promise stays on the domain type, which is stricter and
+// therefore the safe default.
+func TestBareFreezesTheStoredShapeNotTheDomainModel(t *testing.T) {
+	lock, err := os.ReadFile(filepath.Join("..", "..", "testdata", "bare", "speclink.lock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(lock), "adapter/fs.QuoteStore") {
+		t.Errorf("the written shape is not promised:\n%s", lock)
+	}
+	if strings.Contains(string(lock), `"example.com/bare/app/sales.Quote"`) {
+		t.Errorf("the domain model was promised although the adapter insulates it:\n%s", lock)
 	}
 }
 

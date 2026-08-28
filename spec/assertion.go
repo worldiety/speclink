@@ -16,6 +16,7 @@ const (
 	kindDraft
 	kindOptional
 	kindPersistence
+	kindStoredAs
 )
 
 // Assertion states one fact about the construct named by the surrounding
@@ -41,6 +42,9 @@ type Assertion struct {
 	text      string
 	term      Glossary
 	rule      RuleID
+
+	// domainType is the type a kindStoredAs assertion writes down.
+	domainType reflect.Type
 }
 
 // Satisfies binds the surrounding construct to one or more requirements.
@@ -156,4 +160,25 @@ func Optional() Assertion {
 // the ones that do not. Which of those a project is in, its profile says.
 func Persistence() Assertion {
 	return Assertion{kind: kindPersistence}
+}
+
+// StoredAs marks the surrounding type as the form in which Domain is written
+// down, and Domain as therefore free to change.
+//
+// A repository names the domain type it stores, and where that is all there is
+// the domain type is what ends up on disk: every rename in it is a change to
+// stored data. An adapter may instead keep a shape of its own and map between
+// the two, which is what buys the freedom to restructure the domain without
+// touching a byte. Nothing about the two structs says which arrangement is in
+// force — they are both plain structs in different packages — so it is stated.
+//
+//	var _ = spec.For[RecordStore](
+//		spec.StoredAs[sales.Record](),
+//	)
+//
+// The effect is to move the promise: RecordStore is frozen and checked for
+// compatible evolution, and sales.Record is not. Without it the promise stays
+// on the domain type, which is the stricter reading and the safe default.
+func StoredAs[Domain any]() Assertion {
+	return Assertion{kind: kindStoredAs, domainType: reflect.TypeFor[Domain]()}
 }

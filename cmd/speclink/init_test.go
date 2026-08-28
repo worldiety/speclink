@@ -62,22 +62,15 @@ func TestInitTemplateVerifiesClean(t *testing.T) {
 		}
 	}
 
-	// One direction genuinely is not measured, and the template must not be
-	// allowed to hide it: go_bare_ddd1 has no persistence recogniser, so
-	// nothing guards the shape of what the file adapter writes. This is
-	// asserted rather than ignored so that building the recogniser breaks this
-	// test and forces the claim to be revisited.
-	unmeasured := 0
+	// One direction genuinely was not measured until go_bare_ddd1 learned to
+	// recognise a persisted type: nothing guarded the shape the file adapter
+	// writes. Now that it does, the template must leave nothing unmeasured,
+	// and this is asserted rather than assumed so that losing a recogniser
+	// shows up here rather than as a quietly smaller report.
 	for _, line := range strings.Split(out, "\n") {
 		if strings.HasPrefix(line, "not measured:") {
-			unmeasured++
-			if !strings.Contains(line, "schema evolution") {
-				t.Errorf("an unexpected direction is unmeasured: %s", line)
-			}
+			t.Errorf("the template leaves a direction unmeasured: %s", line)
 		}
-	}
-	if unmeasured != 1 {
-		t.Errorf("expected exactly the schema evolution gap, got %d unmeasured directions:\n%s", unmeasured, out)
 	}
 }
 

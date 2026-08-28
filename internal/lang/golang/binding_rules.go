@@ -34,6 +34,9 @@ var allowedTargets = map[ir.AssertionKind][]ir.TargetKind{
 	// Persistence is a statement about a type: an interface is a port, a
 	// struct is a shape. A function has neither.
 	ir.AssertPersistence: {ir.TargetType},
+	// StoredAs says this struct is the written form of a domain type. Only a
+	// type has a written form, and only a type can stand in for another.
+	ir.AssertStoredAs: {ir.TargetType},
 }
 
 // repeatable lists the assertions that may appear more than once per target.
@@ -132,6 +135,8 @@ func exportedName(k ir.AssertionKind) string {
 		return "Optional"
 	case ir.AssertPersistence:
 		return "Persistence"
+	case ir.AssertStoredAs:
+		return "StoredAs"
 	case ir.AssertVerified:
 		return "Verified"
 	}

@@ -70,6 +70,7 @@ func (s Style) Admits(k ir.AssertionKind) bool {
 // styleSpecific names the assertions whose availability a style decides.
 var styleSpecific = map[ir.AssertionKind]bool{
 	ir.AssertPersistence: true,
+	ir.AssertStoredAs:    true,
 }
 
 // DDD1 is the convention of the go_nago_ddd1 profile.
@@ -88,6 +89,7 @@ var DDD1 = Style{
 	// of a fact that already has one.
 	Why: map[ir.AssertionKind]string{
 		ir.AssertPersistence: "the framework already states it: a repository is a named type over data.Repository, and an aggregate has an Identity method",
+		ir.AssertStoredAs:    "the framework already states it: NewJSONRepository names the persistence model and NewSloppyJSONRepository says there is none",
 	},
 }
 
@@ -102,7 +104,13 @@ var Bare = Style{
 	UseCaseFile:   DDD1.UseCaseFile,
 	Constructor:   DDD1.Constructor,
 	PermissionVar: DDD1.PermissionVar,
-	Terms:         map[ir.AssertionKind]bool{ir.AssertPersistence: true},
+	// Persistence and StoredAs both exist because this architecture has no
+	// constructor to read them from. A repository names the domain type, and
+	// whether an adapter keeps a shape of its own is invisible in the types.
+	Terms: map[ir.AssertionKind]bool{
+		ir.AssertPersistence: true,
+		ir.AssertStoredAs:    true,
+	},
 }
 
 // snakeCase converts a Go identifier into the file name convention for use
