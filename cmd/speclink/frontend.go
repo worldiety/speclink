@@ -6,80 +6,59 @@ import (
 	"path/filepath"
 
 	"github.com/worldiety/speclink/internal/config"
+	"github.com/worldiety/speclink/internal/diag"
 	"github.com/worldiety/speclink/internal/lang"
 	"github.com/worldiety/speclink/internal/lang/golang"
-	"github.com/worldiety/speclink/internal/lang/jvm"
+	"github.com/worldiety/speclink/internal/profile"
 )
 
-// openModel picks a frontend and reads the project with it.
+// open resolves the profile, applies the project's deviations to it, and reads
+// the project with the frontend it names.
 //
-// The choice is made from what is on disk rather than from a flag, because it
-// is not a preference: a project is written in a language, and asking is asking
-// somebody to tell the tool something it can see. A flag exists anyway for the
-// case where both are true, which is a repository holding a Go tool beside a
-// Java service.
-//
-// The frontends are not interchangeable and the interface does not pretend they
-// are. Loading is where they differ most — package patterns against directories
-// of compiled classes, a build that either succeeds or says nothing against
-// files that fail one at a time — so each is loaded on its own terms and only
-// the reading is shared.
-func openModel(root string, layout config.Config, want string, patterns []string, withTests bool, verb string) (lang.Model, error) {
-	kind := want
-	if kind == "" {
-		kind = detectFrontend(root)
+// There is no detection and no default, and that is the change. Language could
+// be guessed from a go.mod and framework from an import, but style cannot be
+// guessed from anything — and guessing it wrongly is expensive in a particular
+// way. It reports dozens of findings about a convention the project never meant
+// to follow, which teaches the reader that the tool is wrong rather than that
+// the project is. Better to ask once.
+func open(root, cfgPath, override string, patterns []string, withTests bool) (lang.Model, config.Config, *profile.Profile, error) {
+	declared, err := loadLayout(root, cfgPath)
+	if err != nil {
+		return nil, config.Config{}, nil, err
 	}
 
-	switch kind {
-	case "go":
-		loaded, err := load(root, withTests, verb, patterns)
-		if err != nil {
-			return nil, err
-		}
-		all := golang.NonTests(loaded)
-		return &golang.Model{
-			All:          all,
-			Measured:     golang.InScope(all, layout, root),
-			TestPackages: golang.InScope(golang.Tests(loaded), layout, root),
-			Layout:       layout,
-			Root:         root,
-		}, nil
-
-	case "jvm":
-		classes, errs := jvm.Load(root, layout.ClassRoots)
-		for _, e := range errs {
-			// A class file that cannot be read is reported and skipped. Unlike
-			// a broken Go build, its neighbours are unaffected, and refusing
-			// the whole run over one unreadable file would be borrowing a rule
-			// from a language this is not.
-			fmt.Fprintln(os.Stderr, "  "+e.Error())
-		}
-		if len(classes) == 0 {
-			return nil, fmt.Errorf("no compiled classes found under %s; build the project first, or set classRoots in %s",
-				root, config.FileName)
-		}
-		return jvm.NewModel(jvm.NewReader(root, classes, layout.SourceCode, layout.SpecPackage)), nil
-
-	default:
-		return nil, fmt.Errorf("unknown frontend %q, expected go or jvm", kind)
+	name := declared.Profile
+	if override != "" {
+		name = override
 	}
+	p, err := profile.Get(name)
+	if err != nil {
+		return nil, config.Config{}, nil, err
+	}
+	// A key the profile does not use is refused rather than ignored. It is
+	// almost always a profile that changed without the configuration following,
+	// and the symptom otherwise is a setting that quietly has no effect.
+	if err := p.CheckConfig(declared.Keys()); err != nil {
+		return nil, config.Config{}, nil, err
+	}
+
+	// The profile carries the conventions, the project states its deviations.
+	layout := declared.Over(p.Layout)
+
+	model, err := p.Open(root, layout, patterns, withTests, &diag.Set{})
+	if err != nil {
+		return nil, layout, p, err
+	}
+	return model, layout, p, nil
 }
 
-// detectFrontend guesses the language from what a project has in it.
-//
-// A go.mod wins, because a repository holding both is far likelier to be a Go
-// project with a Java fixture in it than the other way round — which is the
-// case in this repository, and the reason the flag exists.
-func detectFrontend(root string) string {
-	if _, err := os.Stat(filepath.Join(root, "go.mod")); err == nil {
-		return "go"
+// absRootOf resolves the repository root.
+func absRootOf(root string) (string, error) {
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		return "", fmt.Errorf("resolve root: %w", err)
 	}
-	for _, rel := range jvm.ClassRoots {
-		if info, err := os.Stat(filepath.Join(root, rel)); err == nil && info.IsDir() {
-			return "jvm"
-		}
-	}
-	return "go"
+	return abs, nil
 }
 
 // reportCapabilities says which directions a run could not measure.
@@ -87,9 +66,15 @@ func detectFrontend(root string) string {
 // It exists for the same reason the scope line does. A frontend that infers no
 // constructs does not measure forward coverage weakly — it does not measure it
 // — and a summary that stayed silent would let "no answer" read as "clean".
-func reportCapabilities(m lang.Model) {
+func reportCapabilities(m lang.Model, p *profile.Profile) {
 	for _, missing := range lang.Of(m).Missing() {
 		fmt.Fprintln(os.Stderr, "not measured: "+missing)
+	}
+	if !p.Architecture {
+		// The profile's name claims an architecture and the rules for it do not
+		// exist yet. Passing quietly would make an unwritten rule family read
+		// as one that came out clean.
+		fmt.Fprintln(os.Stderr, "not measured: architecture, because profile "+p.Name+" prescribes no rules yet")
 	}
 }
 
@@ -103,4 +88,18 @@ func skippedPackages(m lang.Model) int {
 		return len(golang.OutOfScope(g.All, g.Layout, g.Root))
 	}
 	return 0
+}
+
+// profileLanguage returns which reader a run is using, for the few places that
+// still have to know — evidence, where a Go test stream and a JVM test report
+// are genuinely different artefacts and neither is a special case of the other.
+func profileLanguage(override string, layout config.Config) profile.Language {
+	name := layout.Profile
+	if override != "" {
+		name = override
+	}
+	if p, err := profile.Get(name); err == nil {
+		return p.Language
+	}
+	return profile.Go
 }

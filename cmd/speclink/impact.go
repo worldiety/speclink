@@ -40,6 +40,7 @@ func impact(args []string) error {
 	fs := flag.NewFlagSet("impact", flag.ExitOnError)
 	root := fs.String("root", ".", "repository root, used to resolve source documents")
 	cfgPath := fs.String("config", "", "layout configuration; defaults to "+config.FileName+" in the root")
+	prof := fs.String("profile", "", "language, framework and architectural style; overrides "+config.FileName)
 	format := fs.String("format", "text", "output format: text or json")
 	patterns := fs.String("packages", "./...", "packages to load")
 	if err := fs.Parse(args); err != nil {
@@ -50,16 +51,12 @@ func impact(args []string) error {
 		return fmt.Errorf("nothing to trace; name a requirement ID, a source segment as doc.md#anchor, or a file path")
 	}
 
-	absRoot, err := filepath.Abs(*root)
-	if err != nil {
-		return fmt.Errorf("resolve root: %w", err)
-	}
-	layout, err := loadLayout(absRoot, *cfgPath)
+	absRoot, err := absRootOf(*root)
 	if err != nil {
 		return err
 	}
 
-	pkgs, err := load(absRoot, false, "trace anything", strings.Fields(*patterns))
+	model, layout, _, err := open(absRoot, *cfgPath, *prof, strings.Fields(*patterns), false)
 	if err != nil {
 		return err
 	}
@@ -68,21 +65,13 @@ func impact(args []string) error {
 	// reaches, and answering it while the project has unrelated defects is the
 	// normal case — a project in good order rarely needs the question.
 	discard := &diag.Set{}
-	var (
-		reqs     []*ir.Requirement
-		bindings []ir.Binding
-	)
-	for _, p := range pkgs {
-		reqs = append(reqs, p.ReadRequirements(discard)...)
-	}
-	for _, p := range pkgs {
-		bindings = append(bindings, p.ReadBindings(discard)...)
-	}
+	reqs := model.Requirements(discard)
+	bindings := model.Bindings(discard)
 
 	tree := reqtree.Build(absRoot, reqs, discard)
 	docs, sourceDocs := loadSources(absRoot, layout, discard)
 	srcCov := check.CoverSources(tree, docs, sourceDocs, nil, discard)
-	cov := check.CoverRequirements(tree, bindings, nil, dialect, discard)
+	cov := check.CoverRequirements(tree, bindings, nil, model.Dialect(), discard)
 
 	g := &graph{
 		root:     absRoot,
@@ -90,6 +79,7 @@ func impact(args []string) error {
 		sources:  srcCov,
 		cov:      cov,
 		bindings: bindings,
+		dialect:  model.Dialect(),
 	}
 
 	report := impactReport{Version: ImpactVersion}
@@ -156,6 +146,7 @@ type graph struct {
 	sources  check.SourceCoverage
 	cov      check.Coverage
 	bindings []ir.Binding
+	dialect  ir.Dialect
 }
 
 func (g *graph) trace(target string) (traced, error) {
@@ -246,7 +237,7 @@ func (g *graph) fromFile(target string) traced {
 
 	want := filepath.ToSlash(strings.TrimPrefix(target, "./"))
 	// The sidecar name is the frontend's convention, not this command's.
-	sidecar := filepath.ToSlash(filepath.Join(filepath.Dir(want), dialect.AnnotationFile(want)))
+	sidecar := filepath.ToSlash(filepath.Join(filepath.Dir(want), g.dialect.AnnotationFile(want)))
 
 	reached := map[string]bool{}
 	constructs := map[string]bool{}

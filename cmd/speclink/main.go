@@ -21,7 +21,6 @@ import (
 	"github.com/worldiety/speclink/internal/diag"
 	"github.com/worldiety/speclink/internal/ir"
 	"github.com/worldiety/speclink/internal/lang"
-	"github.com/worldiety/speclink/internal/lang/golang"
 	"github.com/worldiety/speclink/internal/reqtree"
 	"github.com/worldiety/speclink/internal/source"
 )
@@ -100,24 +99,12 @@ func verify(args []string) error {
 	format := fs.String("format", "text", "output format: text or json")
 	root := fs.String("root", ".", "repository root, used to resolve source documents")
 	cfgPath := fs.String("config", "", "layout configuration; defaults to "+config.FileName+" in the root")
-	frontend := fs.String("lang", "", "frontend to read the project with: go or jvm, detected by default")
+	prof := fs.String("profile", "", "language, framework and architectural style; overrides "+config.FileName)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
-	absRoot, err := filepath.Abs(*root)
-	if err != nil {
-		return fmt.Errorf("resolve root: %w", err)
-	}
-
-	// The layout is the only project knowledge speclink accepts. Without a
-	// speclink.json the convention applies.
-	//
-	// The explicit path exists so a project can be measured without being
-	// modified. Trying speclink on an unfamiliar codebase should not require a
-	// commit to it, and the first run is exactly where the layout is least
-	// likely to match the convention.
-	layout, err := loadLayout(absRoot, *cfgPath)
+	absRoot, err := absRootOf(*root)
 	if err != nil {
 		return err
 	}
@@ -125,7 +112,11 @@ func verify(args []string) error {
 	// verify is the only command that asks for test variants, because only K14
 	// asks a question about tests. It roughly doubles the load, so nothing else
 	// pays for it.
-	model, err := openModel(absRoot, layout, *frontend, fs.Args(), true, "check anything")
+	//
+	// The explicit config path exists so a project can be measured without
+	// being modified. Trying speclink on an unfamiliar codebase should not
+	// require a commit to it.
+	model, layout, p, err := open(absRoot, *cfgPath, *prof, fs.Args(), true)
 	if err != nil {
 		return err
 	}
@@ -224,7 +215,7 @@ func verify(args []string) error {
 		return err
 	}
 	if *format == "text" {
-		reportCapabilities(model)
+		reportCapabilities(model, p)
 	}
 	if !findings.Empty() {
 		return errFindings
@@ -250,19 +241,12 @@ func requirements(args []string) error {
 	format := fs.String("format", "text", "output format: text or json")
 	root := fs.String("root", ".", "repository root, used to resolve source documents")
 	cfgPath := fs.String("config", "", "layout configuration; defaults to "+config.FileName+" in the root")
-	frontend := fs.String("lang", "", "frontend to read the project with: go or jvm, detected by default")
+	prof := fs.String("profile", "", "language, framework and architectural style; overrides "+config.FileName)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
-	absRoot, err := filepath.Abs(*root)
-	if err != nil {
-		return fmt.Errorf("resolve root: %w", err)
-	}
-
-	// The tree question now reaches above the tree, so this command needs the
-	// layout too: it is what says where the raw documents live.
-	layout, err := loadLayout(absRoot, *cfgPath)
+	absRoot, err := absRootOf(*root)
 	if err != nil {
 		return err
 	}
@@ -273,7 +257,7 @@ func requirements(args []string) error {
 	// the named packages have to compile, which is the point of narrowing the
 	// patterns: the tree can be checked while the implementation around it is
 	// still in pieces.
-	model, err := openModel(absRoot, layout, *frontend, fs.Args(), false, "check anything")
+	model, layout, p, err := open(absRoot, *cfgPath, *prof, fs.Args(), false)
 	if err != nil {
 		return err
 	}
@@ -309,7 +293,7 @@ func requirements(args []string) error {
 		return err
 	}
 	if *format == "text" {
-		reportCapabilities(model)
+		reportCapabilities(model, p)
 	}
 	if !findings.Empty() {
 		return errFindings
@@ -471,42 +455,4 @@ func plural(n int, one, many string) string {
 		return fmt.Sprintf("%d %s", n, one)
 	}
 	return fmt.Sprintf("%d %s", n, many)
-}
-
-// dialect is how findings phrase their fixes.
-//
-// It is a package level value rather than a parameter of run, because there is
-// exactly one frontend and picking it is not yet a decision anybody makes. When
-// there are two it becomes one: the frontend that read the code is the one that
-// has to say how to change it, and this is the variable that will stop being a
-// constant.
-var dialect ir.Dialect = golang.Dialect{}
-
-// load reads the named packages, refusing when the Go build is broken.
-//
-// Phase V2 is the Go compilation itself. When it fails there is nothing
-// meaningful to say about annotations, and saying it anyway would bury the real
-// cause under follow-up noise — so every command stops here rather than
-// reporting a model it read from half a program.
-//
-// verb finishes the sentence "fix it before speclink can …", because the
-// commands do different things and a message that said "check" while recording
-// evidence would be a small lie in the one place a reader is already confused.
-func load(root string, withTests bool, verb string, patterns []string) ([]*golang.Package, error) {
-	loader := golang.Load
-	if withTests {
-		loader = golang.LoadWithTests
-	}
-	pkgs, err := loader(root, patterns...)
-	if err != nil {
-		return nil, err
-	}
-	if errs := golang.TypeErrors(pkgs); len(errs) > 0 {
-		fmt.Fprintln(os.Stderr, "the Go build is broken; fix it before speclink can "+verb+":")
-		for _, e := range errs {
-			fmt.Fprintln(os.Stderr, "  "+e.Error())
-		}
-		return nil, errFindings
-	}
-	return pkgs, nil
 }

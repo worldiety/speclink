@@ -16,6 +16,7 @@ import (
 	"github.com/worldiety/speclink/internal/config"
 	"github.com/worldiety/speclink/internal/diag"
 	"github.com/worldiety/speclink/internal/lang/jvm"
+	"github.com/worldiety/speclink/internal/profile"
 	"github.com/worldiety/speclink/internal/reqtree"
 	"github.com/worldiety/speclink/spec"
 )
@@ -55,7 +56,7 @@ func evidence(args []string) error {
 	root := fs.String("root", ".", "repository root, holding "+baseline.FileName)
 	cfgPath := fs.String("config", "", "layout configuration; defaults to "+config.FileName+" in the root")
 	in := fs.String("in", "", "`file` holding the output of \"go test -json\"; standard input by default")
-	frontend := fs.String("lang", "", "frontend to read the project with: go or jvm, detected by default")
+	prof := fs.String("profile", "", "language, framework and architectural style; overrides "+config.FileName)
 	dry := fs.Bool("n", false, "report what would be recorded, write nothing")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -65,21 +66,21 @@ func evidence(args []string) error {
 	if err != nil {
 		return fmt.Errorf("resolve root: %w", err)
 	}
-	layout, err := loadLayout(absRoot, *cfgPath)
+	// The requirement tree is loaded to turn references back into requirements:
+	// the record is bound to the wording a test ran against, and the wording
+	// lives in the tree.
+	discard := &diag.Set{}
+	model, layout, p, err := open(absRoot, *cfgPath, *prof, fs.Args(), false)
 	if err != nil {
 		return err
 	}
-	kind := *frontend
-	if kind == "" {
-		kind = detectFrontend(absRoot)
-	}
-
+	_ = p
 	var (
 		demonstrated map[string][]string
 		err2         error
 	)
-	switch kind {
-	case "jvm":
+	switch profileLanguage(*prof, layout) {
+	case profile.JVM:
 		demonstrated, err2 = jvmEvidence(absRoot, layout)
 	default:
 		source := io.Reader(os.Stdin)
@@ -97,14 +98,6 @@ func evidence(args []string) error {
 		return err2
 	}
 
-	// The requirement tree is loaded to turn references back into requirements:
-	// the record is bound to the wording a test ran against, and the wording
-	// lives in the tree.
-	discard := &diag.Set{}
-	model, err := openModel(absRoot, layout, kind, fs.Args(), false, "record anything")
-	if err != nil {
-		return err
-	}
 	tree := reqtree.Build(absRoot, model.Requirements(discard), discard)
 
 	base, err := baseline.Load(absRoot)

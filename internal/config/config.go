@@ -18,6 +18,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -26,6 +27,13 @@ const FileName = "speclink.json"
 
 // Config describes the directory layout of a project.
 type Config struct {
+	// Profile names the combination of language, framework and architectural
+	// style this project is written in. It is the one thing speclink cannot
+	// work out and will not guess: which style a project follows is not
+	// visible in its files, and guessing wrongly reports dozens of findings
+	// about a convention it never meant to follow.
+	Profile string `json:"profile,omitempty"`
+
 	// ContextRoot is the directory holding the bounded contexts, relative to
 	// the project root. "." means the contexts sit at the root itself.
 	ContextRoot string `json:"contextRoot,omitempty"`
@@ -88,20 +96,14 @@ type Config struct {
 	// against the project relative directory. Examples and generated
 	// documentation copies are the usual candidates.
 	Exclude []string `json:"exclude,omitempty"`
-}
 
-// Default returns the conventional layout.
-func Default() Config {
-	return Config{
-		ContextRoot: "app",
-		CmdRoot:     "cmd",
-		InfraRoots:  []string{"pkg", "foundation"},
-		SourceRoots: []string{"requirements/_sources"},
-	}
+	// set holds the keys the project wrote, so a profile can refuse the ones it
+	// does not use.
+	set []string
 }
 
 // Load reads speclink.json from root. A missing file is not an error: it means
-// the project follows the convention.
+// the project deviates from its profile in nothing.
 func Load(root string) (Config, error) {
 	return LoadFile(filepath.Join(root, FileName), true)
 }
@@ -114,7 +116,7 @@ func Load(root string) (Config, error) {
 // mistake worth reporting rather than silently falling back to defaults that
 // were deliberately being overridden.
 func LoadFile(path string, optional bool) (Config, error) {
-	cfg := Default()
+	var cfg Config
 
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) && optional {
@@ -123,14 +125,65 @@ func LoadFile(path string, optional bool) (Config, error) {
 	if err != nil {
 		return cfg, fmt.Errorf("read %s: %w", path, err)
 	}
-
-	// Decode into the defaults so an omitted field keeps its conventional
-	// value and a project only states what it deviates in.
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return cfg, fmt.Errorf("parse %s: %w", path, err)
 	}
+
+	// The keys that were actually written, kept so that a profile can refuse
+	// the ones it does not use. Decoding alone cannot tell an omitted field
+	// from one set to its zero value, and the difference is exactly what makes
+	// a mistaken expectation visible.
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return cfg, fmt.Errorf("parse %s: %w", path, err)
+	}
+	for k := range raw {
+		cfg.set = append(cfg.set, k)
+	}
+	sort.Strings(cfg.set)
+
 	cfg.normalise()
 	return cfg, nil
+}
+
+// Keys returns the configuration keys the project actually wrote.
+func (c Config) Keys() []string { return c.set }
+
+// Over returns the profile's conventions with this configuration's deviations
+// applied.
+//
+// A project states what it differs in, never what it agrees with. Before
+// profiles the conventions lived in a Default() that read as what speclink
+// believed about every project rather than as one style's layout, and a project
+// on a different style had no way to say so except by restating all of it.
+func (c Config) Over(base Config) Config {
+	out := base
+	out.Profile = c.Profile
+	out.set = c.set
+
+	if c.ContextRoot != "" {
+		out.ContextRoot = c.ContextRoot
+	}
+	if c.CmdRoot != "" {
+		out.CmdRoot = c.CmdRoot
+	}
+	for _, pair := range []struct{ from, to *[]string }{
+		{&c.InfraRoots, &out.InfraRoots},
+		{&c.SourceRoots, &out.SourceRoots},
+		{&c.ClassRoots, &out.ClassRoots},
+		{&c.SourceCode, &out.SourceCode},
+		{&c.ReportRoots, &out.ReportRoots},
+		{&c.Scope, &out.Scope},
+		{&c.Exclude, &out.Exclude},
+	} {
+		if len(*pair.from) > 0 {
+			*pair.to = *pair.from
+		}
+	}
+	if c.SpecPackage != "" {
+		out.SpecPackage = c.SpecPackage
+	}
+	return out
 }
 
 func (c *Config) normalise() {

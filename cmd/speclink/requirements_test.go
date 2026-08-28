@@ -171,13 +171,13 @@ func TestRequirementsSurvivesBrokenImplementation(t *testing.T) {
 	// verify must refuse: without a compilable build there is nothing
 	// meaningful to say about annotations.
 	out, code := runSpeclink(t, "verify", "../../testdata/bad", "./...")
-	if code == 0 || !strings.Contains(out, "the Go build is broken") {
+	if code == 0 || !strings.Contains(out, "the build is broken") {
 		t.Errorf("verify should refuse on a broken build, got exit %d:\n%s", code, out)
 	}
 
 	// requirements must not, as long as the tree itself compiles.
 	out, code = runSpeclink(t, "requirements", "../../testdata/bad", "./requirements/...")
-	if strings.Contains(out, "the Go build is broken") {
+	if strings.Contains(out, "the build is broken") {
 		t.Errorf("requirements must not depend on the implementation compiling:\n%s", out)
 	}
 	if code != 1 || !strings.Contains(out, "requirements (") {

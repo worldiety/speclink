@@ -20,7 +20,7 @@ func TestScopeSilencesWhatItDoesNotMeasure(t *testing.T) {
 		t.Fatalf("the negative fixture is supposed to fail:\n%s", before)
 	}
 
-	writeConfig(t, dir, `{"scope":["app/billing"]}`)
+	writeConfig(t, dir, `{"profile":"go_nago_ddd1","scope":["app/billing"]}`)
 
 	after, code := runVerify(t, dir)
 	if code == 0 {
@@ -46,7 +46,7 @@ func TestScopeSilencesWhatItDoesNotMeasure(t *testing.T) {
 // because of a configuration setting is worse than a rule that is switched off.
 func TestScopeDoesNotBreakCrossPackageResolution(t *testing.T) {
 	dir := copyFixture(t, "../../testdata/example")
-	writeConfig(t, dir, `{"scope":["app/sales","requirements/fun/quote","requirements/dec"]}`)
+	writeConfig(t, dir, `{"profile":"go_nago_ddd1","scope":["app/sales","requirements/fun/quote","requirements/dec"]}`)
 
 	out, code := runVerify(t, dir)
 	if code != 0 {
@@ -61,7 +61,7 @@ func TestScopeDoesNotBreakCrossPackageResolution(t *testing.T) {
 // that happens to exclude cmd/ must not answer it with "no".
 func TestScopeDoesNotInventAMissingMain(t *testing.T) {
 	dir := copyFixture(t, "../../testdata/example")
-	writeConfig(t, dir, `{"scope":["app/sales","requirements/fun/quote","requirements/dec"]}`)
+	writeConfig(t, dir, `{"profile":"go_nago_ddd1","scope":["app/sales","requirements/fun/quote","requirements/dec"]}`)
 
 	out, _ := runVerify(t, dir)
 	if strings.Contains(out, "no main package") {
@@ -74,7 +74,7 @@ func TestScopeDoesNotInventAMissingMain(t *testing.T) {
 // satisfied by nothing in scope, which is true and would bury the run.
 func TestScopeReachesTheRequirementTree(t *testing.T) {
 	dir := copyFixture(t, "../../testdata/example")
-	writeConfig(t, dir, `{"scope":["cmd/erp"]}`)
+	writeConfig(t, dir, `{"profile":"go_nago_ddd1","scope":["cmd/erp"]}`)
 
 	out, code := runVerify(t, dir)
 	if code != 0 {
@@ -91,7 +91,7 @@ func TestScopeReachesTheRequirementTree(t *testing.T) {
 // not whether it exists.
 func TestScopeNeverHidesARequirementFromABinding(t *testing.T) {
 	dir := copyFixture(t, "../../testdata/example")
-	writeConfig(t, dir, `{"scope":["app/sales"]}`)
+	writeConfig(t, dir, `{"profile":"go_nago_ddd1","scope":["app/sales"]}`)
 
 	out, _ := runVerify(t, dir)
 	if strings.Contains(out, "names no requirement") || strings.Contains(out, "K1-CONSTRUCT-UNBOUND") {

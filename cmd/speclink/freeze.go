@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 
 	"github.com/worldiety/speclink/internal/baseline"
@@ -12,6 +11,7 @@ import (
 	"github.com/worldiety/speclink/internal/config"
 	"github.com/worldiety/speclink/internal/diag"
 	"github.com/worldiety/speclink/internal/ir"
+	"github.com/worldiety/speclink/internal/lang"
 	"github.com/worldiety/speclink/internal/reqtree"
 )
 
@@ -37,48 +37,37 @@ func freeze(args []string) error {
 	fs := flag.NewFlagSet("freeze", flag.ExitOnError)
 	root := fs.String("root", ".", "repository root, holding "+baseline.FileName)
 	cfgPath := fs.String("config", "", "layout configuration; defaults to "+config.FileName+" in the root")
+	prof := fs.String("profile", "", "language, framework and architectural style; overrides "+config.FileName)
 	reviewer := fs.String("reviewer", "", "record that this person read the requirement texts as they now stand")
 	dry := fs.Bool("n", false, "report what would be recorded, write nothing")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
-	absRoot, err := filepath.Abs(*root)
-	if err != nil {
-		return fmt.Errorf("resolve root: %w", err)
-	}
-
-	layout, err := loadLayout(absRoot, *cfgPath)
+	absRoot, err := absRootOf(*root)
 	if err != nil {
 		return err
 	}
 
-	pkgs, err := load(absRoot, false, "record anything", fs.Args())
+	model, layout, _, err := open(absRoot, *cfgPath, *prof, fs.Args(), false)
 	if err != nil {
 		return err
 	}
+
+	discard := &diag.Set{}
+	bindings := model.Bindings(discard)
+	reqs := model.Requirements(discard)
 
 	var (
-		bindings []ir.Binding
-		schema   []ir.SchemaType
-		reqs     []*ir.Requirement
-		scope    = map[string]bool{}
+		schema []ir.SchemaType
+		scope  = map[string]bool{}
 	)
-	discard := &diag.Set{}
-	models := map[string]bool{}
-	for _, p := range pkgs {
-		bindings = append(bindings, p.ReadBindings(discard)...)
-		reqs = append(reqs, p.ReadRequirements(discard)...)
-		scope[p.PkgPath()] = true
-		for name := range p.PersistedModels() {
-			models[name] = true
-		}
+	if sr, ok := model.(lang.SchemaReader); ok {
+		schema = sr.Schemas(discard)
+		scope = sr.Scope()
+		check.SortSchema(schema)
 	}
-	for _, p := range pkgs {
-		schema = append(schema, p.ReadSchema(models)...)
-	}
-	check.SortSchema(schema)
-	status := check.Drafts(schema, bindings, dialect, discard)
+	status := check.Drafts(schema, bindings, model.Dialect(), discard)
 
 	base, err := baseline.Load(absRoot)
 	if err != nil {
@@ -88,7 +77,7 @@ func freeze(args []string) error {
 	// A refusal is reported through the ordinary diagnostic channel, because it
 	// is the same finding the next verify would produce anyway.
 	blocking := &diag.Set{}
-	check.Evolution(schema, status, base, scope, bindings, dialect, blocking)
+	check.Evolution(schema, status, base, scope, bindings, model.Dialect(), blocking)
 	if broken := withoutMissing(blocking); !broken.Empty() {
 		if err := broken.WriteText(os.Stdout); err != nil {
 			return err

@@ -52,7 +52,7 @@ speclink impact       [flags] <requirement|doc.md#anchor|path>...
   -reviewer <who>     freeze only: record that this person read the requirements
   -in <file>          evidence only: read the test stream from a file
   -out <file>         generate only: write here instead of standard output
-  -lang go|jvm        requirements only: frontend to read with, detected by default
+  -profile <name>     overrides the profile from speclink.json
   -kind <kind>        inventory only: restrict to one kind, e.g. event
 ```
 
@@ -195,30 +195,65 @@ the previous one is clean:
 `-format json` emits the same findings with `"version": 1` and the fields
 `code`, `phase`, `what`, `why`, `how`.
 
+### The profile
+
+Every project names one, in `speclink.json`:
+
+```json
+{ "profile": "go_nago_ddd1" }
+```
+
+| profile | |
+|---|---|
+| `go_nago_ddd1` | Go on nago, DDD in three layers with a functional core |
+| `java_springboot_ddd1` | Java on Spring Boot, same architecture; no rules yet |
+
+The name has three parts because there are three decisions, and they are a
+chain rather than a product: the language decides the reader, the framework
+decides what counts as a use case, and the style decides the rules — which are
+written in terms of those roles. There is no `go × springboot` cell that nobody
+filled in; there is no such cell.
+
+The third part is a **style**, not an organisation. Nothing in nago says a use
+case lives in `uc_<name>.go` or that a context bundles its use cases in a
+`UseCases` struct. That is an architecture, and it is selectable because a
+project can reasonably follow a different one. `ddd1` and a later `ddd2` are two
+styles rather than two versions of one, so they are numbered rather than
+versioned.
+
+**speclink will not guess it.** A missing profile stops the run with the list
+above. Language could be worked out from a `go.mod` and framework from an
+import, but style cannot be worked out from anything, and guessing it wrongly
+reports dozens of findings about a convention the project never meant to
+follow — which teaches the reader that the tool is wrong rather than that the
+project is.
+
 ### Configuration
 
-`speclink.json` in the repository root. The file is optional; if it is absent
-these defaults apply.
+`speclink.json` states **deviations from the profile**, never the conventions
+themselves. A project that follows its style writes only the profile.
 
 ```json
 {
-  "contextRoot": "app",
-  "cmdRoot": "cmd",
-  "infraRoots": ["pkg", "foundation"],
-  "sourceRoots": ["requirements/_sources"],
-  "scope": [],
-  "exclude": []
+  "profile": "go_nago_ddd1",
+  "cmdRoot": "tools",
+  "scope": ["app/sales"]
 }
 ```
 
-- `contextRoot` — where the bounded contexts live.
-- `cmdRoot` — where `main` packages live.
-- `infraRoots` — packages that must stay free of domain knowledge.
-- `sourceRoots` — where the raw requirement documents live.
-- `scope` — the packages speclink measures; empty means all of them.
-- `exclude` — packages it does not, whatever `scope` says.
+Every profile understands `sourceRoots`, `scope` and `exclude`. Beyond those:
 
-Both take path patterns, with `dir/**` supported.
+| profile | also understands |
+|---|---|
+| `go_nago_ddd1` | `contextRoot`, `cmdRoot`, `infraRoots` |
+| `java_springboot_ddd1` | `classRoots`, `sourceCode`, `reportRoots`, `specPackage` |
+
+Anything else is **refused, not ignored**. `classRoots` under a Go profile is
+not a harmless leftover — it is somebody expecting an effect that will not
+happen, almost always a profile that changed without the configuration
+following.
+
+Path patterns support `dir/**`.
 
 `-config <file>` reads the layout from somewhere else, which is how a project
 can be measured without being modified. A file named this way must exist; only
@@ -1245,11 +1280,10 @@ directly in `fun/`, `V5-035` domain directory contradicts the ID prefix.
 than from source:
 
 ```
-speclink requirements -root . -lang jvm
+speclink verify -root . -profile java_springboot_ddd1
 ```
 
-The frontend is detected from what is on disk; the flag is for a repository that
-holds both.
+Normally the profile is in `speclink.json` and the flag is for trying one.
 
 **Why bytecode.** A class file has already been resolved. Every type it names is
 fully qualified, every supertype is named outright, every annotation has had its
@@ -1301,7 +1335,7 @@ void submitDrawsANumber() { … }
 ```
 ```
 mvn test
-speclink evidence -root . -lang jvm
+speclink evidence -root .
 ```
 
 The claim is read from the bytecode, the result from Surefire's XML, and the two
@@ -1311,12 +1345,13 @@ reached it; here the annotation is on the method, and a method that passed ran
 to its end.
 
 ```
-speclink verify -root . -lang jvm
+speclink verify -root .
 
 2 source segments (100% accounted), 5 constructs (100% bound),
 3 normative requirements (100% covered, 100% verified, 100% demonstrated),
 5 bindings, 0 findings
 not measured: schema evolution, because this frontend reads no persisted shapes
+not measured: architecture, because profile java_springboot_ddd1 prescribes no rules yet
 ```
 
 **What it cannot do it says**, rather than answering anyway. That line is not

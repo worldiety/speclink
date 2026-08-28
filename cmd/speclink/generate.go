@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -14,7 +13,7 @@ import (
 	"github.com/worldiety/speclink/internal/config"
 	"github.com/worldiety/speclink/internal/diag"
 	"github.com/worldiety/speclink/internal/ir"
-	"github.com/worldiety/speclink/internal/lang/golang"
+	"github.com/worldiety/speclink/internal/lang"
 	"github.com/worldiety/speclink/internal/reqtree"
 	"github.com/worldiety/speclink/internal/source"
 )
@@ -40,21 +39,18 @@ func generate(args []string) error {
 	fs := flag.NewFlagSet("generate", flag.ExitOnError)
 	root := fs.String("root", ".", "repository root, used to resolve source documents")
 	cfgPath := fs.String("config", "", "layout configuration; defaults to "+config.FileName+" in the root")
+	prof := fs.String("profile", "", "language, framework and architectural style; overrides "+config.FileName)
 	out := fs.String("out", "", "write to this `file` instead of standard output")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
-	absRoot, err := filepath.Abs(*root)
-	if err != nil {
-		return fmt.Errorf("resolve root: %w", err)
-	}
-	layout, err := loadLayout(absRoot, *cfgPath)
+	absRoot, err := absRootOf(*root)
 	if err != nil {
 		return err
 	}
 
-	model, err := readModel(absRoot, layout, fs.Args())
+	model, err := readModel(absRoot, *cfgPath, *prof, fs.Args())
 	if err != nil {
 		return err
 	}
@@ -91,38 +87,29 @@ type specModel struct {
 // project with open findings is exactly when somebody wants to read it —
 // refusing to render until everything is green would make it useless in the
 // only situation that needs it.
-func readModel(absRoot string, layout config.Config, patterns []string) (*specModel, error) {
-	loaded, err := load(absRoot, true, "derive anything", patterns)
+func readModel(absRoot, cfgPath, prof string, patterns []string) (*specModel, error) {
+	frontend, layout, _, err := open(absRoot, cfgPath, prof, patterns, true)
 	if err != nil {
 		return nil, err
 	}
 
-	all := golang.NonTests(loaded)
-	pkgs := golang.InScope(all, layout, absRoot)
-	tests := golang.InScope(golang.Tests(loaded), layout, absRoot)
-
 	discard := &diag.Set{}
-	var (
-		reqs          []*ir.Requirement
-		bindings      []ir.Binding
-		verifications []ir.Binding
-	)
-	for _, p := range pkgs {
-		reqs = append(reqs, p.ReadRequirements(discard)...)
-		bindings = append(bindings, p.ReadBindings(discard)...)
-	}
-	for _, p := range tests {
-		verifications = append(verifications, p.ReadVerifications(discard)...)
+	reqs := frontend.Requirements(discard)
+	bindings := frontend.Bindings(discard)
+
+	var verifications []ir.Binding
+	if vr, ok := frontend.(lang.VerificationReader); ok {
+		verifications = vr.Verifications(discard)
 	}
 
-	m := &specModel{root: absRoot, skipped: len(golang.OutOfScope(all, layout, absRoot))}
+	m := &specModel{root: absRoot, skipped: skippedPackages(frontend)}
 	m.tree = reqtree.Build(absRoot, reqs, discard)
 	m.docs, m.segments = loadSources(absRoot, layout, discard)
 	m.src = check.CoverSources(m.tree, m.docs, m.segments, nil, discard)
 
 	measured := measuredRequirements(m.tree, layout, absRoot)
-	m.cov = check.CoverRequirements(m.tree, bindings, measured, dialect, discard)
-	m.ver = check.CoverVerification(m.tree, verifications, m.cov, measured, ir.CollectWaivers(bindings), dialect, discard)
+	m.cov = check.CoverRequirements(m.tree, bindings, measured, frontend.Dialect(), discard)
+	m.ver = check.CoverVerification(m.tree, verifications, m.cov, measured, ir.CollectWaivers(bindings), frontend.Dialect(), discard)
 
 	m.waived = ir.CollectWaivers(bindings)
 	m.base, err = baseline.Load(absRoot)

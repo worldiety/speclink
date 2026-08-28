@@ -5,11 +5,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 
+	"github.com/worldiety/speclink/internal/config"
 	"github.com/worldiety/speclink/internal/diag"
 	"github.com/worldiety/speclink/internal/ir"
+	"github.com/worldiety/speclink/internal/lang"
 )
 
 // inventory lists what the recognisers found.
@@ -28,16 +29,18 @@ func inventory(args []string) error {
 	format := fs.String("format", "text", "output format: text or json")
 	root := fs.String("root", ".", "repository root")
 	kindFilter := fs.String("kind", "", "restrict to one kind, e.g. event or use case")
+	cfgPath := fs.String("config", "", "layout configuration; defaults to "+config.FileName+" in the root")
+	prof := fs.String("profile", "", "language, framework and architectural style; overrides "+config.FileName)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
-	absRoot, err := filepath.Abs(*root)
+	absRoot, err := absRootOf(*root)
 	if err != nil {
-		return fmt.Errorf("resolve root: %w", err)
+		return err
 	}
 
-	pkgs, err := load(absRoot, false, "list anything", fs.Args())
+	model, _, _, err := open(absRoot, *cfgPath, *prof, fs.Args(), false)
 	if err != nil {
 		return err
 	}
@@ -45,18 +48,16 @@ func inventory(args []string) error {
 	// Bindings are read so the listing can say which constructs already name a
 	// requirement. That is the number a migration is steered by, and it is
 	// invisible in a list of findings, which shows only the ones that do not.
-	var (
-		constructs []ir.Construct
-		bound      = map[string]bool{}
-	)
 	discard := &diag.Set{}
-	for _, p := range pkgs {
-		constructs = append(constructs, p.Infer()...)
-		for _, b := range p.ReadBindings(discard) {
-			for _, a := range b.Assertions {
-				if a.Kind == ir.AssertSatisfies && len(a.Requirements) > 0 {
-					bound[b.Target.Name] = true
-				}
+	var constructs []ir.Construct
+	if inf, ok := model.(lang.ConstructInferrer); ok {
+		constructs = inf.Constructs(discard)
+	}
+	bound := map[string]bool{}
+	for _, b := range model.Bindings(discard) {
+		for _, a := range b.Assertions {
+			if a.Kind == ir.AssertSatisfies && len(a.Requirements) > 0 {
+				bound[b.Target.Name] = true
 			}
 		}
 	}

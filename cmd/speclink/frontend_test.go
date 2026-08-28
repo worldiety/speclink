@@ -13,7 +13,7 @@ import (
 // every rule that then runs over it — identity, the derivation graph, the
 // layout, the source layer — is the same code that runs over Go.
 func TestRequirementsRunsOnAJavaProject(t *testing.T) {
-	out, code := runSpeclink(t, "requirements", "../../testdata/java", "-lang", "jvm")
+	out, code := runSpeclink(t, "requirements", "../../testdata/java", "-profile", "java_springboot_ddd1")
 	if code != 0 {
 		t.Fatalf("a clean Java fixture did not verify:\n%s", out)
 	}
@@ -32,7 +32,7 @@ func TestRequirementsRunsOnAJavaProject(t *testing.T) {
 // come out. Staying silent would let "no answer" read as "clean", which is the
 // failure this tool spends most of its rules preventing.
 func TestUnmeasuredDirectionsAreDisclosed(t *testing.T) {
-	out, _ := runSpeclink(t, "requirements", "../../testdata/java", "-lang", "jvm")
+	out, _ := runSpeclink(t, "requirements", "../../testdata/java", "-profile", "java_springboot_ddd1")
 
 	// The JVM frontend reads no persisted shapes, so schema evolution is a
 	// question it never puts.
@@ -55,7 +55,7 @@ func TestUnmeasuredDirectionsAreDisclosed(t *testing.T) {
 // faithfully as a Go one — a reviewer working in a browser cannot tell which
 // language produced the tree and should not have to.
 func TestExportWorksAcrossFrontends(t *testing.T) {
-	out, code := runSpeclink(t, "requirements", "../../testdata/java", "-lang", "jvm", "-format", "json")
+	out, code := runSpeclink(t, "requirements", "../../testdata/java", "-profile", "java_springboot_ddd1", "-format", "json")
 	if code != 0 {
 		t.Fatalf("export failed:\n%s", out)
 	}
@@ -95,14 +95,84 @@ func TestExportWorksAcrossFrontends(t *testing.T) {
 	t.Fatalf("R-QUOTE-SUBMIT is missing from the export:\n%s", out)
 }
 
-// A repository holding both must not have to be told which it is, except when
-// it genuinely is both — which is the case here, and the reason the flag exists.
-func TestFrontendIsDetected(t *testing.T) {
-	if got := detectFrontend("../../testdata/java"); got != "jvm" {
-		t.Errorf("a project with compiled classes and no go.mod was read as %q", got)
+// A project must say which combination it is written in, and speclink must not
+// guess. Language could be worked out from a go.mod and framework from an
+// import, but style cannot be worked out from anything — and guessing it
+// wrongly reports dozens of findings about a convention the project never meant
+// to follow, which teaches the reader that the tool is wrong rather than that
+// the project is.
+func TestMissingProfileIsRefusedWithAMenu(t *testing.T) {
+	dir := t.TempDir()
+
+	out, code := runSpeclink(t, "requirements", dir)
+	if code == 0 {
+		t.Fatalf("a project without a profile was accepted:\n%s", out)
 	}
-	if got := detectFrontend("../../testdata/example"); got != "go" {
-		t.Errorf("a Go module was read as %q", got)
+	if !strings.Contains(out, "no profile set") {
+		t.Errorf("the refusal does not say what is missing:\n%s", out)
+	}
+	// A rejection that does not say what the alternatives are makes the reader
+	// go looking for documentation.
+	for _, want := range []string{"go_nago_ddd1", "java_springboot_ddd1"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the refusal does not offer %s:\n%s", want, out)
+		}
+	}
+}
+
+// A key with no effect under the chosen profile is a mistaken expectation,
+// almost always a profile that changed without the configuration following.
+// Ignoring it is the ordinary thing to do and the wrong one: the symptom is a
+// setting that quietly does nothing.
+func TestForeignConfigurationIsRefused(t *testing.T) {
+	dir := copyFixture(t, "../../testdata/example")
+	writeConfig(t, dir, `{"profile":"go_nago_ddd1","classRoots":["build/classes"]}`)
+
+	out, code := runVerify(t, dir)
+	if code == 0 {
+		t.Fatalf("a foreign key was accepted:\n%s", out)
+	}
+	if !strings.Contains(out, "classRoots") || !strings.Contains(out, "does not use") {
+		t.Errorf("the refusal does not name the key:\n%s", out)
+	}
+	// And it must say what the profile does understand, or the reader is left
+	// guessing which of their keys was the wrong one.
+	if !strings.Contains(out, "contextRoot") {
+		t.Errorf("the refusal does not list what the profile understands:\n%s", out)
+	}
+}
+
+// The profile carries the conventions and the project states its deviations.
+// Before profiles those conventions lived in a Default() that read as what
+// speclink believed about every project rather than as one style's layout.
+func TestProfileCarriesTheConventions(t *testing.T) {
+	dir := copyFixture(t, "../../testdata/example")
+
+	// The fixture follows the style, so stating nothing must be clean.
+	if out, code := runVerify(t, dir); code != 0 {
+		t.Fatalf("a project stating no deviations did not verify:\n%s", out)
+	}
+
+	// And a stated deviation has to reach the rules.
+	writeConfig(t, dir, `{"profile":"go_nago_ddd1","cmdRoot":"tools"}`)
+	out, _ := runVerify(t, dir)
+	if !strings.Contains(out, "does not live under tools/") {
+		t.Errorf("the deviation did not reach the rules:\n%s", out)
+	}
+}
+
+// A profile whose style prescribes nothing says so, on the same grounds as the
+// capability lines: a rule family that never ran must not read as one that came
+// out clean.
+func TestEmptyStyleIsDisclosed(t *testing.T) {
+	out, _ := runSpeclink(t, "verify", "../../testdata/java")
+	if !strings.Contains(out, "prescribes no rules yet") {
+		t.Errorf("an unwritten style passed quietly:\n%s", out)
+	}
+
+	out, _ = runVerify(t, "../../testdata/example")
+	if strings.Contains(out, "prescribes no rules") {
+		t.Errorf("a style with rules claimed to have none:\n%s", out)
 	}
 }
 
@@ -116,7 +186,7 @@ func TestFrontendIsDetected(t *testing.T) {
 // sees. Inference is a property of a framework that says what it is, not of the
 // framework it was first written for.
 func TestVerifyMeasuresForwardCoverageOnSpring(t *testing.T) {
-	out, code := runSpeclink(t, "verify", "../../testdata/java", "-lang", "jvm")
+	out, code := runSpeclink(t, "verify", "../../testdata/java", "-profile", "java_springboot_ddd1")
 	if code != 0 {
 		t.Fatalf("the Java fixture did not verify:\n%s", out)
 	}
@@ -141,7 +211,7 @@ func TestVerifyMeasuresForwardCoverageOnSpring(t *testing.T) {
 // never looked for. The figures behave the same way — an unmeasured direction
 // is absent from the summary rather than shown as zero.
 func TestUnmeasuredDirectionsAreNotReportedAsFailing(t *testing.T) {
-	out, _ := runSpeclink(t, "verify", "../../testdata/java", "-lang", "jvm")
+	out, _ := runSpeclink(t, "verify", "../../testdata/java", "-profile", "java_springboot_ddd1")
 
 	// The JVM frontend reads no persisted shapes, so no promise can have been
 	// broken and none is reported. The rules for it are skipped rather than
