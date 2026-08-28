@@ -1,6 +1,6 @@
 module example.com/arch
 
-go 1.26.5
+go 1.27.0
 
 require (
 	github.com/worldiety/speclink v0.0.0

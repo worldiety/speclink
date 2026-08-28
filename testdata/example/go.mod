@@ -1,6 +1,6 @@
 module example.com/erp
 
-go 1.26.5
+go 1.27.0
 
 require (
 	github.com/worldiety/i18n v0.0.0-20260303170444-ecc6fa6bdd7a
