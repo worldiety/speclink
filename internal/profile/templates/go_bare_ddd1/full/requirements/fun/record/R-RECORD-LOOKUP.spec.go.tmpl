@@ -1,0 +1,16 @@
+package record
+
+import "github.com/worldiety/speclink/spec"
+
+// RRecordLookup is the reason the read use case exists.
+var RRecordLookup = spec.Requirement{
+	ID:         "R-RECORD-LOOKUP",
+	Kind:       spec.Functional,
+	Discipline: spec.Business,
+	Status:     spec.Normative,
+	Title:      "Look up a record",
+	Text:       "A user with the read permission MUST be able to look up a single record by its identifier.",
+	Sources: []spec.Source{
+		{Doc: "requirements/_sources/{{.Context}}/overview.md", Anchor: "2-looking-up-a-record"},
+	},
+}

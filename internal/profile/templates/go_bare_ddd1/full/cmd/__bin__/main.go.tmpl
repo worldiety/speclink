@@ -1,0 +1,46 @@
+// Command {{.Binary}} serves this system over HTTP and on the command line.
+//
+// This is the only place that names an adapter. Everything above it takes the
+// port, which is what lets a test put a different implementation behind it.
+package main
+
+import (
+	"log"
+	"net/http"
+	"os"
+
+	"{{.Module}}/app/{{.Context}}"
+	"{{.Module}}/app/{{.Context}}/adapter/fs"
+	cli{{.Context}} "{{.Module}}/app/{{.Context}}/cli"
+	rest{{.Context}} "{{.Module}}/app/{{.Context}}/rest"
+	"{{.Module}}/foundation/auth"
+	"{{.Module}}/foundation/flag"
+	"{{.Module}}/foundation/rest"
+)
+
+func main() {
+	records := fs.NewRecords("var/records")
+	uc := {{.Context}}.NewUseCases(records)
+
+	if len(os.Args) > 1 && os.Args[1] == "serve" {
+		serve(uc)
+		return
+	}
+	if err := flag.Run(os.Stdout, auth.System(), os.Args[1:], cli{{.Context}}.Create(uc.CreateRecord)); err != nil {
+		os.Exit(1)
+	}
+}
+
+func serve(uc {{.Context}}.UseCases) {
+	mux := http.NewServeMux()
+	rest{{.Context}}.Mount(mux, anonymous, uc.CreateRecord)
+	log.Fatal(http.ListenAndServe(":8080", mux))
+}
+
+// anonymous is the placeholder authenticator of a new project.
+//
+// A real one reads a token or a session. This one grants nothing, so that a
+// project which forgets to replace it fails closed rather than open.
+func anonymous(*http.Request) (auth.Subject, error) { return auth.Anonymous(), nil }
+
+var _ rest.Authenticator = anonymous

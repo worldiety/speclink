@@ -1,0 +1,11 @@
+package {{.Context}}
+
+import (
+	"{{.Module}}/requirements/fun/record"
+	"github.com/worldiety/speclink/spec"
+)
+
+var _ = spec.For[CreateRecord](
+	spec.Satisfies(record.RRecordCreate),
+	spec.Help(`Create a record. The record starts in the open state.`),
+)

@@ -1,0 +1,21 @@
+// Package record holds the requirements about records.
+//
+// Requirements are grouped by what they are about, not by the context that
+// happens to implement them: two contexts may both answer to one requirement,
+// and a package named after one of them would make that unsayable.
+package record
+
+import "github.com/worldiety/speclink/spec"
+
+// RRecordCreate is the reason the creation use case exists.
+var RRecordCreate = spec.Requirement{
+	ID:         "R-RECORD-CREATE",
+	Kind:       spec.Functional,
+	Discipline: spec.Business,
+	Status:     spec.Normative,
+	Title:      "Create a record",
+	Text:       "A user with the create permission MUST be able to create a record, which starts in the open state.",
+	Sources: []spec.Source{
+		{Doc: "requirements/_sources/{{.Context}}/overview.md", Anchor: "1-creating-a-record"},
+	},
+}

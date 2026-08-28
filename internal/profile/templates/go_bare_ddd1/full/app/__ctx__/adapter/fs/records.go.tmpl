@@ -1,0 +1,94 @@
+// Package fs stores records as files.
+//
+// An adapter implements a port and is named after the technology behind it, so
+// that a second one can sit beside it. Nothing outside cmd imports this: the
+// context declares what it needs, this provides it, and the entry point is
+// where the two meet.
+package fs
+
+import (
+	"context"
+	"encoding/json"
+	"iter"
+	"os"
+	"path/filepath"
+	"sync"
+
+	"{{.Module}}/app/{{.Context}}"
+)
+
+// RecordStore is the stored shape.
+//
+// It is a separate type from the domain model on purpose: the domain may be
+// restructured without touching a byte on disk, and what is written down is the
+// half that cannot be changed after the fact.
+type RecordStore struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	State string `json:"state"`
+}
+
+// Records stores records under a directory.
+type Records struct {
+	dir string
+	mu  sync.Mutex
+}
+
+// NewRecords returns a repository over a directory.
+func NewRecords(dir string) *Records { return &Records{dir: dir} }
+
+func (s *Records) Save(_ context.Context, r {{.Context}}.Record) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	raw, err := json.Marshal(RecordStore{ID: string(r.ID), Title: r.Title, State: r.State})
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(s.dir, 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(s.path(r.ID), raw, 0o644)
+}
+
+func (s *Records) FindByID(_ context.Context, id {{.Context}}.RecordID) ({{.Context}}.Record, bool, error) {
+	raw, err := os.ReadFile(s.path(id))
+	if os.IsNotExist(err) {
+		return {{.Context}}.Record{}, false, nil
+	}
+	if err != nil {
+		return {{.Context}}.Record{}, false, err
+	}
+
+	var stored RecordStore
+	if err := json.Unmarshal(raw, &stored); err != nil {
+		return {{.Context}}.Record{}, false, err
+	}
+	return {{.Context}}.Record{ID: {{.Context}}.RecordID(stored.ID), Title: stored.Title, State: stored.State}, true, nil
+}
+
+func (s *Records) DeleteByID(_ context.Context, id {{.Context}}.RecordID) error {
+	err := os.Remove(s.path(id))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	return err
+}
+
+func (s *Records) All(ctx context.Context) iter.Seq2[{{.Context}}.Record, error] {
+	return func(yield func({{.Context}}.Record, error) bool) {
+		entries, err := os.ReadDir(s.dir)
+		if err != nil {
+			yield({{.Context}}.Record{}, err)
+			return
+		}
+		for _, e := range entries {
+			r, _, err := s.FindByID(ctx, {{.Context}}.RecordID(e.Name()))
+			if !yield(r, err) {
+				return
+			}
+		}
+	}
+}
+
+func (s *Records) path(id {{.Context}}.RecordID) string { return filepath.Join(s.dir, string(id)) }

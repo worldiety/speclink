@@ -44,6 +44,8 @@ func run(args []string) error {
 		return errors.New("no command given")
 	}
 	switch args[0] {
+	case "init":
+		return initialise(args[1:])
 	case "verify":
 		return verify(args[1:])
 	case "requirements":
@@ -71,6 +73,7 @@ func usage() {
 	fmt.Fprint(os.Stderr, `speclink - annotation compiler
 
 usage:
+  speclink init         [flags]
   speclink verify       [flags] [packages]
   speclink requirements [flags] [packages]
   speclink freeze       [flags] [packages]
@@ -80,6 +83,8 @@ usage:
   speclink generate     [flags] [packages]
 
 commands:
+  init          write a starting point for a new project, from a profile's
+                template; -describe lists what there is
   verify        check requirements, annotations and architecture rules
   requirements  check the requirement tree on its own, before any code binds to it
   freeze        record the shape of every persisted type that is no longer a draft

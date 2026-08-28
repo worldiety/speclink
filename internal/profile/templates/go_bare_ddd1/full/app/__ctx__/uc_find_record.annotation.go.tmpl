@@ -1,0 +1,11 @@
+package {{.Context}}
+
+import (
+	"{{.Module}}/requirements/fun/record"
+	"github.com/worldiety/speclink/spec"
+)
+
+var _ = spec.For[FindRecord](
+	spec.Satisfies(record.RRecordLookup),
+	spec.Help(`Look up a single record by its identifier.`),
+)

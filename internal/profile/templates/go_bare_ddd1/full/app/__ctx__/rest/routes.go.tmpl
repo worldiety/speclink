@@ -1,0 +1,29 @@
+// Package rest{{.Context}} exposes this context over HTTP.
+//
+// It takes the use cases it calls and nothing more. The standard library's
+// router is enough: a pattern carries the method and the path variables, which
+// is the whole of what a route needed a library for.
+package rest{{.Context}}
+
+import (
+	"net/http"
+
+	"{{.Module}}/app/{{.Context}}"
+	"{{.Module}}/foundation/auth"
+	"{{.Module}}/foundation/rest"
+)
+
+// Create exposes the creation use case.
+func Create(who rest.Authenticator, create {{.Context}}.CreateRecord) http.HandlerFunc {
+	return rest.Handle(who, func(subject auth.Subject, cmd {{.Context}}.CreateRecordCmd) ({{.Context}}.Record, error) {
+		return create(subject, cmd)
+	})
+}
+
+// Mount registers the routes of this context.
+//
+// It takes each use case separately rather than the bundle, so that a test for
+// one route builds one use case.
+func Mount(mux *http.ServeMux, who rest.Authenticator, create {{.Context}}.CreateRecord) {
+	mux.Handle("POST /records", Create(who, create))
+}

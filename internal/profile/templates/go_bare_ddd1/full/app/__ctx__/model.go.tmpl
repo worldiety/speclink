@@ -1,0 +1,35 @@
+// Package {{.Context}} is a bounded context: what the system does in this part of
+// the business, and nothing about how it is stored or shown.
+package {{.Context}}
+
+import "{{.Module}}/foundation/data"
+
+// RecordID identifies a record.
+type RecordID string
+
+// Record is the domain model of this context.
+//
+// Rename it to whatever this context is actually about. It is a placeholder for
+// the shape, not for the noun: an aggregate root with an identity, stored as
+// its current state.
+type Record struct {
+	ID    RecordID
+	Title string
+	State string
+}
+
+// Identity makes the record an aggregate root.
+func (r Record) Identity() RecordID { return r.ID }
+
+// RecordRepository stores records as their current state.
+//
+// The port is declared here because this is where it is used. Which
+// implementation is behind it is decided under cmd, so that a test can put a
+// different one there.
+type RecordRepository data.Repository[Record, RecordID]
+
+// CreateRecordCmd carries the input of a creation.
+type CreateRecordCmd struct {
+	ID    RecordID
+	Title string
+}

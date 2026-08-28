@@ -1,0 +1,11 @@
+package {{.Context}}
+
+import "{{.Module}}/foundation/permission"
+
+// Permissions are declared once per use case, at package level, so that the set
+// of them is fixed when the binary is linked and a listing can be generated
+// from the registry rather than maintained beside it.
+var (
+	PermCreateRecord = permission.Declare[CreateRecord]("{{.Context}}.record.create", "Create record", "Holders may create a record.")
+	PermFindRecord   = permission.Declare[FindRecord]("{{.Context}}.record.find", "Read record", "Holders may read a record.")
+)

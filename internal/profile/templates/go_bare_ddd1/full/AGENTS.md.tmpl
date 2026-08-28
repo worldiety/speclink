@@ -1,0 +1,94 @@
+# Working in this repository
+
+This project is checked by [speclink](https://github.com/worldiety/speclink),
+which links every requirement to the code that satisfies it and the test that
+verifies it. The rules below are not style preferences: speclink enforces them,
+and a change that breaks one fails the check with a message naming the fix.
+
+## The loop
+
+Run all of it before calling a change finished. Every step must end clean.
+
+    go mod tidy
+    go build ./...
+    go test -json ./... | go run github.com/worldiety/speclink@latest evidence
+    go run github.com/worldiety/speclink@latest verify
+
+`evidence` records which tests verified which requirements. `verify` reports
+everything else. **Every finding is an error** — there are no warnings, and
+nothing is advisory.
+
+On a fresh checkout, before any test has run, `verify` reports the requirements
+as unverified and the stored shapes as unrecorded. That is correct rather than
+broken: nothing has been tested and nothing has been approved yet. Running the
+loop above once clears both.
+
+When a stored shape changes on purpose, record the new one:
+
+    go run github.com/worldiety/speclink@latest freeze
+
+That writes `speclink.lock`, which is committed. Its diff is meant to be read:
+it is where a change to something already persisted becomes visible.
+
+## Where things go
+
+    foundation/           the little framework this project has
+    app/<context>/        one bounded context: model, ports, use cases
+    app/<context>/rest/   HTTP presentation
+    app/<context>/cli/    command line presentation
+    app/<context>/adapter/<tech>/   implementations of the context's ports
+    requirements/         requirements as Go values
+    requirements/_sources/  the documents requirements cite
+    cmd/<binary>/         the entry point, the only place naming an adapter
+
+A context must not import another context, a presentation, or an adapter. It
+declares ports; `cmd` decides what is behind them. This is what lets a test put
+an in-memory implementation behind a port, and speclink checks it.
+
+## Adding a use case
+
+Four files, in this order.
+
+1. **The requirement**, in `requirements/fun/<subject>/R-<ID>.spec.go`, citing a
+   section of a document under `requirements/_sources/`. A requirement with no
+   source is reported: it means somebody invented an obligation.
+
+2. **The use case**, in `app/<context>/uc_<name>.go`. A function type named for
+   what it does, with a `New<Type>` constructor taking the ports it needs. The
+   first thing it does is audit its permission.
+
+3. **The permission**, added to `app/<context>/perm.go` as a package level
+   `Perm<Name>`, and the use case added to the `UseCases` bundle.
+
+4. **The binding**, in `app/<context>/uc_<name>.annotation.go`, saying which
+   requirement the use case satisfies. Bindings are ordinary Go, so a rename
+   that forgets one does not compile.
+
+Then a test that calls `spec.Verified(t, ...)` naming the requirement it proved.
+
+## Requirements
+
+Requirements are Go values, not prose in a wiki. Each has a stable `ID`, a
+`Text` written with MUST or MAY, and `Sources` pointing at the document it came
+from — an anchor into a Markdown file under `requirements/_sources/`, or
+`Extern` for a standard or a law.
+
+Do not edit `requirements/_sources/`. Those documents belong to whoever owns the
+subject matter. If one changes, speclink reports which requirements depended on
+the changed section, and each has to be looked at again.
+
+Every section of a source document must be cited by some requirement, or marked
+with `<!-- speclink:informative -->` on the line after its heading. That marker
+says "this paragraph carries no obligation" and is a claim somebody makes, never
+a guess the tool makes.
+
+## When a rule is genuinely wrong
+
+Waive it at the construct it applies to, with a reason:
+
+    var _ = spec.For[Thing](
+        spec.Waive("K14-REQ-UNVERIFIED", "why this one cannot be tested"),
+    )
+
+The reason is read by people and appears in the generated specification. A
+waiver without a real reason is worse than the finding it silences.

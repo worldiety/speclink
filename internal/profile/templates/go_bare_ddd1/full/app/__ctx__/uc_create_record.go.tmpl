@@ -1,0 +1,20 @@
+package {{.Context}}
+
+import "{{.Module}}/foundation/auth"
+
+// CreateRecord creates a record in its initial state.
+type CreateRecord func(subject auth.Subject, cmd CreateRecordCmd) (Record, error)
+
+// NewCreateRecord builds the creation use case.
+func NewCreateRecord(records RecordRepository) CreateRecord {
+	return func(subject auth.Subject, cmd CreateRecordCmd) (Record, error) {
+		// The permission is audited before anything is read or written, so
+		// that a refusal leaves no trace of the work it refused.
+		if err := subject.Audit(PermCreateRecord); err != nil {
+			return Record{}, err
+		}
+
+		record := Record{ID: cmd.ID, Title: cmd.Title, State: "open"}
+		return record, records.Save(subject.Context(), record)
+	}
+}

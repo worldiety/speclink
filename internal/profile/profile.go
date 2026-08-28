@@ -91,6 +91,12 @@ type Profile struct {
 	// loading is where the readers differ most and neither signature
 	// generalises without lying about the other.
 	Open func(root string, layout config.Config, patterns []string, withTests bool, out *diag.Set) (lang.Model, error)
+
+	// templates are the starting points init can write. A profile with none
+	// says so rather than failing obscurely: being able to judge a project and
+	// being able to start one are separate capabilities, and the second is the
+	// one that has to be written by hand for every style.
+	templates []Template
 }
 
 var registry = map[string]*Profile{}

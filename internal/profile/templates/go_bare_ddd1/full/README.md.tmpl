@@ -1,0 +1,22 @@
+# {{.Binary}}
+
+A Go project laid out for the `go_bare_ddd1` profile: DDD in three layers over a
+hand written foundation, with no framework.
+
+    go mod tidy
+    go build ./...
+    go test ./...
+
+`AGENTS.md` has the working instructions, including the checks that must pass
+before a change is finished.
+
+## Layout
+
+| Path | What lives there |
+| --- | --- |
+| `foundation/` | The little of a framework this project has: subjects, permissions, repositories, HTTP and command line adapters. |
+| `app/{{.Context}}/` | A bounded context. Domain model, ports and use cases, and nothing about storage or presentation. |
+| `app/{{.Context}}/rest/`, `app/{{.Context}}/cli/` | Presentations. Each takes the use cases it calls. |
+| `app/{{.Context}}/adapter/` | Implementations of the context's ports, named after the technology behind them. |
+| `requirements/` | Requirements as Go values, and the source documents they cite. |
+| `cmd/{{.Binary}}/` | The entry point, and the only place that names an adapter. |

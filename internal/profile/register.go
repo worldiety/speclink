@@ -81,6 +81,30 @@ func init() {
 		Fields:       []string{"contextRoot", "cmdRoot", "infraRoots", "foundationRoot"},
 		Architecture: true,
 
+		templates: []Template{{
+			Name:    "full",
+			Purpose: "One bounded context reachable over HTTP and the command line",
+			Scope: "foundation with auth, permission, data, rest and flag; one bounded " +
+				"context with two use cases, a repository port and a file adapter; both " +
+				"presentations; three requirements over a source document; tests that " +
+				"verify them.",
+			Params: []Param{
+				{
+					Name:        "module",
+					Description: "the Go module path of the new project",
+					Example:     "example.com/erp",
+					Validate:    validModule,
+				},
+				{
+					Name:        "context",
+					Description: "the name of the first bounded context, used as a package name",
+					Example:     "sales",
+					Validate:    validPackage,
+				},
+			},
+			Dir: "templates/go_bare_ddd1/full",
+		}},
+
 		Open: func(root string, layout config.Config, patterns []string, withTests bool, out *diag.Set) (lang.Model, error) {
 			loader := golang.Load
 			if withTests {

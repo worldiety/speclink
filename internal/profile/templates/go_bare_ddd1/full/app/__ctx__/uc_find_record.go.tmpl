@@ -1,0 +1,18 @@
+package {{.Context}}
+
+import "{{.Module}}/foundation/auth"
+
+// FindRecord reads a single record.
+type FindRecord func(subject auth.Subject, id RecordID) (Record, error)
+
+// NewFindRecord builds the read use case.
+func NewFindRecord(records RecordRepository) FindRecord {
+	return func(subject auth.Subject, id RecordID) (Record, error) {
+		if err := subject.Audit(PermFindRecord); err != nil {
+			return Record{}, err
+		}
+
+		record, _, err := records.FindByID(subject.Context(), id)
+		return record, err
+	}
+}

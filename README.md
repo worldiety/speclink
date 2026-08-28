@@ -39,6 +39,7 @@ also enforces the architecture of a nago project.
 ## 2. Running the tool
 
 ```
+speclink init         [flags]
 speclink verify       [flags] [packages]
 speclink requirements [flags] [packages]
 speclink freeze       [flags] [packages]
@@ -54,6 +55,44 @@ speclink impact       [flags] <requirement|doc.md#anchor|path>...
   -out <file>         generate only: write here instead of standard output
   -profile <name>     overrides the profile from speclink.json
   -kind <kind>        inventory only: restrict to one kind, e.g. event
+  -template <name>    init only: which starting point of the profile to write
+  -dir <dir>          init only: where to write, default "."; must be empty
+  -module, -context   init only: the parameters of the template
+  -describe           init only: list profiles, templates and their parameters
+```
+
+### Starting a project
+
+`speclink init` writes a starting point. It asks nothing interactively: the
+caller is usually an agent, for which a prompt is the worst possible interface,
+so every missing answer is a refusal that names the alternatives.
+
+```
+speclink init                                   lists the profiles
+speclink init -profile go_bare_ddd1             lists that profile's templates
+speclink init -describe -format json            the same catalogue, machine readable
+
+speclink init -profile go_bare_ddd1 -template full \
+  -module example.com/erp -context sales
+```
+
+There is no default template even where a profile has only one, so that adding
+a second is never a breaking change. The binary name is derived from the module
+path rather than asked for, because a separate answer could contradict the
+import paths.
+
+The generated project carries an `AGENTS.md` with its own working instructions,
+and no `speclink.lock`. The lock records what happened — tests that ran, shapes
+somebody approved — and a templated one would assert both without grounds. So
+the first `verify` of a new project reports findings, and clearing them is the
+first run of the loop:
+
+```
+go mod tidy
+go build ./...
+go test -json ./... | speclink evidence
+speclink freeze
+speclink verify
 ```
 
 Typical invocation:

@@ -1,0 +1,98 @@
+package {{.Context}}
+
+import (
+	"context"
+	"iter"
+	"testing"
+
+	"{{.Module}}/foundation/auth"
+	"{{.Module}}/requirements/dec"
+	"{{.Module}}/requirements/fun/record"
+	"github.com/worldiety/speclink/spec"
+)
+
+// memRecords is the port, in memory.
+//
+// The whole point of declaring the port in the context is that a test can put
+// this behind it: no directory, no database, no fixture to reset.
+type memRecords struct{ saved map[RecordID]Record }
+
+func newMemRecords() *memRecords { return &memRecords{saved: map[RecordID]Record{}} }
+
+func (m *memRecords) Save(_ context.Context, r Record) error { m.saved[r.ID] = r; return nil }
+
+func (m *memRecords) FindByID(_ context.Context, id RecordID) (Record, bool, error) {
+	r, ok := m.saved[id]
+	return r, ok, nil
+}
+
+func (m *memRecords) DeleteByID(_ context.Context, id RecordID) error {
+	delete(m.saved, id)
+	return nil
+}
+
+func (m *memRecords) All(context.Context) iter.Seq2[Record, error] {
+	return func(yield func(Record, error) bool) {
+		for _, r := range m.saved {
+			if !yield(r, nil) {
+				return
+			}
+		}
+	}
+}
+
+func allowed() auth.Subject {
+	return auth.Static("tester", PermCreateRecord, PermFindRecord)
+}
+
+func TestRecordStartsOpen(t *testing.T) {
+	create := NewCreateRecord(newMemRecords())
+
+	got, err := create(allowed(), CreateRecordCmd{ID: "r1", Title: "First"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.State != "open" {
+		t.Fatalf("a new record is in state %q, not open", got.State)
+	}
+
+	spec.Verified(t, record.RRecordCreate)
+}
+
+// A subject without the permission must not get through, and the check has to
+// happen before anything is written.
+func TestCreateRefusesWithoutPermission(t *testing.T) {
+	records := newMemRecords()
+	create := NewCreateRecord(records)
+
+	if _, err := create(auth.Anonymous(), CreateRecordCmd{ID: "r1"}); err == nil {
+		t.Fatal("an anonymous subject created a record")
+	}
+	if len(records.saved) != 0 {
+		t.Error("a refused creation still wrote a record")
+	}
+
+	spec.Verified(t, record.RRecordCreate)
+}
+
+// A record is stored as its current state, so what goes in comes back out — and
+// what comes back is the state, not a history to fold.
+func TestRecordIsKeptAsCurrentState(t *testing.T) {
+	records := newMemRecords()
+	create := NewCreateRecord(records)
+	find := NewFindRecord(records)
+
+	if _, err := create(allowed(), CreateRecordCmd{ID: "r1", Title: "First"}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := find(allowed(), "r1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Title != "First" || got.State != "open" {
+		t.Fatalf("read back %+v", got)
+	}
+
+	spec.Verified(t, record.RRecordLookup, dec.RDecRecordState)
+}

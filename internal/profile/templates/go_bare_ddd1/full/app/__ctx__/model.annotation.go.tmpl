@@ -1,0 +1,28 @@
+package {{.Context}}
+
+import (
+	"{{.Module}}/requirements/dec"
+	"{{.Module}}/requirements/fun/record"
+	"github.com/worldiety/speclink/spec"
+)
+
+// Bindings live in a file of their own beside the code they bind.
+//
+// They are ordinary Go, so the compiler checks that the type and the field
+// still exist: a rename that forgets the binding does not compile, rather than
+// leaving a stale reference that only a human would notice.
+
+// The record is kept as state, and the repository is what that ruling looks
+// like in code.
+var _ = spec.For[Record](
+	spec.Satisfies(dec.RDecRecordState),
+)
+
+var _ = spec.For[RecordRepository](
+	spec.Satisfies(dec.RDecRecordState),
+	spec.Rationale("The port is declared where it is used; which store is behind it is decided under cmd, so a test can put a different one there."),
+)
+
+var _ = spec.ForField[Record]("ID", spec.Satisfies(record.RRecordLookup))
+var _ = spec.ForField[Record]("Title", spec.Satisfies(record.RRecordCreate))
+var _ = spec.ForField[Record]("State", spec.Satisfies(dec.RDecRecordState))

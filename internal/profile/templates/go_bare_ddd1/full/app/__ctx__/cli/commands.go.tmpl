@@ -1,0 +1,38 @@
+// Package cli{{.Context}} exposes this context on the command line.
+//
+// Each command takes the one use case it runs, for the same reason a route
+// does: a command that took the bundle could not be exercised without building
+// the whole context.
+package cli{{.Context}}
+
+import (
+	stdflag "flag"
+	"fmt"
+
+	"{{.Module}}/app/{{.Context}}"
+	"{{.Module}}/foundation/auth"
+	"{{.Module}}/foundation/flag"
+)
+
+// Create is the command that creates a record.
+func Create(create {{.Context}}.CreateRecord) flag.Command {
+	return flag.Command{
+		Name:  "create-record",
+		Short: "Create a record in the open state",
+		Run: func(subject auth.Subject, args []string) error {
+			fs := stdflag.NewFlagSet("create-record", stdflag.ContinueOnError)
+			id := fs.String("id", "", "the record identifier")
+			title := fs.String("title", "", "the record title")
+			if err := fs.Parse(args); err != nil {
+				return err
+			}
+
+			created, err := create(subject, {{.Context}}.CreateRecordCmd{ID: {{.Context}}.RecordID(*id), Title: *title})
+			if err != nil {
+				return err
+			}
+			fmt.Println(created.ID, created.State)
+			return nil
+		},
+	}
+}

@@ -1,0 +1,19 @@
+package {{.Context}}
+
+// UseCases are the capabilities of this context.
+//
+// The bundle takes the weight out of the place a context is assembled: one
+// constructor rather than a dozen. It is deliberately not what a handler takes,
+// because a handler that depends on every use case cannot be tested with one.
+type UseCases struct {
+	CreateRecord CreateRecord
+	FindRecord   FindRecord
+}
+
+// NewUseCases wires the context over its ports.
+func NewUseCases(records RecordRepository) UseCases {
+	return UseCases{
+		CreateRecord: NewCreateRecord(records),
+		FindRecord:   NewFindRecord(records),
+	}
+}
