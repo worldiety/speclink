@@ -28,14 +28,20 @@ func TestRequirementsRunsOnAJavaProject(t *testing.T) {
 	}
 }
 
-// A frontend that infers no constructs does not measure forward coverage
-// weakly — it does not measure it. Staying silent would let "no answer" read as
-// "clean", which is the failure this tool spends most of its rules preventing.
+// A direction a frontend cannot measure does not come out weak — it does not
+// come out. Staying silent would let "no answer" read as "clean", which is the
+// failure this tool spends most of its rules preventing.
 func TestUnmeasuredDirectionsAreDisclosed(t *testing.T) {
 	out, _ := runSpeclink(t, "requirements", "../../testdata/java", "-lang", "jvm")
 
-	if !strings.Contains(out, "not measured: forward coverage") {
+	// The JVM frontend reads no persisted shapes, so schema evolution is a
+	// question it never puts.
+	if !strings.Contains(out, "not measured: schema evolution") {
 		t.Errorf("a direction this frontend cannot measure was not disclosed:\n%s", out)
+	}
+	// It does infer constructs, so it must not claim that gap.
+	if strings.Contains(out, "not measured: forward coverage") {
+		t.Errorf("a direction this frontend does measure was reported as a gap:\n%s", out)
 	}
 
 	// The Go frontend measures all of them, so it must say nothing.
@@ -97,5 +103,54 @@ func TestFrontendIsDetected(t *testing.T) {
 	}
 	if got := detectFrontend("../../testdata/example"); got != "go" {
 		t.Errorf("a Go module was read as %q", got)
+	}
+}
+
+// Forward coverage on a project that is not Go, which is the question the
+// vanilla Go exercise could not have answered.
+//
+// The doubt after the first frontend was that inference only worked because
+// nago's shapes happened to be legible: method sets, type aliases, a named func
+// type with a particular first parameter. Spring declares its architecture in
+// annotations, and annotations are exactly what a declaration level reader
+// sees. Inference is a property of a framework that says what it is, not of the
+// framework it was first written for.
+func TestVerifyMeasuresForwardCoverageOnSpring(t *testing.T) {
+	out, code := runSpeclink(t, "verify", "../../testdata/java", "-lang", "jvm")
+	if code != 0 {
+		t.Fatalf("the Java fixture did not verify:\n%s", out)
+	}
+	if !strings.Contains(out, "5 constructs (100% bound)") {
+		t.Errorf("forward coverage was not measured:\n%s", summary(out))
+	}
+	if !strings.Contains(out, "3 normative requirements (100% covered)") {
+		t.Errorf("backward coverage was not measured:\n%s", summary(out))
+	}
+}
+
+// A question that was never put must not be answered.
+//
+// Running the verification rules over an empty set reported every requirement
+// as unverified, which is a different claim from "nobody asked" and the more
+// damaging of the two: it fails a project for not doing something the tool
+// never looked for. The figures behave the same way — an unmeasured direction
+// is absent from the summary rather than shown as zero.
+func TestUnmeasuredDirectionsAreNotReportedAsFailing(t *testing.T) {
+	out, _ := runSpeclink(t, "verify", "../../testdata/java", "-lang", "jvm")
+
+	if strings.Contains(out, "no test demonstrates") {
+		t.Errorf("a frontend that finds no test claims reported requirements as unverified:\n%s", out)
+	}
+	if strings.Contains(out, "% verified") {
+		t.Errorf("a figure was given for a direction that was not measured:\n%s", summary(out))
+	}
+	if !strings.Contains(out, "not measured: verification") {
+		t.Errorf("the gap was not disclosed:\n%s", out)
+	}
+
+	// The Go frontend measures it, so the figure must be there.
+	out, _ = runVerify(t, "../../testdata/example")
+	if !strings.Contains(out, "% verified") {
+		t.Errorf("a measured direction lost its figure:\n%s", summary(out))
 	}
 }

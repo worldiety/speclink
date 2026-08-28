@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/worldiety/speclink/internal/baseline"
 	"github.com/worldiety/speclink/internal/check"
@@ -99,6 +100,7 @@ func verify(args []string) error {
 	format := fs.String("format", "text", "output format: text or json")
 	root := fs.String("root", ".", "repository root, used to resolve source documents")
 	cfgPath := fs.String("config", "", "layout configuration; defaults to "+config.FileName+" in the root")
+	frontend := fs.String("lang", "", "frontend to read the project with: go or jvm, detected by default")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -123,114 +125,75 @@ func verify(args []string) error {
 	// verify is the only command that asks for test variants, because only K14
 	// asks a question about tests. It roughly doubles the load, so nothing else
 	// pays for it.
-	loaded, err := load(absRoot, true, "check anything", fs.Args())
+	model, err := openModel(absRoot, layout, *frontend, fs.Args(), true, "check anything")
 	if err != nil {
 		return err
 	}
 
-	// Every rule that existed before test loading was introduced takes the
-	// packages proper. A test variant is the same source seen twice: letting it
-	// through would double every construct, every schema and every finding
-	// derived from them, and the generated <pkg>.test main package would make
-	// K8-MAIN-LOCATION fire in every package that has a test.
-	// The scope decides what is measured, never what is loaded. Filtering the
-	// loaded set instead was the first attempt and it was wrong: every rule
-	// that resolves across packages then answers differently depending on the
-	// scope. Scoping out pkg/permtext made K5-UC-PERMISSION-I18N report
-	// permissions that were perfectly fine, because the helper it follows one
-	// step into was no longer there to resolve — a rule silently changing its
-	// verdict on code nobody touched.
-	//
-	// So `all` stays whole for resolution and `pkgs` is what rules report on.
-	all := golang.NonTests(loaded)
-	pkgs := golang.InScope(all, layout, absRoot)
-	skipped := golang.OutOfScope(all, layout, absRoot)
-	testPkgs := golang.InScope(golang.Tests(loaded), layout, absRoot)
-
 	findings := &diag.Set{}
 
-	// V1: the node whitelist, plus orphaned annotation files.
-	for _, p := range pkgs {
-		p.CheckWhitelist(findings)
-		p.CheckOrphans(findings)
+	// V1 and the frontend's own rules: a syntax whitelist, an architecture, a
+	// ban on constructs it cannot analyse. They stay with the frontend because
+	// they are rules about a language and a framework, and another frontend
+	// replaces them wholesale rather than picking from them.
+	if c, ok := model.(lang.SyntaxChecker); ok {
+		c.CheckSyntax(findings)
+	}
+	if c, ok := model.(lang.ArchitectureChecker); ok {
+		c.CheckArchitecture(findings)
 	}
 
 	// V3: read the model. Declarations first, then assertions, so forward
 	// references are legal and the input order is irrelevant.
+	reqs := model.Requirements(findings)
+	bindings := model.Bindings(findings)
+	waived := ir.CollectWaivers(bindings)
+
+	var constructs []ir.Construct
+	if inf, ok := model.(lang.ConstructInferrer); ok {
+		constructs = inf.Constructs(findings)
+	}
+
 	var (
-		reqs       []*ir.Requirement
-		bindings   []ir.Binding
-		constructs []ir.Construct
-		schema     []ir.SchemaType
-		scope      = map[string]bool{}
+		schema []ir.SchemaType
+		scope  map[string]bool
 	)
-	for _, p := range pkgs {
-		reqs = append(reqs, p.ReadRequirements(findings)...)
+	if sr, ok := model.(lang.SchemaReader); ok {
+		schema = sr.Schemas(findings)
+		scope = sr.Scope()
+		check.SortSchema(schema)
 	}
-	// Persisted models are collected from everything loaded. A repository is
-	// usually built in the wiring package, far from the type it stores, and a
-	// scope that excludes the wiring would leave the stored shapes unrecognised
-	// rather than unmeasured.
-	models := map[string]bool{}
-	for _, p := range all {
-		for name := range p.PersistedModels() {
-			models[name] = true
-		}
-	}
-	for _, p := range pkgs {
-		bindings = append(bindings, p.ReadBindings(findings)...)
-		constructs = append(constructs, p.Infer()...)
-		scope[p.PkgPath()] = true
-	}
-	// The persisted set has to be complete before any shape is read: a
-	// repository is usually built in the wiring package, far from the type it
-	// stores.
-	for _, p := range pkgs {
-		schema = append(schema, p.ReadSchema(models)...)
-	}
-	check.SortSchema(schema)
 
 	// V4: reject annotations that state a fact already established elsewhere.
-	// The freeze status is the first thing the language can say twice, because
-	// it cascades: package, then type, then field.
-	status := check.Drafts(schema, bindings, dialect, findings)
+	status := check.Drafts(schema, bindings, model.Dialect(), findings)
 
 	// V5: resolve identity, layout, the derivation graph and the outer edge.
 	tree := reqtree.Build(absRoot, reqs, findings)
-	tree.CheckLayout(dialect, findings)
+	tree.CheckLayout(model.Dialect(), findings)
 	docs, sourceDocs := loadSources(absRoot, layout, findings)
 	tree.CheckSources(docs, findings)
 
-	// V6: the specification rules, in both directions of the coverage.
-	for _, p := range pkgs {
-		p.CheckGenericCRUD(findings)
-	}
-	str := check.CoverConstructs(constructs, bindings, dialect, findings)
-	// Which requirements the backward direction applies to. The tree is always
-	// read in full — an in-scope construct may bind anywhere — but a
-	// requirement declared outside the scope is not asked to be covered by the
-	// code that was deliberately not looked at.
+	// V6: the specification rules, in every direction the frontend can measure.
 	measured := measuredRequirements(tree, layout, absRoot)
-	cov := check.CoverRequirements(tree, bindings, measured, dialect, findings)
-
-	// V6: and whether anything demonstrates the requirement, which coverage
-	// never asked. Read from the tests, whose claims are the half that can be
-	// forgotten; whether the claim was ever executed is a separate question
-	// answered by a separate record.
-	var verifications []ir.Binding
-	for _, p := range testPkgs {
-		verifications = append(verifications, p.ReadVerifications(findings)...)
+	// Likewise: a frontend that infers nothing has no set of constructs to hold
+	// accountable, so "every construct names a requirement" is not a weaker
+	// claim but no claim at all.
+	var str check.Structure
+	if _, ok := model.(lang.ConstructInferrer); ok {
+		str = check.CoverConstructs(constructs, bindings, model.Dialect(), findings)
 	}
-	for _, p := range pkgs {
-		p.CheckVerifiedOutsideTests(findings)
-	}
-	ver := check.CoverVerification(tree, verifications, cov, measured, ir.CollectWaivers(bindings), dialect, findings)
+	cov := check.CoverRequirements(tree, bindings, measured, model.Dialect(), findings)
 
-	// V6: and the direction above the tree. Everything below it is already
-	// held by the Go compiler; this is the only step in the chain that has no
-	// formal semantics, and it decides whether the two figures above mean
-	// anything at all.
-	src := check.CoverSources(tree, docs, sourceDocs, ir.CollectWaivers(bindings), findings)
+	// Only asked when the frontend can answer. Running it over an empty set
+	// would report every requirement as unverified, which is a different claim
+	// from "nobody asked" and the more damaging of the two: it fails a project
+	// for not doing something the tool never looked for.
+	var ver check.Verification
+	if vr, ok := model.(lang.VerificationReader); ok {
+		ver = check.CoverVerification(tree, vr.Verifications(findings), cov, measured, waived, model.Dialect(), findings)
+	}
+
+	src := check.CoverSources(tree, docs, sourceDocs, waived, findings)
 	reqtree.ReportDocuments(docs, findings)
 
 	// V6: what has already been promised must still hold. A shape that outlives
@@ -240,40 +203,28 @@ func verify(args []string) error {
 	if err != nil {
 		return err
 	}
-	check.Evolution(schema, status, base, scope, bindings, dialect, findings)
-
-	// The same rule family for the two edges above the code: a requirement
-	// whose text was rewritten under its satisfiers, and a source segment
-	// rewritten under the requirements derived from it. Neither is visible to
-	// any other check, because in both cases every reference still resolves.
-	check.Drift(tree, docs, sourceDocs, cov, src, base, ir.CollectWaivers(bindings), findings)
-
-	// And whether the claims the tests make were ever borne out. Reading the
-	// source finds the test nobody wrote; only the record finds the test nobody
-	// ran.
-	shown := check.Demonstrated(tree, ver, cov, measured, base, ir.CollectWaivers(bindings), findings)
-	ver.Shown = shown
-
-	// A collision is not a broken promise but a corruption in progress, so it
-	// is checked for drafts too.
+	check.Evolution(schema, status, base, scope, bindings, model.Dialect(), findings)
 	check.Discriminators(schema, bindings, findings)
+	check.Drift(tree, docs, sourceDocs, cov, src, base, waived, findings)
+	if _, ok := model.(lang.VerificationReader); ok {
+		ver.Shown = check.Demonstrated(tree, ver, cov, measured, base, waived, findings)
+	}
 
-	// K1: why the data is shaped the way it is, which forward coverage does
-	// not ask because aggregates and repositories carry no requirement of
-	// their own.
-	domain := golang.DomainPackages(all, layout, absRoot)
-	check.JustifyPersistence(tree, constructs, bindings, domain, dialect, findings)
+	// K1: why the data is shaped the way it is, and forward coverage down to
+	// the field. Both need to know which packages hold the domain, because a
+	// field of a request object states what a caller sent rather than what the
+	// system believes.
+	if ds, ok := model.(lang.DomainScoper); ok {
+		domain := ds.DomainPackages()
+		check.JustifyPersistence(tree, constructs, bindings, domain, model.Dialect(), findings)
+		check.CoverFields(schema, constructs, bindings, domain, model.Dialect(), findings)
+	}
 
-	// K1: forward coverage down to the field. Types are reviewed when they are
-	// created; fields accrete afterwards, which is where the drift is.
-	check.CoverFields(schema, constructs, bindings, domain, dialect, findings)
-
-	// V6: the architecture rules. They read the project layout, which is the
-	// one thing speclink cannot infer and the only thing speclink.json states.
-	golang.CheckArchitecture(all, layout, absRoot, ir.CollectWaivers(bindings), findings)
-
-	if err := report(*format, findings, cov, str, src, ver, len(bindings), len(skipped)); err != nil {
+	if err := report(*format, findings, lang.Of(model), cov, str, src, ver, len(bindings), skippedPackages(model)); err != nil {
 		return err
+	}
+	if *format == "text" {
+		reportCapabilities(model)
 	}
 	if !findings.Empty() {
 		return errFindings
@@ -328,12 +279,12 @@ func requirements(args []string) error {
 	}
 
 	findings := &diag.Set{}
-	if c, ok := model.(lang.Checker); ok {
-		// A frontend's own rules — a syntax whitelist, an architecture — belong
-		// to it. A requirement file is written in the same closed subset as an
-		// annotation file, and the whitelist is what keeps it readable without
-		// evaluating it.
-		c.Check(findings)
+	if c, ok := model.(lang.SyntaxChecker); ok {
+		// Only the syntax. A requirement file is written in the same closed
+		// subset as an annotation file, and the whitelist is what keeps it
+		// readable without evaluating it — but an architecture is a statement
+		// about a whole project, and this command deliberately loaded a part.
+		c.CheckSyntax(findings)
 	}
 
 	reqs := model.Requirements(findings)
@@ -477,7 +428,7 @@ func loadLayout(absRoot, explicit string) (config.Config, error) {
 // question above both: whether every part of what was actually asked for
 // became a requirement at all. Without the third the other two measure a tree
 // against itself.
-func report(format string, findings *diag.Set, cov check.Coverage, str check.Structure, src check.SourceCoverage, ver check.Verification, bindings, skipped int) error {
+func report(format string, findings *diag.Set, can lang.Capabilities, cov check.Coverage, str check.Structure, src check.SourceCoverage, ver check.Verification, bindings, skipped int) error {
 	switch format {
 	case "json":
 		return findings.WriteJSON(os.Stdout)
@@ -485,12 +436,22 @@ func report(format string, findings *diag.Set, cov check.Coverage, str check.Str
 		if err := findings.WriteText(os.Stdout); err != nil {
 			return err
 		}
-		fmt.Fprintf(os.Stderr,
-			"\n%d source segments (%.0f%% accounted), %d constructs (%.0f%% bound), %d normative requirements (%.0f%% covered, %.0f%% verified, %.0f%% demonstrated), %d bindings, %s\n",
-			src.Total, src.Ratio()*100,
-			len(str.Constructs), str.Ratio()*100,
-			cov.Normative, cov.Ratio()*100, ver.Ratio()*100, ver.ShownRatio()*100,
-			bindings, plural(findings.Len(), "finding", "findings"))
+		// Only the directions that were measured. A figure for a question that
+		// was never put is worse than a missing one, and the capability lines
+		// below say which those were.
+		parts := []string{fmt.Sprintf("%d source segments (%.0f%% accounted)", src.Total, src.Ratio()*100)}
+		if can.Constructs {
+			parts = append(parts, fmt.Sprintf("%d constructs (%.0f%% bound)", len(str.Constructs), str.Ratio()*100))
+		}
+		requirements := fmt.Sprintf("%d normative requirements (%.0f%% covered", cov.Normative, cov.Ratio()*100)
+		if can.Verifications {
+			requirements += fmt.Sprintf(", %.0f%% verified, %.0f%% demonstrated", ver.Ratio()*100, ver.ShownRatio()*100)
+		}
+		parts = append(parts, requirements+")",
+			fmt.Sprintf("%d bindings", bindings),
+			plural(findings.Len(), "finding", "findings"))
+
+		fmt.Fprintf(os.Stderr, "\n%s\n", strings.Join(parts, ", "))
 		if skipped > 0 {
 			// A run that measures part of a project has to say so. Without it
 			// the figures above are true of what was looked at and silent

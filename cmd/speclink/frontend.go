@@ -92,3 +92,15 @@ func reportCapabilities(m lang.Model) {
 		fmt.Fprintln(os.Stderr, "not measured: "+missing)
 	}
 }
+
+// skippedPackages reports how much of a project the scope left out.
+//
+// Only a frontend with a notion of packages can answer, which is why it is
+// asked rather than assumed. A frontend that has none skips nothing, and
+// reporting a zero is the truthful answer rather than a placeholder.
+func skippedPackages(m lang.Model) int {
+	if g, ok := m.(*golang.Model); ok {
+		return len(golang.OutOfScope(g.All, g.Layout, g.Root))
+	}
+	return 0
+}

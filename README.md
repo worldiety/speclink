@@ -1282,15 +1282,31 @@ itself — some forty lines — and speclink recognises them by fully qualified
 name, the same way it recognises a framework without linking it. Nothing to
 publish, nothing to pin.
 
-**What it cannot do yet.** It infers no constructs, so there is no forward
-coverage, no schema evolution and no verification. A run says so:
+**It infers, too.** Spring declares its architecture in annotations, and
+annotations are exactly what a declaration level reader sees:
+
+| written | recognised | needs a requirement |
+|---|---|---|
+| method of a `@RestController` with a mapping | endpoint | yes |
+| public method of a `@Service` | service operation | yes |
+| `@Entity` | entity | no, but its fields do |
+| `@Repository`, or extending Spring Data | repository | no |
 
 ```
-not measured: forward coverage, because this frontend infers no constructs
+speclink verify -root . -lang jvm
+
+2 source segments (100% accounted), 5 constructs (100% bound),
+3 normative requirements (100% covered), 5 bindings, 0 findings
+not measured: schema evolution, because this frontend reads no persisted shapes
+not measured: verification, because this frontend finds no test claims
 ```
 
-That line is not decoration. A direction that was never measured must not read
-as one that came out clean.
+**What it cannot do yet** it says, rather than answering anyway. Those two lines
+are not decoration: a direction that was never measured must not read as one
+that came out clean, and the rules for it are not run at all — reporting every
+requirement as unverified would fail a project for not doing something the tool
+never looked for. The figures behave the same way, and are absent rather than
+zero.
 
 ---
 

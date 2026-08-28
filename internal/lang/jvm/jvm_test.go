@@ -99,20 +99,30 @@ func TestReadsSourcesIncludingExternal(t *testing.T) {
 	}
 }
 
+// An annotation attaches to whatever declaration it precedes, so a binding
+// targets a type or a method depending on where it was written — and both have
+// to arrive with the target the rules expect, or a method binding silently
+// marks its whole class as accounted for.
 func TestReadsBindings(t *testing.T) {
 	r, out := read(t)
 	bindings := r.ReadBindings(out)
 
-	if len(bindings) != 2 {
-		t.Fatalf("read %d bindings, want 2", len(bindings))
-	}
+	types, methods := 0, 0
 	for _, b := range bindings {
-		if b.Target.Kind != ir.TargetType {
+		switch b.Target.Kind {
+		case ir.TargetType:
+			types++
+		case ir.TargetFunc:
+			methods++
+		default:
 			t.Errorf("%s bound as %v", b.Target.Name, b.Target.Kind)
 		}
 		if len(b.Assertions) != 1 || len(b.Assertions[0].Requirements) != 1 {
 			t.Errorf("%s carries %+v", b.Target.Name, b.Assertions)
 		}
+	}
+	if types != 2 || methods != 3 {
+		t.Errorf("read %d type and %d method bindings, want 2 and 3", types, methods)
 	}
 }
 

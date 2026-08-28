@@ -6,6 +6,7 @@ import (
 
 	"github.com/worldiety/speclink/internal/check"
 	"github.com/worldiety/speclink/internal/diag"
+	"github.com/worldiety/speclink/internal/ir"
 	"github.com/worldiety/speclink/internal/reqtree"
 )
 
@@ -26,44 +27,54 @@ func TestTheNeutralCoreRunsOnJava(t *testing.T) {
 	tree := reqtree.Build(root, r.ReadRequirements(out), out)
 	tree.CheckLayout(Dialect{}, out)
 
-	cov := check.CoverRequirements(tree, r.ReadBindings(out), nil, Dialect{}, out)
+	bindings := r.ReadBindings(out)
+	cov := check.CoverRequirements(tree, bindings, nil, Dialect{}, out)
+	str := check.CoverConstructs(r.Infer(), bindings, Dialect{}, out)
 
-	if cov.Normative != 3 {
-		t.Fatalf("counted %d normative requirements, want 3", cov.Normative)
+	// Both directions, measured by rules that have never heard of Java, over a
+	// model that came out of bytecode.
+	if cov.Normative != 3 || cov.Ratio() != 1 {
+		t.Errorf("backward coverage is %d requirements at %.0f%%", cov.Normative, cov.Ratio()*100)
 	}
-	// Two of the three are implemented; the decision behind them is not, and
-	// that is the finding — reported by a rule that has never heard of Java.
-	if cov.Ratio() == 1 {
-		t.Fatal("everything reported as covered, so the backward direction measured nothing")
+	if str.Required == 0 || str.Ratio() != 1 {
+		t.Errorf("forward coverage is %d constructs at %.0f%%", str.Required, str.Ratio()*100)
 	}
-	if len(cov.Uncovered) != 1 || cov.Uncovered[0] != "R-DEC-NUMBERING" {
-		t.Errorf("uncovered set is %v", cov.Uncovered)
+	if out.Len() != 0 {
+		var buf bytes.Buffer
+		_ = out.WriteText(&buf)
+		t.Errorf("a clean fixture produced findings:\n%s", buf.String())
 	}
 }
 
-// The fix a rule proposes has to be a sentence in the language the reader is
-// writing. A Java project told to add `var _ = spec.For[…]` would be a tool
-// that had not noticed what it was looking at.
-func TestFindingsArePhrasedInJava(t *testing.T) {
-	root, classes := fixture(t)
-	r := NewReader(root, classes, nil, "")
-
+// The same rule on a requirement nothing implements. Built here rather than
+// left broken in the fixture, so that the fixture can be clean and the finding
+// can still be inspected.
+func TestBackwardCoverageReportsInJava(t *testing.T) {
 	out := &diag.Set{}
-	tree := reqtree.Build(root, r.ReadRequirements(out), out)
-	check.CoverRequirements(tree, r.ReadBindings(out), nil, Dialect{}, out)
+	tree := reqtree.Build(t.TempDir(), []*ir.Requirement{{
+		ID:      "R-QUOTE-DISCOUNT",
+		GoIdent: "com.example.requirements.fun.quote.RQuoteDiscount",
+		Kind:    ir.Functional,
+		Status:  ir.Normative,
+		Text:    "A discount MUST be recorded with the quote it applies to.",
+		Pos:     ir.Position{File: "src/com/example/requirements/fun/quote/RQuoteDiscount.java", Line: 12},
+	}}, out)
+
+	check.CoverRequirements(tree, nil, nil, Dialect{}, out)
 
 	var buf bytes.Buffer
 	if err := out.WriteText(&buf); err != nil {
 		t.Fatal(err)
 	}
-	text := buf.String()
-
-	if !bytes.Contains(buf.Bytes(), []byte("@Satisfies(")) {
-		t.Errorf("the fix is not written in Java:\n%s", text)
+	if !bytes.Contains(buf.Bytes(), []byte("satisfied by no construct")) {
+		t.Fatalf("the uncovered requirement was not reported:\n%s", buf.String())
+	}
+	if !bytes.Contains(buf.Bytes(), []byte("@Satisfies(RQuoteDiscount.class)")) {
+		t.Errorf("the fix is not written in Java:\n%s", buf.String())
 	}
 	for _, wrong := range []string{"spec.For", "var _ =", ".annotation.go"} {
 		if bytes.Contains(buf.Bytes(), []byte(wrong)) {
-			t.Errorf("a Go spelling reached a Java project's diagnostics: %q\n%s", wrong, text)
+			t.Errorf("a Go spelling reached a Java project's diagnostics: %q\n%s", wrong, buf.String())
 		}
 	}
 }

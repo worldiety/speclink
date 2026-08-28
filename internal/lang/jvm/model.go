@@ -8,20 +8,16 @@ import (
 
 // Model is the JVM frontend's view of a project.
 //
-// It implements only lang.Model and none of the capability interfaces, which is
-// the accurate description of what this frontend can do today: it reads a
-// requirement tree and the bindings into it, and infers nothing. A run over a
-// JVM project therefore measures the backward direction and says out loud that
-// it did not measure the forward one.
-//
-// Growing into ConstructInferrer is what Spring's annotations are for —
-// @RestController, @Entity, @Repository are architectural roles declared in
-// exactly the place a class file reader can see them — but claiming the
-// capability before it exists would make an unmeasured direction read as a
-// clean one.
+// It reads a requirement tree, the bindings into it, and the architectural
+// roles a Spring project declares. It reads no persisted shapes and finds no
+// verification claims, and says so rather than reporting zero of either: an
+// unmeasured direction must not read as a clean one.
 type Model struct{ r *Reader }
 
-var _ lang.Model = (*Model)(nil)
+var (
+	_ lang.Model             = (*Model)(nil)
+	_ lang.ConstructInferrer = (*Model)(nil)
+)
 
 // NewModel wraps a reader as a frontend model.
 func NewModel(r *Reader) *Model { return &Model{r: r} }

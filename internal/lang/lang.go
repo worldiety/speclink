@@ -77,14 +77,41 @@ type VerificationReader interface {
 	Verifications(out *diag.Set) []ir.Binding
 }
 
-// Checker is implemented by a frontend with rules of its own — a syntax
-// whitelist, an architecture, a ban on constructs it cannot analyse.
+// SyntaxChecker is implemented by a frontend that constrains how its carrier
+// form may be written — a closed subset, a file naming convention.
 //
-// They stay on this side of the boundary because they are rules about a
-// language and a framework, and another frontend would replace them wholesale
-// rather than pick from them.
-type Checker interface {
-	Check(out *diag.Set)
+// It is separate from ArchitectureChecker because the two have different
+// reaches, which only became visible when they were briefly the same method:
+// the tree command started reporting that a module had no entry point, having
+// been asked to look at the requirement tree alone. A requirement file is
+// written in the same subset as an annotation file, so its syntax is checked
+// wherever it is read; an architecture is a statement about a whole project and
+// can only be judged when the whole project was loaded.
+type SyntaxChecker interface {
+	CheckSyntax(out *diag.Set)
+}
+
+// ArchitectureChecker is implemented by a frontend that enforces invariants of
+// its framework.
+//
+// These stay on that side of the boundary because another frontend would
+// replace them wholesale rather than pick from them. They are also not
+// decoration: the recognisers work because the architecture holds, and the ban
+// on framework factories that produce specification facts at run time exists so
+// that a static analysis can see them at all.
+type ArchitectureChecker interface {
+	CheckArchitecture(out *diag.Set)
+}
+
+// DomainScoper is implemented by a frontend that can say which packages hold
+// the domain, as opposed to the plumbing around it.
+//
+// It is what confines the field level rules to where they mean something. A
+// field of a domain model states what the system believes; a field of a request
+// object states what a caller sent, and demanding a requirement for the second
+// would teach people to switch the rule off.
+type DomainScoper interface {
+	DomainPackages() map[string]bool
 }
 
 // Capabilities describes what a model turned out to be able to do.
@@ -96,7 +123,8 @@ type Capabilities struct {
 	Constructs    bool
 	Schemas       bool
 	Verifications bool
-	Checks        bool
+	Syntax        bool
+	Architecture  bool
 }
 
 // Of reports what a model can do.
@@ -104,12 +132,14 @@ func Of(m Model) Capabilities {
 	_, constructs := m.(ConstructInferrer)
 	_, schemas := m.(SchemaReader)
 	_, verifications := m.(VerificationReader)
-	_, checks := m.(Checker)
+	_, syntax := m.(SyntaxChecker)
+	_, architecture := m.(ArchitectureChecker)
 	return Capabilities{
 		Constructs:    constructs,
 		Schemas:       schemas,
 		Verifications: verifications,
-		Checks:        checks,
+		Syntax:        syntax,
+		Architecture:  architecture,
 	}
 }
 

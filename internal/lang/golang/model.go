@@ -28,11 +28,13 @@ type Model struct {
 }
 
 var (
-	_ lang.Model              = (*Model)(nil)
-	_ lang.ConstructInferrer  = (*Model)(nil)
-	_ lang.SchemaReader       = (*Model)(nil)
-	_ lang.VerificationReader = (*Model)(nil)
-	_ lang.Checker            = (*Model)(nil)
+	_ lang.Model               = (*Model)(nil)
+	_ lang.ConstructInferrer   = (*Model)(nil)
+	_ lang.SchemaReader        = (*Model)(nil)
+	_ lang.VerificationReader  = (*Model)(nil)
+	_ lang.SyntaxChecker       = (*Model)(nil)
+	_ lang.ArchitectureChecker = (*Model)(nil)
+	_ lang.DomainScoper        = (*Model)(nil)
 )
 
 func (m *Model) Name() string        { return "go" }
@@ -98,12 +100,35 @@ func (m *Model) Verifications(out *diag.Set) []ir.Binding {
 	return verifications
 }
 
-// Check runs the rules that belong to this language and its framework.
-func (m *Model) Check(out *diag.Set) {
+// CheckSyntax enforces the closed subset the carrier form is written in.
+//
+// It runs wherever the model is read, including where only the requirement tree
+// was loaded, because a requirement file is written in the same subset as an
+// annotation file and the whitelist is what keeps it readable without
+// evaluating it.
+func (m *Model) CheckSyntax(out *diag.Set) {
 	for _, p := range m.Measured {
 		p.CheckWhitelist(out)
 		p.CheckOrphans(out)
+	}
+}
+
+// CheckArchitecture enforces the invariants of the framework.
+//
+// It takes every loaded package, not the measured ones. A rule that follows a
+// helper one step has to see the helper even when the helper is out of scope,
+// or it changes its verdict on untouched code — which is how scoping out
+// pkg/permtext once made the permission i18n rule report permissions that were
+// perfectly fine.
+func (m *Model) CheckArchitecture(out *diag.Set) {
+	for _, p := range m.Measured {
 		p.CheckGenericCRUD(out)
 		p.CheckVerifiedOutsideTests(out)
 	}
+	CheckArchitecture(m.All, m.Layout, m.Root, ir.CollectWaivers(m.Bindings(&diag.Set{})), out)
+}
+
+// DomainPackages implements lang.DomainScoper.
+func (m *Model) DomainPackages() map[string]bool {
+	return DomainPackages(m.All, m.Layout, m.Root)
 }
