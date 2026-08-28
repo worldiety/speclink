@@ -58,6 +58,7 @@ func init() {
 				TestPackages: golang.InScope(golang.Tests(loaded), layout, root),
 				Layout:       layout,
 				Root:         root,
+				Style:        golang.DDD1,
 			}, nil
 		},
 	})

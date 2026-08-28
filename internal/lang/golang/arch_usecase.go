@@ -32,7 +32,7 @@ const (
 
 // CheckUseCases verifies the shape, the file layout, the authorisation and the
 // dependency injection of every use case in a bounded context.
-func CheckUseCases(pkgs []*Package, cfg config.Config, root string, waived ir.Waivers, out *diag.Set) {
+func CheckUseCases(pkgs []*Package, cfg config.Config, root string, style Style, waived ir.Waivers, out *diag.Set) {
 	// A shared helper is resolved across the module, so the index is built from
 	// every loaded package rather than from each one in turn.
 	funcs := indexFuncs(pkgs)
@@ -57,9 +57,9 @@ func CheckUseCases(pkgs []*Package, cfg config.Config, root string, waived ir.Wa
 			// is the package qualified name rather than the bare one.
 			qualified := p.PkgPath() + "." + uc.name
 			scoped := &diag.Set{}
-			p.checkUseCaseFile(uc, scoped)
+			p.checkUseCaseFile(uc, style, scoped)
 			p.checkUseCaseSignature(uc, scoped)
-			p.checkUseCaseConstructor(uc, perms, funcs, scoped)
+			p.checkUseCaseConstructor(uc, perms, funcs, style, scoped)
 			for _, f := range scoped.Findings() {
 				if f.Rule != "" && waived.Has(qualified, f.Rule) {
 					continue
@@ -74,8 +74,8 @@ func CheckUseCases(pkgs []*Package, cfg config.Config, root string, waived ir.Wa
 //
 // The convention is what makes a context navigable without an index: the file
 // list is the capability list. It also keeps diffs of unrelated use cases apart.
-func (p *Package) checkUseCaseFile(uc useCase, out *diag.Set) {
-	want := useCaseFileName(uc.name)
+func (p *Package) checkUseCaseFile(uc useCase, style Style, out *diag.Set) {
+	want := style.UseCaseFile(uc.name)
 	got := filepath.Base(uc.file)
 	if got == want {
 		return
@@ -109,8 +109,8 @@ func (p *Package) checkUseCaseSignature(uc useCase, out *diag.Set) {
 // checkUseCaseConstructor verifies that the constructor exists, lives beside
 // its type, performs an authorisation check and takes its dependencies as
 // parameters.
-func (p *Package) checkUseCaseConstructor(uc useCase, perms map[string][]permDecl, funcs funcIndex, out *diag.Set) {
-	name := "New" + uc.name
+func (p *Package) checkUseCaseConstructor(uc useCase, perms map[string][]permDecl, funcs funcIndex, style Style, out *diag.Set) {
+	name := style.Constructor(uc.name)
 	fn, decl, ok := p.lookupFuncDecl(name)
 	if !ok {
 		out.Add(diag.Finding{
@@ -119,13 +119,13 @@ func (p *Package) checkUseCaseConstructor(uc useCase, perms map[string][]permDec
 			Rule: RuleUCConstructor,
 			What: "use case " + uc.name + " has no constructor " + name + ".",
 			Why:  "The constructor is where the dependencies of a use case enter. Without it callers build the closure themselves and every call site wires it differently.",
-			How:  "Add `func " + name + "(…) " + uc.name + "` in " + useCaseFileName(uc.name) + ".",
+			How:  "Add `func " + name + "(…) " + uc.name + "` in " + style.UseCaseFile(uc.name) + ".",
 		})
 		return
 	}
 
 	declFile := filepath.Base(p.pkg.Fset.Position(decl.Pos()).Filename)
-	if want := useCaseFileName(uc.name); declFile != want {
+	if want := style.UseCaseFile(uc.name); declFile != want {
 		out.Add(diag.Finding{
 			Code: diag.Code(diag.PhaseSemantic, 53),
 			Pos:  p.pos(decl.Pos()),
@@ -158,7 +158,7 @@ func (p *Package) checkUseCaseConstructor(uc useCase, perms map[string][]permDec
 	named := p.namesOwnPermission(body, perms[uc.name])
 
 	p.checkAuthorisation(uc, decl, body, p.namesAnyPermission(body, perms), out)
-	p.checkPermissionBinding(uc, decl, body, perms, named, funcs, out)
+	p.checkPermissionBinding(uc, decl, body, perms, named, funcs, style, out)
 	p.checkDependencies(uc, decl, body, out)
 }
 
@@ -500,7 +500,7 @@ func (i funcIndex) lookup(p *Package, fun ast.Expr) (indexedFunc, bool) {
 // At least one, not exactly one: a single use case can legitimately guard
 // several operations, and the framework's own drive package binds two
 // permissions to one use case type.
-func (p *Package) checkPermissionBinding(uc useCase, decl *ast.FuncDecl, body *ast.BlockStmt, perms map[string][]permDecl, namesOwnPermission bool, funcs funcIndex, out *diag.Set) {
+func (p *Package) checkPermissionBinding(uc useCase, decl *ast.FuncDecl, body *ast.BlockStmt, perms map[string][]permDecl, namesOwnPermission bool, funcs funcIndex, style Style, out *diag.Set) {
 	declared := perms[uc.name]
 	if len(declared) == 0 {
 		out.Add(diag.Finding{
@@ -509,7 +509,7 @@ func (p *Package) checkPermissionBinding(uc useCase, decl *ast.FuncDecl, body *a
 			Rule: RuleUCPermission,
 			What: "use case " + uc.name + " has no permission of its own.",
 			Why:  "A permission per use case is what makes authorisation assignable and auditable. Sharing one across several use cases means they can never be granted apart.",
-			How:  "Add `Perm" + uc.name + " = permission.Declare[" + uc.name + "](\"…\", name, description)` and check it in " + "New" + uc.name + ".",
+			How:  "Add `" + style.PermissionVar(uc.name) + " = permission.Declare[" + uc.name + "](\"…\", name, description)` and check it in " + style.Constructor(uc.name) + ".",
 		})
 		return
 	}

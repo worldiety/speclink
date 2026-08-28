@@ -221,6 +221,17 @@ project can reasonably follow a different one. `ddd1` and a later `ddd2` are two
 styles rather than two versions of one, so they are numbered rather than
 versioned.
 
+A style carries two things. Its **rules** are what K4 to K8 check. Its
+**conventions** are how the answers are spelled — that a use case file is
+`uc_submit_quote.go` and its constructor `NewSubmitQuote` — and the rules ask
+rather than assume. "One file per use case, named after it" is architectural;
+`uc_` is not, and separating them is what lets two projects follow one
+architecture and disagree about the spelling.
+
+What a style deliberately cannot do is switch a rule off. That is `spec.Waive`
+with a reason, or the scope, and a third way would be severities under another
+name.
+
 **speclink will not guess it.** A missing profile stops the run with the list
 above. Language could be worked out from a `go.mod` and framework from an
 import, but style cannot be worked out from anything, and guessing it wrongly

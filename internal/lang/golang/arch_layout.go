@@ -232,8 +232,8 @@ func (p *Package) firstUseCaseSignature() (string, ir.Position, bool) {
 // holds: K4-NO-GENERIC-CRUD bans factories that produce specification facts at
 // run time precisely so that a static analysis can see them at all. Enforcing
 // the architecture is what makes inferring the model possible.
-func CheckArchitecture(pkgs []*Package, cfg config.Config, root string, waived ir.Waivers, out *diag.Set) {
-	CheckUseCases(pkgs, cfg, root, waived, out)
+func CheckArchitecture(pkgs []*Package, cfg config.Config, root string, style Style, waived ir.Waivers, out *diag.Set) {
+	CheckUseCases(pkgs, cfg, root, style, waived, out)
 	CheckBoundedContexts(pkgs, cfg, root, out)
 	CheckInfrastructure(pkgs, cfg, root, out)
 	CheckMainPackages(pkgs, cfg, root, out)

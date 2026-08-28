@@ -25,6 +25,10 @@ type Model struct {
 
 	Layout config.Config
 	Root   string
+	// Style is the convention half of the architecture: how a use case file is
+	// named, what its constructor is called. The rules are the profile's
+	// architecture, these are its spelling.
+	Style Style
 }
 
 var (
@@ -125,7 +129,7 @@ func (m *Model) CheckArchitecture(out *diag.Set) {
 		p.CheckGenericCRUD(out)
 		p.CheckVerifiedOutsideTests(out)
 	}
-	CheckArchitecture(m.All, m.Layout, m.Root, ir.CollectWaivers(m.Bindings(&diag.Set{})), out)
+	CheckArchitecture(m.All, m.Layout, m.Root, m.Style, ir.CollectWaivers(m.Bindings(&diag.Set{})), out)
 }
 
 // DomainPackages implements lang.DomainScoper.
