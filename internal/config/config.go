@@ -45,6 +45,12 @@ type Config struct {
 	// Nothing domain specific may live there.
 	InfraRoots []string `json:"infraRoots,omitempty"`
 
+	// FoundationRoot is where an architecture without a framework keeps the
+	// packages that stand in for one. The paths the recognisers match on are
+	// derived from the module and this, because there is nothing external to
+	// point at.
+	FoundationRoot string `json:"foundationRoot,omitempty"`
+
 	// SourceRoots are the directories holding the raw requirement documents.
 	//
 	// They have to be named rather than discovered, because forward coverage
@@ -182,6 +188,9 @@ func (c Config) Over(base Config) Config {
 	}
 	if c.SpecPackage != "" {
 		out.SpecPackage = c.SpecPackage
+	}
+	if c.FoundationRoot != "" {
+		out.FoundationRoot = c.FoundationRoot
 	}
 	return out
 }

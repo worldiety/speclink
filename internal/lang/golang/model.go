@@ -26,9 +26,17 @@ type Model struct {
 	Layout config.Config
 	Root   string
 	// Style is the convention half of the architecture: how a use case file is
-	// named, what its constructor is called. The rules are the profile's
-	// architecture, these are its spelling.
+	// named, what its constructor is called, which terms it admits.
 	Style Style
+	// Framework names the packages the recognisers match on. For nago they are
+	// fixed; for an architecture whose foundation is its own code they are
+	// derived from the module.
+	Framework Framework
+	// Layered says whether this architecture separates presentation and
+	// adapters into their own packages, which is what the layering rules
+	// check. nago has neither directory, so asking would be asking about
+	// something that cannot exist.
+	Layered bool
 }
 
 var (
@@ -62,6 +70,18 @@ func (m *Model) Bindings(out *diag.Set) []ir.Binding {
 
 func (m *Model) Constructs(out *diag.Set) []ir.Construct {
 	var constructs []ir.Construct
+
+	if m.Framework.Name == "bare" {
+		// The marks are collected across the whole project before anything is
+		// inferred: an annotation file names its neighbour, and the neighbour
+		// may sit in a package the recogniser reaches first.
+		marked := PersistenceMarks(m.Bindings(&diag.Set{}))
+		for _, p := range m.Measured {
+			constructs = append(constructs, p.InferBare(m.Framework, marked)...)
+		}
+		return constructs
+	}
+
 	for _, p := range m.Measured {
 		constructs = append(constructs, p.Infer()...)
 	}
@@ -126,10 +146,18 @@ func (m *Model) CheckSyntax(out *diag.Set) {
 // perfectly fine.
 func (m *Model) CheckArchitecture(out *diag.Set) {
 	for _, p := range m.Measured {
-		p.CheckGenericCRUD(out)
+		if m.Framework.Name == "nago" {
+			// The ban is on that framework's own factories. An architecture
+			// without them has nothing to forbid, and running the check would
+			// be asking a question with no possible answer.
+			p.CheckGenericCRUD(out)
+		}
 		p.CheckVerifiedOutsideTests(out)
 	}
 	CheckArchitecture(m.All, m.Layout, m.Root, m.Style, ir.CollectWaivers(m.Bindings(&diag.Set{})), out)
+	if m.Layered {
+		CheckLayering(m.All, m.Layout, m.Root, out)
+	}
 }
 
 // DomainPackages implements lang.DomainScoper.

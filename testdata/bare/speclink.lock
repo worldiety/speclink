@@ -1,0 +1,40 @@
+{
+  "version": 3,
+  "types": {},
+  "verifications": {
+    "R-BILL-DRAFT": [
+      {
+        "test": "TestDraftNamesTheQuoteItBills",
+        "text": "d9a5aa69ab3dd905f6766edd14d18143f2c530f8b213890152a9f89d9dff3584"
+      }
+    ],
+    "R-DEC-NUMBERING": [
+      {
+        "test": "TestSubmitDrawsAGaplessNumber",
+        "text": "18e2795fc37bcfbdf245f80f1604e2338bac1975720b60cba2869d1bb6cc1f16"
+      }
+    ],
+    "R-DEC-QUOTE-STATE": [
+      {
+        "test": "TestQuoteIsKeptAsCurrentState",
+        "text": "c06f3f4637c572d2d4dbdad38345097cdeab36eec149e86fe59edf432ab92704"
+      }
+    ],
+    "R-QUOTE-LOOKUP": [
+      {
+        "test": "TestQuoteIsKeptAsCurrentState",
+        "text": "88af7444ab75d6cdbb6170a2ef62e7a308fe511c0898527a5c054f348e189592"
+      }
+    ],
+    "R-QUOTE-SUBMIT": [
+      {
+        "test": "TestSubmitDrawsAGaplessNumber",
+        "text": "9a0ed169ba1ec026691cde138b3dcdba97eb74e262345d84ea81bce22c34b88d"
+      },
+      {
+        "test": "TestSubmitRefusesWithoutPermission",
+        "text": "9a0ed169ba1ec026691cde138b3dcdba97eb74e262345d84ea81bce22c34b88d"
+      }
+    ]
+  }
+}

@@ -206,6 +206,7 @@ Every project names one, in `speclink.json`:
 | profile | |
 |---|---|
 | `go_nago_ddd1` | Go on nago, DDD in three layers with a functional core |
+| `go_bare_ddd1` | Go with no framework, over a hand written foundation |
 | `java_springboot_ddd1` | Java on Spring Boot, same architecture; no rules yet |
 
 The name has three parts because there are three decisions, and they are a
@@ -232,6 +233,42 @@ What a style deliberately cannot do is switch a rule off. That is `spec.Waive`
 with a reason, or the scope, and a third way would be severities under another
 name.
 
+### Two styles over one language
+
+`go_nago_ddd1` and `go_bare_ddd1` share a language and a reader and agree about
+little else.
+
+```
+app/<bc>/              domain: use case types, models, ports, the UseCases bundle
+app/<bc>/rest/         package rest<ctx> — this context's routes
+app/<bc>/cli/          package cli<ctx> — this context's commands
+app/<bc>/adapter/fs/   package fs — an implementation of a port
+foundation/            auth, permission, data, rest, flag
+cmd/<bin>/             the entry point, and the only place that names an adapter
+```
+
+A use case has the same shape as under nago — `func(subject auth.Subject, cmd In)
+(Out, error)` — because a subject as a parameter forces the caller to decide who
+is calling, where a context can be passed without deciding anything.
+
+Four roles rather than eight. Command, event and projection are the vocabulary
+of event sourcing and name nothing here; query is absent because nothing tells
+it from a use case once every one of them returns `(Out, error)`.
+
+Three rules the other style has no use for:
+
+| | |
+|---|---|
+| `K6-ADAPTER-WIRED-IN-CMD` | only `cmd/` may import `app/<bc>/adapter/**` |
+| `K6-PRESENTATION-NO-BUNDLE` | a handler takes the use cases it calls, not the bundle |
+| `K6-CTX-NO-PRESENTATION-IMPORT` | a context does not import another's presentation |
+| `K6-CTX-PRESENTATION-PKG` | the package is named `rest<ctx>`, `cli<ctx>` |
+
+And one term. `spec.Persistence()` marks an interface as a port or a struct as a
+stored shape, because a hand written interface says neither. Under
+`go_nago_ddd1` the same term is a finding: `data.Repository` already says it, and
+saying it twice is the one thing this language forbids.
+
 **speclink will not guess it.** A missing profile stops the run with the list
 above. Language could be worked out from a `go.mod` and framework from an
 import, but style cannot be worked out from anything, and guessing it wrongly
@@ -257,6 +294,7 @@ Every profile understands `sourceRoots`, `scope` and `exclude`. Beyond those:
 | profile | also understands |
 |---|---|
 | `go_nago_ddd1` | `contextRoot`, `cmdRoot`, `infraRoots` |
+| `go_bare_ddd1` | the same, plus `foundationRoot` |
 | `java_springboot_ddd1` | `classRoots`, `sourceCode`, `reportRoots`, `specPackage` |
 
 Anything else is **refused, not ignored**. `classRoots` under a Go profile is
@@ -1252,6 +1290,10 @@ not measured: architecture, because profile java_springboot_ddd1 prescribes no r
 | `K6-CTX-UI-PKG` *(style)* | `V6-040` | the `ui` directory does not declare `ui<ctx>` |
 | `K6-CTX-NO-UI-IMPORT` *(style)* | `V6-041` | a domain package imports the user interface |
 | `K6-CTX-USECASES` *(style)* | `V6-042`, `V6-043`, `V6-044` | missing `UseCases`, missing `NewUseCases`, or a use case not in the bundle |
+| `K6-CTX-NO-PRESENTATION-IMPORT` *(style)* | `V6-045` | a context imports another context's presentation |
+| `K6-ADAPTER-WIRED-IN-CMD` *(style)* | `V6-046` | something outside `cmd/` imports an adapter |
+| `K6-PRESENTATION-NO-BUNDLE` *(style)* | `V6-047` | a handler takes the whole `UseCases` bundle |
+| `K6-CTX-PRESENTATION-PKG` *(style)* | `V6-048` | a presentation package is not named `rest<ctx>` or `cli<ctx>` |
 | `K7-INFRA-DOMAIN-FREE` *(style)* | `V6-032`, `V6-033` | infrastructure imports a context or declares a use case |
 | `K8-MAIN-LOCATION` *(style)* | `V6-030` | a `main` package outside `cmd/` |
 | `K8-MAIN-EXISTS` *(style)* | `V6-031` | the module has no entry point |

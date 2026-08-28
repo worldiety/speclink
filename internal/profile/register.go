@@ -59,6 +59,57 @@ func init() {
 				Layout:       layout,
 				Root:         root,
 				Style:        golang.DDD1,
+				Framework:    golang.Nago,
+			}, nil
+		},
+	})
+
+	Register(&Profile{
+		Name:      "go_bare_ddd1",
+		Language:  Go,
+		Framework: "bare",
+		Style:     "ddd1",
+		Summary:   "Go with no framework, DDD in three layers over a hand written foundation",
+
+		Layout: config.Config{
+			ContextRoot:    "app",
+			CmdRoot:        "cmd",
+			InfraRoots:     []string{"pkg", "foundation"},
+			FoundationRoot: "foundation",
+			SourceRoots:    []string{"requirements/_sources"},
+		},
+		Fields:       []string{"contextRoot", "cmdRoot", "infraRoots", "foundationRoot"},
+		Architecture: true,
+
+		Open: func(root string, layout config.Config, patterns []string, withTests bool, out *diag.Set) (lang.Model, error) {
+			loader := golang.Load
+			if withTests {
+				loader = golang.LoadWithTests
+			}
+			loaded, err := loader(root, patterns...)
+			if err != nil {
+				return nil, err
+			}
+			if errs := golang.TypeErrors(loaded); len(errs) > 0 {
+				return nil, buildBroken(errs)
+			}
+			all := golang.NonTests(loaded)
+
+			// The foundation lives in the project's own module, so the paths
+			// the recognisers match on are not knowable until it is read.
+			module, err := golang.ModulePath(all)
+			if err != nil {
+				return nil, err
+			}
+			return &golang.Model{
+				All:          all,
+				Measured:     golang.InScope(all, layout, root),
+				TestPackages: golang.InScope(golang.Tests(loaded), layout, root),
+				Layout:       layout,
+				Root:         root,
+				Style:        golang.Bare,
+				Framework:    golang.BareFoundation(module, layout.FoundationRoot),
+				Layered:      true,
 			}, nil
 		},
 	})

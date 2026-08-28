@@ -1,0 +1,63 @@
+// Package flag helps a main package assemble the commands of its contexts.
+//
+// It is deliberately not a command line library. The architecture prescribes
+// the standard library for routing, and taking a dependency here would make the
+// smaller of the two protocols the heavier one. What is left is the part that
+// is genuinely shared: choosing a command by name and saying what there is.
+package flag
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"slices"
+
+	"example.com/bare/foundation/auth"
+)
+
+// Command is one thing a binary can do.
+type Command struct {
+	Name  string
+	Short string
+	// Run receives the arguments after the command name. Parsing them is the
+	// command's own business, with a flag.FlagSet of its own.
+	Run func(subject auth.Subject, args []string) error
+}
+
+// ErrUsage is returned when no command matched, so that a caller can exit with
+// a code of its own rather than having this package decide.
+var ErrUsage = errors.New("no such command")
+
+// Run selects a command by name and runs it.
+func Run(w io.Writer, subject auth.Subject, args []string, commands ...Command) error {
+	if len(args) == 0 {
+		Usage(w, commands)
+		return ErrUsage
+	}
+	for _, c := range commands {
+		if c.Name == args[0] {
+			return c.Run(subject, args[1:])
+		}
+	}
+	fmt.Fprintf(w, "unknown command %q\n\n", args[0])
+	Usage(w, commands)
+	return ErrUsage
+}
+
+// Usage lists what there is.
+func Usage(w io.Writer, commands []Command) {
+	sorted := slices.Clone(commands)
+	slices.SortFunc(sorted, func(a, b Command) int {
+		switch {
+		case a.Name < b.Name:
+			return -1
+		case a.Name > b.Name:
+			return 1
+		}
+		return 0
+	})
+	fmt.Fprintln(w, "commands:")
+	for _, c := range sorted {
+		fmt.Fprintf(w, "  %-24s %s\n", c.Name, c.Short)
+	}
+}

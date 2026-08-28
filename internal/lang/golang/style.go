@@ -91,6 +91,20 @@ var DDD1 = Style{
 	},
 }
 
+// Bare is the convention of the go_bare_ddd1 profile.
+//
+// The same spellings as DDD1, because they are good ones and the two
+// architectures differ in what they contain rather than in what they call it.
+// What it adds is the Persistence term, which exists precisely because this
+// architecture cannot state storage any other way.
+var Bare = Style{
+	Name:          "ddd1",
+	UseCaseFile:   DDD1.UseCaseFile,
+	Constructor:   DDD1.Constructor,
+	PermissionVar: DDD1.PermissionVar,
+	Terms:         map[ir.AssertionKind]bool{ir.AssertPersistence: true},
+}
+
 // snakeCase converts a Go identifier into the file name convention for use
 // cases: FindByID becomes find_by_id, SubmitQuote becomes submit_quote.
 //

@@ -175,12 +175,32 @@ func (p *Package) repositoryInstance(ts *ast.TypeSpec, named *types.Named) (stri
 // repositoryName resolves the generic type being instantiated and reports
 // whether it is one of the repository interfaces of the framework.
 func (p *Package) repositoryName(x ast.Expr) (string, bool) {
+	return p.repositoryNameIn(x, nagoData)
+}
+
+// repositoryInstanceIn reads a named type over a framework's Repository.
+//
+// The shape is read from the syntax rather than from the type, because Go
+// erases where a defined type came from: the underlying type of
+// `type X data.Repository[E, ID]` is an interface, and nothing in it recalls
+// data.Repository.
+func (p *Package) repositoryInstanceIn(ts *ast.TypeSpec, pkgPath string) (string, bool) {
+	switch t := ts.Type.(type) {
+	case *ast.IndexListExpr:
+		return p.repositoryNameIn(t.X, pkgPath)
+	case *ast.IndexExpr:
+		return p.repositoryNameIn(t.X, pkgPath)
+	}
+	return "", false
+}
+
+func (p *Package) repositoryNameIn(x ast.Expr, pkgPath string) (string, bool) {
 	sel, ok := x.(*ast.SelectorExpr)
 	if !ok {
 		return "", false
 	}
 	obj := p.pkg.TypesInfo.Uses[sel.Sel]
-	if obj == nil || obj.Pkg() == nil || obj.Pkg().Path() != nagoData {
+	if obj == nil || obj.Pkg() == nil || obj.Pkg().Path() != pkgPath {
 		return "", false
 	}
 	switch obj.Name() {
@@ -313,6 +333,15 @@ func isErrorType(t types.Type) bool {
 // type. That makes the binding permission <-> use case recoverable statically,
 // with the ID and the human readable name as constant literals.
 func (p *Package) inferPermissions() []ir.Construct {
+	return p.inferPermissionsIn(nagoPermission, ConstructPermission)
+}
+
+// inferPermissionsIn is the same recogniser over a framework's own package.
+//
+// Every Declare variant counts, not just the plain one: the CRUD helpers such
+// as DeclareCreate declare exactly one permission too, they merely derive its
+// translated texts from an entity name.
+func (p *Package) inferPermissionsIn(pkgPath string, kind ir.ConstructKind) []ir.Construct {
 	var out []ir.Construct
 	for _, f := range p.pkg.Syntax {
 		if p.isGeneratedByUs(f) {
@@ -323,10 +352,7 @@ func (p *Package) inferPermissions() []ir.Construct {
 			if !ok {
 				return true
 			}
-			// Every Declare variant counts, not just the plain one: the CRUD
-			// helpers such as DeclareCreate declare exactly one permission too,
-			// they merely derive its translated texts from an entity name.
-			fnName := p.specFuncNameIn(call.Fun, nagoPermission)
+			fnName := p.specFuncNameIn(call.Fun, pkgPath)
 			if !strings.HasPrefix(fnName, "Declare") {
 				return true
 			}
@@ -336,7 +362,7 @@ func (p *Package) inferPermissions() []ir.Construct {
 				guarded = typeName(t)
 			}
 			out = append(out, ir.Construct{
-				Kind:     ConstructPermission,
+				Kind:     kind,
 				Name:     id,
 				Package:  p.PkgPath(),
 				Evidence: "is declared by permission." + fnName + ", bound to " + guarded,
