@@ -38,6 +38,7 @@ func init() {
 		},
 		Fields:       []string{"contextRoot", "cmdRoot", "infraRoots"},
 		Architecture: true,
+		Schemas:      true,
 
 		Open: func(root string, layout config.Config, patterns []string, withTests bool, out *diag.Set) (lang.Model, error) {
 			loader := golang.Load

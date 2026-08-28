@@ -1303,7 +1303,7 @@ construct you can put it on.
 
 Every rule ID is stable and may be used in `spec.Waive`.
 
-Not every rule runs everywhere. The **K1, K3, K9 to K14** families and the
+Not every rule runs everywhere. The **K1, K3, K10 to K14** families and the
 requirement tree checks are universal: they are about requirements, sources,
 coverage and evidence, and know nothing about a language. **K4 to K8** belong to
 a profile's style, and a run that does not have them says so:
@@ -1311,6 +1311,25 @@ a profile's style, and a run that does not have them says so:
 ```
 not measured: architecture, because profile java_springboot_ddd1 prescribes no rules yet
 ```
+
+The **K9** family is neither. Its rules are language independent, but they have
+nothing to run over until the framework's recognisers can point at a persisted
+type — and recognising one is not something a language does. Under
+`go_nago_ddd1` the repository constructors say which type is stored. Under
+`go_bare_ddd1` nothing does yet, so the set is empty and the rules pass without
+having looked:
+
+```
+not measured: schema evolution, because profile go_bare_ddd1 has no persistence recogniser
+```
+
+That line matters more than it looks. Without it such a run reports `0 findings`
+and a summary reading 100% in every column, which is a clean bill of health for
+stored data that no rule guarded. A direction that was not measured must never
+be reported as one that came out clean, and here the distinction cannot come
+from the frontend: both Go profiles share one reader, and it does read schemas.
+What has no notion of persistence is the framework, which is a property of the
+profile.
 
 | Rule | Codes | Meaning |
 |---|---|---|

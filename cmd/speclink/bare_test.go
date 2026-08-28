@@ -25,6 +25,45 @@ func TestBareProjectVerifies(t *testing.T) {
 	}
 }
 
+// A profile that cannot recognise a persisted type must say so, and this was a
+// real bug rather than a hypothetical one.
+//
+// Adding a required field to a stored type is the change K9-FIELD-ADDED-REQUIRED
+// exists to catch, because records written before it lack the field. Under nago
+// it is caught. Under this profile the recogniser matches nago's repository
+// constructors and nothing else, so the persisted set is empty, every K9 rule
+// iterates over nothing, and the run came out "0 findings" with 100% in every
+// column — the exact shape of a clean bill of health for something nobody
+// looked at.
+//
+// The capability lines could not catch it either: they ask the frontend type,
+// and both Go profiles share *golang.Model, which does read schemas. What has
+// no persistence notion is the framework, which is a property of the profile.
+func TestBareSaysItDoesNotGuardStoredShapes(t *testing.T) {
+	out, code := runVerify(t, "../../testdata/bare")
+	if code != 0 {
+		t.Fatalf("the bare fixture did not verify:\n%s", out)
+	}
+	if !strings.Contains(out, "not measured: schema evolution, because profile go_bare_ddd1 has no persistence recogniser") {
+		t.Errorf("a rule family that never ran reads as one that came out clean:\n%s", out)
+	}
+}
+
+// The frontend level line and the profile level line say different things, and
+// a profile must not be told off twice for one gap. The JVM frontend reads no
+// schemas at all, so its own line is the accurate one.
+func TestUnmeasuredSchemasAreReportedOnce(t *testing.T) {
+	out, _ := runVerify(t, "../../testdata/java")
+
+	count := strings.Count(out, "not measured: schema evolution")
+	if count != 1 {
+		t.Errorf("schema evolution is reported %d times, expected once:\n%s", count, out)
+	}
+	if !strings.Contains(out, "this frontend reads no persisted shapes") {
+		t.Errorf("the reason given is the profile's rather than the frontend's:\n%s", out)
+	}
+}
+
 // Four roles rather than nago's eight, and the four that are missing are
 // missing because the architecture has nothing for those words to name.
 func TestBareRecognisesFewerRoles(t *testing.T) {

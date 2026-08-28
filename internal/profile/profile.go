@@ -87,6 +87,19 @@ type Profile struct {
 	// run must not read as one that came out clean.
 	Architecture bool
 
+	// Schemas reports whether the framework's recognisers can identify a
+	// persisted type at all.
+	//
+	// It is separate from the frontend's SchemaReader capability, and the
+	// difference is the whole reason it exists. Capabilities are a property of
+	// the frontend type: both Go profiles share *golang.Model, so both claim to
+	// read persisted shapes. Recognising one is a property of the framework —
+	// nago is read from its repository constructors, and a project with no
+	// framework offers nothing to match on. Under such a profile the K9 family
+	// iterates over an empty set and every run reports it clean, which is the
+	// one thing this tool must never do.
+	Schemas bool
+
 	// Open builds the model. It takes the frontend's own arguments because
 	// loading is where the readers differ most and neither signature
 	// generalises without lying about the other.

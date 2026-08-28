@@ -70,6 +70,14 @@ func reportCapabilities(m lang.Model, p *profile.Profile) {
 	for _, missing := range lang.Of(m).Missing() {
 		fmt.Fprintln(os.Stderr, "not measured: "+missing)
 	}
+	// The frontend can read persisted shapes and this framework gives it
+	// nothing to recognise them by. Missing() cannot see this: it asks the
+	// frontend type, and both Go profiles share one. Without this line a
+	// project whose stored data no rule guards reports 0 findings and a
+	// summary that is 100% in every column.
+	if _, reads := m.(lang.SchemaReader); reads && !p.Schemas {
+		fmt.Fprintln(os.Stderr, "not measured: schema evolution, because profile "+p.Name+" has no persistence recogniser")
+	}
 	if !p.Architecture {
 		// The profile's name claims an architecture and the rules for it do not
 		// exist yet. Passing quietly would make an unwritten rule family read
