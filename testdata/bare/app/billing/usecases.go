@@ -6,4 +6,6 @@ type UseCases struct {
 }
 
 // NewUseCases wires the context.
-func NewUseCases() UseCases { return UseCases{DraftInvoice: NewDraftInvoice()} }
+func NewUseCases(invoices InvoiceRepository) UseCases {
+	return UseCases{DraftInvoice: NewDraftInvoice(invoices)}
+}

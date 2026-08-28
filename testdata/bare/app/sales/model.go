@@ -12,6 +12,7 @@ type Quote struct {
 	ID     QuoteID
 	Number string
 	Status string
+	Note   string
 }
 
 // Identity makes the quote an aggregate root.

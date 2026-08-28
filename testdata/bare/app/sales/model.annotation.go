@@ -28,3 +28,4 @@ var _ = spec.For[NumberRegistry](
 var _ = spec.ForField[Quote]("ID", spec.Satisfies(dec.RDecQuoteState))
 var _ = spec.ForField[Quote]("Number", spec.Satisfies(quote.RQuoteSubmit))
 var _ = spec.ForField[Quote]("Status", spec.Satisfies(dec.RDecQuoteState))
+var _ = spec.ForField[Quote]("Note", spec.Satisfies(quote.RQuoteLookup))

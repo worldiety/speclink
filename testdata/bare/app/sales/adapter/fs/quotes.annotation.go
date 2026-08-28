@@ -25,3 +25,7 @@ var _ = spec.For[QuoteStore](
 var _ = spec.ForField[QuoteStore]("ID", spec.Satisfies(dec.RDecQuoteState))
 var _ = spec.ForField[QuoteStore]("Number", spec.Satisfies(quote.RQuoteSubmit))
 var _ = spec.ForField[QuoteStore]("Status", spec.Satisfies(dec.RDecQuoteState))
+
+// Note arrived after the shape was promised. Optional is the statement that
+// records written earlier do not carry it, and it cannot be withdrawn later.
+var _ = spec.ForField[QuoteStore]("Note", spec.Optional(), spec.Satisfies(quote.RQuoteLookup))

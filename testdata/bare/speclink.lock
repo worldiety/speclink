@@ -18,6 +18,12 @@
           "name": "Status",
           "wire": "status",
           "shape": "string"
+        },
+        {
+          "name": "Note",
+          "wire": "note",
+          "shape": "string",
+          "optional": true
         }
       ]
     }
@@ -26,6 +32,11 @@
     "R-BILL-DRAFT": {
       "text": "d9a5aa69ab3dd905f6766edd14d18143f2c530f8b213890152a9f89d9dff3584",
       "title": "Draft an invoice from a quote",
+      "from": "requirements/_sources/sales/quoteflow.md#14-rechnung"
+    },
+    "R-DEC-INVOICE-STATE": {
+      "text": "9d38a4442c2ec1389cda57e9a3c6a3338ba73618d23a622b755cf0156db0d8eb",
+      "title": "Invoices are kept as current state",
       "from": "requirements/_sources/sales/quoteflow.md#14-rechnung"
     },
     "R-DEC-NUMBERING": {
@@ -46,6 +57,10 @@
       "text": "9a0ed169ba1ec026691cde138b3dcdba97eb74e262345d84ea81bce22c34b88d",
       "title": "Quote number on submission",
       "from": "requirements/_sources/sales/quoteflow.md#8-abgabe"
+    },
+    "R-QUOTE-SUBMIT-MANUAL": {
+      "text": "9dd9e9ae8aa60c8616499231dfd43d8f0a89294fe11acb8095206b8e96d6eb91",
+      "title": "Quote number entered on submission"
     }
   },
   "sources": {

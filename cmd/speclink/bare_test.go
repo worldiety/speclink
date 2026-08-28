@@ -17,7 +17,7 @@ func TestBareProjectVerifies(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("the bare fixture did not verify:\n%s", out)
 	}
-	if !strings.Contains(out, "9 constructs (100% bound)") {
+	if !strings.Contains(out, "11 constructs (100% bound)") {
 		t.Errorf("forward coverage was not measured:\n%s", summary(out))
 	}
 	if !strings.Contains(out, "100% covered, 100% verified, 100% demonstrated") {
@@ -39,16 +39,16 @@ func TestBareGuardsStoredShapes(t *testing.T) {
 	dir := copyFixture(t, "../../testdata/bare")
 	rewrite(t, dir, "app/sales/adapter/fs/quotes.go",
 		"\tStatus string `json:\"status\"`",
-		"\tStatus string `json:\"status\"`\n\tNote   string `json:\"note\"`")
+		"\tStatus string `json:\"status\"`\n\tCurrency string `json:\"currency\"`")
 	rewrite(t, dir, "app/sales/adapter/fs/quotes.annotation.go",
 		`var _ = spec.ForField[QuoteStore]("Status", spec.Satisfies(dec.RDecQuoteState))`,
-		"var _ = spec.ForField[QuoteStore](\"Status\", spec.Satisfies(dec.RDecQuoteState))\nvar _ = spec.ForField[QuoteStore](\"Note\", spec.Satisfies(dec.RDecQuoteState))")
+		"var _ = spec.ForField[QuoteStore](\"Status\", spec.Satisfies(dec.RDecQuoteState))\nvar _ = spec.ForField[QuoteStore](\"Currency\", spec.Satisfies(dec.RDecQuoteState))")
 
 	out, code := runVerify(t, dir)
 	if code == 0 {
 		t.Fatalf("a field was added to a promised shape without a word:\n%s", out)
 	}
-	if !strings.Contains(out, "field Note was added to QuoteStore without being declared optional") {
+	if !strings.Contains(out, "field Currency was added to QuoteStore without being declared optional") {
 		t.Errorf("expected K9-FIELD-ADDED-REQUIRED:\n%s", out)
 	}
 }
@@ -209,5 +209,66 @@ func TestTwoGoStylesCoexist(t *testing.T) {
 		if out, code := runVerify(t, tc.dir); code != 0 {
 			t.Errorf("%s did not verify:\n%s", tc.dir, out)
 		}
+	}
+}
+
+// The fixture carries the awkward cases, because a rule that only ever runs
+// against the happy path is a rule nobody has tested.
+//
+// Each of these is a statement the tool cannot infer and must therefore be able
+// to read: that a shape is not promised yet, that a field arrived after the
+// promise, that a rule is knowingly suspended, and that a requirement was
+// replaced rather than deleted.
+func TestBareCarriesTheAwkwardCases(t *testing.T) {
+	out, code := runVerify(t, "../../testdata/bare")
+	if code != 0 {
+		t.Fatalf("the fixture did not verify:\n%s", out)
+	}
+
+	for _, tc := range []struct{ file, want string }{
+		// Draft suspends the promise, so the baseline guard stands down for a
+		// shape still being worked out rather than demanding a record of it.
+		{"app/billing/uc_draft_invoice.annotation.go", "spec.Draft()"},
+		// A waiver carries its reason into the generated specification, which
+		// is what stops it being an invisible gap.
+		{"app/billing/uc_draft_invoice.annotation.go", `spec.Waive("K14-REQ-UNVERIFIED"`},
+		// Optional is the one property of a stored field that cannot be
+		// withdrawn later, so it has to survive a freeze.
+		{"app/sales/adapter/fs/quotes.annotation.go", "spec.Optional()"},
+		// StoredAs moves the promise off the domain model.
+		{"app/sales/adapter/fs/quotes.annotation.go", "spec.StoredAs[sales.Quote]()"},
+		// A superseded requirement is kept so the successor can point at it.
+		{"requirements/fun/quote/R-QUOTE-SUBMIT-MANUAL.spec.go", "spec.Superseded"},
+		{"requirements/fun/quote/R-QUOTE-SUBMIT.spec.go", "Supersedes:"},
+	} {
+		body, err := os.ReadFile(filepath.Join("..", "..", "testdata", "bare", tc.file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(body), tc.want) {
+			t.Errorf("%s no longer exercises %s", tc.file, tc.want)
+		}
+	}
+
+	// A superseded requirement is not counted among the normative ones, so the
+	// denominator must not move when one is added. Six rather than seven is
+	// the whole point of the status.
+	if !strings.Contains(out, "6 normative requirements") {
+		t.Errorf("a superseded requirement is being counted as normative:\n%s", summary(out))
+	}
+}
+
+// Optionality is recorded, not merely accepted.
+//
+// The finding fires against the baseline, so a field that was declared optional
+// but never written down would pass today and fail the moment somebody froze
+// the shape for an unrelated reason.
+func TestBareRecordsOptionality(t *testing.T) {
+	lock, err := os.ReadFile(filepath.Join("..", "..", "testdata", "bare", "speclink.lock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(lock), `"optional": true`) {
+		t.Errorf("the lock does not record the optional field:\n%s", lock)
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"example.com/bare/app/billing"
+	"example.com/bare/app/billing/adapter/mem"
 	restbilling "example.com/bare/app/billing/rest"
 	"example.com/bare/app/sales"
 	"example.com/bare/app/sales/adapter/fs"
@@ -37,7 +38,7 @@ func main() {
 func serve(uc sales.UseCases) {
 	mux := http.NewServeMux()
 	restsales.Mount(mux, anonymous, uc.SubmitQuote)
-	restbilling.Mount(mux, anonymous, billing.NewUseCases().DraftInvoice)
+	restbilling.Mount(mux, anonymous, billing.NewUseCases(mem.NewInvoices()).DraftInvoice)
 	log.Fatal(http.ListenAndServe(":8080", mux))
 }
 

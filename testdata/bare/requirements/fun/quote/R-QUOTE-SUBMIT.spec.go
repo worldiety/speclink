@@ -15,6 +15,7 @@ var RQuoteSubmit = spec.Requirement{
 	Title:       "Quote number on submission",
 	Text:        "On submitting a quote a sequential, duplicate free quote number MUST be drawn.",
 	DerivedFrom: []spec.Requirement{dec.RDecNumbering},
+	Supersedes:  []spec.Requirement{RQuoteSubmitManual},
 	Sources: []spec.Source{
 		{Doc: "requirements/_sources/sales/quoteflow.md", Anchor: "8-abgabe"},
 	},
