@@ -33,3 +33,8 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# The JVM fixture's compiled classes are deliberately NOT ignored. They are the
+# input the class file reader is tested against, so committing them keeps those
+# tests hermetic and free of a JDK dependency. Regenerate with
+# testdata/java/build.sh; the diff is where a toolchain change becomes visible.
