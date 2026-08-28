@@ -216,6 +216,13 @@ func verify(args []string) error {
 		check.CoverFields(schema, constructs, bindings, domain, model.Dialect(), findings)
 	}
 
+	// K15: which states an aggregate can be in. It rides on the same set of
+	// constructs as forward coverage and is therefore asked under the same
+	// condition — a frontend that infers nothing has no events to hold to it.
+	if _, ok := model.(lang.ConstructInferrer); ok {
+		check.Lifecycle(constructs, bindings, model.Dialect(), findings)
+	}
+
 	if err := report(*format, findings, lang.Of(model), cov, str, src, ver, len(bindings), skippedPackages(model)); err != nil {
 		return err
 	}

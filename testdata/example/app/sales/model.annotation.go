@@ -55,9 +55,15 @@ var _ = spec.ForField[QuoteSubmitted]("QuoteNumber",
 
 // The withdrawal is not promised yet: the shape may still change in any way,
 // and the event may be dropped again. Promotion is the deletion of this term.
+//
+// The state it leads to is declared all the same. Draft is a statement about
+// the shape on disk, not about the business: whatever fields this fact ends up
+// carrying, a withdrawn quote is withdrawn, and that is what a reader of the
+// lifecycle needs.
 var _ = spec.For[QuoteWithdrawn](
 	spec.Satisfies(quote.RQuoteApprove),
 	spec.Draft(),
+	spec.Transition[QuoteWithdrawn]("withdrawn"),
 )
 
 var _ = spec.ForField[QuoteWithdrawn]("QuoteID",

@@ -40,6 +40,8 @@ type Dialect interface {
 	// Waive spells the escape hatch for one rule.
 	Waive(rule string) string
 
+	// Transition spells the assertion naming the state an event leads to.
+	Transition(event, state string) string
 	// Term spells one of the declaration terms by name, so a rule can refer to
 	// spec.Draft or spec.Optional without knowing how a language writes a call.
 	Term(name string) string

@@ -26,6 +26,7 @@ type ConstructKind struct {
 	needsRequirement bool
 	domainModel      bool
 	storageDecision  bool
+	movesLifecycle   bool
 }
 
 // NewConstructKind declares a role a frontend can recognise.
@@ -73,6 +74,17 @@ func EmbodiesStorageDecision() ConstructKindOption {
 	return func(k *ConstructKind) { k.storageDecision = true }
 }
 
+// MovesLifecycle marks a role whose instances each move an aggregate into a
+// state, and must therefore say which one.
+//
+// It is the question behind a lifecycle: an event that does not name its
+// resulting state leaves the aggregate's states knowable only by reading every
+// fold. The set of states a thing can be in is the first question anybody asks
+// about it and the last one the code answers.
+func MovesLifecycle() ConstructKindOption {
+	return func(k *ConstructKind) { k.movesLifecycle = true }
+}
+
 // WithArticle renders the kind as a noun phrase for diagnostics.
 func (k ConstructKind) WithArticle() string {
 	if k.article == "" {
@@ -99,6 +111,9 @@ func (k ConstructKind) IsDomainModel() bool { return k.domainModel }
 // EmbodiesStorageDecision reports whether this construct must point at the
 // decision that put it there.
 func (k ConstructKind) EmbodiesStorageDecision() bool { return k.storageDecision }
+
+// MovesLifecycle reports whether this construct must name the state it leads to.
+func (k ConstructKind) MovesLifecycle() bool { return k.movesLifecycle }
 
 // Construct is an architectural fact recognised in the host language.
 type Construct struct {

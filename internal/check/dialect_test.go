@@ -39,4 +39,8 @@ func (plainDialect) Verify(ref string) string  { return "a verification of " + r
 func (plainDialect) Satisfy(ref string) string { return "a reference to " + ref }
 func (plainDialect) Waive(rule string) string  { return "a waiver of " + rule }
 func (plainDialect) Term(name string) string   { return "the " + name + " term" }
+
+func (plainDialect) Transition(event, state string) string {
+	return event + " leads to " + state
+}
 func (plainDialect) Status(name string) string { return name }

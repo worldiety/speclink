@@ -59,12 +59,29 @@ func Satisfies(reqs ...Requirement) Assertion {
 // Transition states which coarse lifecycle state the aggregate assumes after
 // event T. The state deliberately is not an event field; it follows from the
 // event type.
+//
+// Every event needs one. The set of states a thing can be in is the first
+// question anybody asks about it, and left undeclared the answer exists only
+// in the folds — where a sixth state added to something that had five passes
+// without anybody deciding it. K15-EVENT-NO-TRANSITION asks for it, and
+// K15-TRANSITION-UNKNOWN catches the reverse: this assertion accepts any type
+// at all, so a transition naming a renamed or deleted event keeps compiling.
+//
+// It carries no from state, so this is a labelling of events rather than a
+// machine. Whether that is enough will be decided against the process model
+// rather than guessed at now.
 func Transition[T any](to State) Assertion {
 	return Assertion{kind: kindTransition, eventType: reflect.TypeFor[T](), state: to}
 }
 
-// External marks an event as arriving from outside (anti-corruption layer or
-// federation) and exempts it from the journey reachability check.
+// External marks an event as arriving from outside — an anti-corruption layer
+// or a federated system — so nothing in this codebase produces it.
+//
+// It is recorded and not yet read by any rule. The rule it exists for is the
+// one that reports an event no process consumes, and that arrives with the
+// process model; until then this states an intent rather than suspending a
+// check. Said plainly because the previous wording named a reachability check
+// that has never existed.
 func External() Assertion {
 	return Assertion{kind: kindExternal}
 }

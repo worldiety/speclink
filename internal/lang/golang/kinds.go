@@ -31,7 +31,8 @@ var (
 
 	// Implements Evolve plus Discriminator, and is a domain fact that outlives
 	// the code that wrote it.
-	ConstructEvent = ir.NewConstructKind("event", "an event", ir.NeedsRequirement())
+	ConstructEvent = ir.NewConstructKind("event", "an event",
+		ir.NeedsRequirement(), ir.MovesLifecycle())
 
 	// An event folded read model, built by evs.NewProjection or
 	// evs.NewSingleton.

@@ -61,6 +61,10 @@ func (Dialect) Verify(ref string) string  { return "spec.Verified(t, " + ref + "
 func (Dialect) Satisfy(ref string) string { return "spec.Satisfies(" + ref + ")" }
 func (Dialect) Waive(rule string) string  { return `spec.Waive("` + rule + `", …)` }
 
+func (Dialect) Transition(event, state string) string {
+	return "spec.Transition[" + last(event) + `]("` + state + `")`
+}
+
 func (Dialect) Term(name string) string   { return "spec." + name + "()" }
 func (Dialect) Status(name string) string { return "spec." + name }
 

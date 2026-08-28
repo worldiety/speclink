@@ -529,8 +529,8 @@ Assertions are pure and are passed into a binding. They are never standalone.
 | Assertion | Meaning |
 |---|---|
 | `spec.Satisfies(reqs…)` | binds the construct to one or more requirements. **The central statement, and the only one that cannot be inferred.** |
-| `spec.Transition[T](state)` | after event `T` the aggregate assumes this lifecycle state |
-| `spec.External()` | this event arrives from outside; exempt from reachability |
+| `spec.Transition[T](state)` | after event `T` the aggregate assumes this lifecycle state; every event needs one, see `K15` |
+| `spec.External()` | this event arrives from outside, so nothing here produces it |
 | `spec.Help(text)` | end-user instruction for documentation and help. Use a raw string for several lines |
 | `spec.Term(g)` | anchors a glossary entry at the construct that defines it |
 | `spec.Rationale(text)` | justifies a decision at the construct implementing it |
@@ -1316,6 +1316,10 @@ a profile's style, and a run that does not have them says so:
 not measured: architecture, because profile java_springboot_ddd1 prescribes no rules yet
 ```
 
+The **K15** family runs wherever the frontend recognises events. An architecture
+with none — `go_bare_ddd1` is not event sourced — has no lifecycles to check and
+no figure that claims otherwise, so nothing is reported either way.
+
 The **K9** family is neither. Its rules are language independent, but they have
 nothing to run over until the framework's recognisers can point at a persisted
 type — and recognising one is not something a language does. Each framework
@@ -1401,6 +1405,8 @@ is refused rather than accepted.
 | `K11-SOURCE-UNANCHORED` | `V5-026` | a citation names a document but no part of it |
 | `K12-SOURCE-UNCOVERED` | `V6-100` | a section or region became no requirement |
 | `K13-SOURCE-DRIFT` | `V6-111` | a source segment was rewritten under the requirements derived from it |
+| `K15-EVENT-NO-TRANSITION` | `V6-060` | an event does not say which state it leaves the aggregate in |
+| `K15-TRANSITION-UNKNOWN` | `V6-061` | a transition names something that folds nothing |
 | `K14-REQ-UNVERIFIED` | `V6-120` | no test demonstrates a normative requirement |
 | `K14-VERIFICATION-STALE` | `V6-121` | a test claims a requirement but no run has shown it |
 

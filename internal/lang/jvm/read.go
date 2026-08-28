@@ -297,6 +297,16 @@ func (Dialect) Verify(ref string) string  { return "@Verifies(" + simple(ref) + 
 func (Dialect) Satisfy(ref string) string { return "@Satisfies(" + simple(ref) + ".class)" }
 func (Dialect) Waive(rule string) string  { return `@Waive(rule = "` + rule + `", reason = …)` }
 
+// Transition spells the annotation naming the state an event leads to.
+//
+// The JVM frontend recognises no events yet, so nothing produces this line
+// today. It is written out rather than left to panic because the interface is
+// the contract: a dialect that answers "not applicable" by crashing would turn
+// a rule that merely does not apply into a broken run.
+func (Dialect) Transition(event, state string) string {
+	return "@Transition(event = " + simple(event) + `.class, to = "` + state + `")`
+}
+
 func (Dialect) Term(name string) string { return "@" + name }
 
 // Status names an enum constant, which Java spells in screaming snake case.
