@@ -72,6 +72,12 @@ type ProcessReader interface {
 	Processes(out *diag.Set) []*ir.Process
 }
 
+// TopologyReader is implemented by a frontend that can say what surrounds the
+// code and where it reaches out.
+type TopologyReader interface {
+	Topology(out *diag.Set) ir.Topology
+}
+
 // SchemaReader is implemented by a frontend that can say which types are
 // persisted and what shape they have on the wire.
 type SchemaReader interface {

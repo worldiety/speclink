@@ -43,6 +43,7 @@ var (
 	_ lang.Model               = (*Model)(nil)
 	_ lang.ConstructInferrer   = (*Model)(nil)
 	_ lang.ProcessReader       = (*Model)(nil)
+	_ lang.TopologyReader      = (*Model)(nil)
 	_ lang.SchemaReader        = (*Model)(nil)
 	_ lang.VerificationReader  = (*Model)(nil)
 	_ lang.SyntaxChecker       = (*Model)(nil)

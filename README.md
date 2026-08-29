@@ -419,7 +419,7 @@ convention too.
 
 ---
 
-## 4. The three kinds of file you write
+## 4. The four kinds of file you write
 
 ### 4.1 Requirement files: `<ID>.spec.go`
 
@@ -629,6 +629,64 @@ every path is reachability in a Petri net and is not cheaply decidable. The
 degree rules make the common shapes right and the tracer finds loops with no
 exit; deadlock freedom is not established, and the rule set says so rather than
 implying otherwise.
+
+### 4.4 Topology files: `<name>.topology.go`
+
+The world outside the code, and every way across the boundary.
+
+This is the one part of the model that is declared rather than read, and the
+reason is not convenience. No Go module states that an end user exists, that the
+object store is somebody else's responsibility, or that the channel to it
+carries customer data under a short lived key. That is not missing from the
+code — it is knowledge the code cannot hold.
+
+```go
+var Vertrieb = spec.Actor{
+	ID:   "vertrieb",
+	Name: "Vertrieb",
+	Role: "Legt Angebote an, gibt sie ab und schlägt sie nach.",
+}
+
+var Dateiablage = spec.Foreign{
+	ID:   "dateiablage",
+	Name: "Dateiablage",
+	Role: "Verzeichnis im Dateisystem. Zugriffsschutz und Sicherung liegen beim Betrieb.",
+}
+
+var Angebotsablage = spec.Channel{
+	From:      "app/sales/adapter/fs",
+	To:        "dateiablage",
+	Label:     "Angebotsablage",
+	Protocol:  "Dateisystem",
+	Data:      "Abgelegte Angebote als aktueller Stand",
+	Auth:      "Rechte des Prozessbenutzers",
+	Crypto:    "entfällt, lokal",
+	Satisfies: []spec.Requirement{dec.RDecQuoteState},
+}
+```
+
+**An endpoint is a participant ID or a package**, written as its repository
+relative directory. A package rather than a type, because a channel is not a
+thing in the code — it is the boundary a directory sits on.
+
+**`Protocol`, `Data`, `Auth` and `Crypto` are required.** They are the answer to
+what crosses here, who may, and what protects it: the question every review of
+an interface starts with, and the one normally answered by reading both ends and
+hoping. State plainly that there is none — `"entfällt, lokal"` is an answer and
+an empty field is not.
+
+**What keeps this from being a picture** is that both ends are enumerated. An
+adapter is where the system touches something it does not control, and the
+architecture says which packages those are — read from the layout, not guessed
+from imports, because a framework import crosses no boundary. A channel naming a
+package that is not there is a mistake; an adapter no channel names is a way out
+that never appeared in any interface list. Neither is findable from one side
+alone.
+
+The one case the rule cannot see is an in-memory adapter, which is structurally
+an adapter and crosses nothing. That is a waiver rather than a weakened rule —
+it names the reason, counts toward the figure like every other waiver, and stops
+being true the moment somebody puts a database behind the port.
 
 ## 5. nago in one page
 
@@ -1402,6 +1460,9 @@ a profile's style, and a run that does not have them says so:
 not measured: architecture, because profile java_springboot_ddd1 prescribes no rules yet
 ```
 
+The **K17** family runs wherever a project declares a topology, on the same ramp
+and for the same reason.
+
 The **K16** family runs wherever a project declares a process. None declared
 means no figure about processes is printed at all, because a share of nothing is
 no claim.
@@ -1509,6 +1570,12 @@ is refused rather than accepted.
 | `K16-PROCESS-DUPLICATE` | `V6-081` | two processes claim one ID |
 | `K16-WORK-OUTSIDE-PROCESS` | `V6-082` | a use case belongs to no course of business |
 | `K16-EVENT-UNPLACED` | `V6-083` | no process raises or awaits an event |
+| `K17-CHANNEL-ENDPOINT-UNKNOWN` | `V6-090` | an end of a channel resolves to nothing |
+| `K17-CHANNEL-INCOMPLETE` | `V6-091` | a channel leaves out what crosses, who may, or what protects it |
+| `K17-CHANNEL-UNBOUND` | `V6-092` | a channel answers to no requirement |
+| `K17-PARTICIPANT-UNUSED` | `V6-093` | nothing reaches a declared actor or foreign system |
+| `K17-PARTICIPANT-DUPLICATE` | `V6-094` | two participants share an ID |
+| `K17-ADAPTER-NO-CHANNEL` | `V6-095` | the system reaches outside where no channel says so |
 | `K15-EVENT-NO-TRANSITION` | `V6-060` | an event does not say which state it leaves the aggregate in |
 | `K15-TRANSITION-UNKNOWN` | `V6-061` | a transition names something that folds nothing |
 | `K14-REQ-UNVERIFIED` | `V6-120` | no test demonstrates a normative requirement |

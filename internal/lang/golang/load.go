@@ -36,6 +36,8 @@ const (
 	// RequirementSuffix marks a requirement declaration file in the
 	// requirement tree: R-QUOTE-SUBMIT.spec.go.
 	RequirementSuffix = ".spec.go"
+	// TopologySuffix marks a declaration of the world outside: boundary.topology.go.
+	TopologySuffix = ".topology.go"
 	// ProcessSuffix marks a process declaration: quote-to-invoice.process.go.
 	//
 	// It is its own suffix rather than a requirement file because a process
@@ -83,6 +85,8 @@ type Package struct {
 	requirementFiles []*ast.File
 	// processFiles are the *.process.go files of this package.
 	processFiles []*ast.File
+	// topologyFiles are the *.topology.go files of this package.
+	topologyFiles []*ast.File
 	// sourceNames holds the base names of ordinary Go files, used to detect
 	// orphaned annotation files.
 	sourceNames map[string]bool
@@ -156,6 +160,8 @@ func load(dir string, tests bool, patterns ...string) ([]*Package, error) {
 				p.testFiles = append(p.testFiles, f)
 			case strings.HasSuffix(name, AnnotationSuffix):
 				p.annotationFiles = append(p.annotationFiles, f)
+			case strings.HasSuffix(name, TopologySuffix):
+				p.topologyFiles = append(p.topologyFiles, f)
 			case strings.HasSuffix(name, ProcessSuffix):
 				p.processFiles = append(p.processFiles, f)
 			case strings.HasSuffix(name, RequirementSuffix):

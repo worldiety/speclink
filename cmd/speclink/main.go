@@ -185,9 +185,19 @@ func verify(args []string) error {
 	if pr, ok := model.(lang.ProcessReader); ok {
 		processes = pr.Processes(findings)
 	}
+	// A channel answers to requirements for the same reason: a way across the
+	// boundary that nobody asked for is the finding, not the silence.
+	var topo ir.Topology
+	if tr, ok := model.(lang.TopologyReader); ok {
+		topo = tr.Topology(findings)
+	}
+
 	satisfiers := bindings
 	for _, p := range processes {
 		satisfiers = append(satisfiers, p.Binding())
+	}
+	for _, c := range topo.Channels {
+		satisfiers = append(satisfiers, c.Binding())
 	}
 
 	cov := check.CoverRequirements(tree, satisfiers, measured, model.Dialect(), findings)
@@ -230,6 +240,9 @@ func verify(args []string) error {
 
 	// K16: the course of business. It needs both halves — the declarations and
 	// the constructs they name — so it is asked only where both are available.
+	// K17: what surrounds the code, and where it reaches out.
+	tp := check.Topology(tree, topo, bindings, model.Dialect(), findings)
+
 	var proc check.ProcessReport
 	if _, inf := model.(lang.ConstructInferrer); inf {
 		proc = check.Processes(tree, processes, constructs, bindings, scope, model.Dialect(), findings)
@@ -242,7 +255,7 @@ func verify(args []string) error {
 		check.Lifecycle(constructs, bindings, model.Dialect(), findings)
 	}
 
-	if err := report(*format, findings, lang.Of(model), cov, str, src, ver, proc, len(bindings), skippedPackages(model)); err != nil {
+	if err := report(*format, findings, lang.Of(model), cov, str, src, ver, proc, tp, len(bindings), skippedPackages(model)); err != nil {
 		return err
 	}
 	if *format == "text" {
@@ -443,7 +456,7 @@ func loadLayout(absRoot, explicit string) (config.Config, error) {
 // question above both: whether every part of what was actually asked for
 // became a requirement at all. Without the third the other two measure a tree
 // against itself.
-func report(format string, findings *diag.Set, can lang.Capabilities, cov check.Coverage, str check.Structure, src check.SourceCoverage, ver check.Verification, proc check.ProcessReport, bindings, skipped int) error {
+func report(format string, findings *diag.Set, can lang.Capabilities, cov check.Coverage, str check.Structure, src check.SourceCoverage, ver check.Verification, proc check.ProcessReport, tp check.TopologyReport, bindings, skipped int) error {
 	switch format {
 	case "json":
 		return findings.WriteJSON(os.Stdout)
@@ -470,6 +483,10 @@ func report(format string, findings *diag.Set, can lang.Capabilities, cov check.
 		if proc.Declared > 0 {
 			parts = append(parts, fmt.Sprintf("%s (%d sound, %d of %d steps placed)",
 				plural(proc.Declared, "process", "processes"), proc.Sound, proc.Placed, proc.Work))
+		}
+		if tp.Declared {
+			parts = append(parts, fmt.Sprintf("%s (%d of %d boundaries described)",
+				plural(tp.Channels, "channel", "channels"), tp.Described, tp.Adapters))
 		}
 		parts = append(parts,
 			fmt.Sprintf("%d bindings", bindings),

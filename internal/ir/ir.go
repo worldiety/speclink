@@ -69,6 +69,8 @@ const (
 	// is answered by the course, not by whichever use case happens to be named
 	// in it, and without this it would read as covered by nothing.
 	TargetProcess
+	// TargetChannel is a way across a boundary rather than a place in the code.
+	TargetChannel
 )
 
 func (k TargetKind) String() string {
@@ -87,6 +89,8 @@ func (k TargetKind) String() string {
 		return "package"
 	case TargetProcess:
 		return "process"
+	case TargetChannel:
+		return "channel"
 	}
 	return "unknown"
 }
