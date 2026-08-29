@@ -40,6 +40,7 @@ also enforces the architecture of a nago project.
 
 ```
 speclink init         [flags]
+speclink diagrams     [flags] [packages]
 speclink verify       [flags] [packages]
 speclink requirements [flags] [packages]
 speclink freeze       [flags] [packages]
@@ -59,7 +60,39 @@ speclink impact       [flags] <requirement|doc.md#anchor|path>...
   -dir <dir>          init only: where to write, default "."; must be empty
   -module, -context   init only: the parameters of the template
   -describe           init only: list profiles, templates and their parameters
+  -out <dir>          diagrams only: where to write the .puml sources
 ```
+
+### Drawing the model
+
+`speclink diagrams` writes PlantUML sources and **runs nothing**. PlantUML is a
+prerequisite of the environment, not a dependency of this program: nothing here
+invokes it, links it or pins a version of it, so a checkout with no Java can
+still run every rule and every test. Turning the sources into pictures is one
+line of a Makefile, and it is the caller's line.
+
+```
+speclink diagrams -root . -out build/puml ./...
+plantuml -tsvg -o ../svg build/puml/*.puml
+```
+
+Three kinds of drawing come out. **`context.puml`** is the system boundary: one
+box for the whole module, the actors and foreign systems around it, and only the
+channels that cross. **`blocks.puml`** opens the box and shows the packages some
+channel names. **`process-<ID>.puml`** is one course of business.
+
+A process is drawn as a **state diagram** rather than an activity diagram, and
+the reason is structural. PlantUML's activity syntax is block structured; a
+process here is a graph, because real courses come back. Emitting activity
+syntax would mean recovering block structure from an arbitrary digraph — the
+problem the model was shaped to avoid, solved again in the renderer and this
+time with no rule to catch it going wrong. A state diagram is a graph: fork,
+join and choice carry their stereotypes, cycles come out as cycles, and each
+outcome gets its own terminal because approved and withdrawn are not one ending
+with two labels.
+
+Two runs over one model produce byte identical sources, which is what makes a
+diagram in a review diff readable at all.
 
 ### Starting a project
 

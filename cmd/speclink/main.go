@@ -60,6 +60,8 @@ func run(args []string) error {
 		return evidence(args[1:])
 	case "generate":
 		return generate(args[1:])
+	case "diagrams":
+		return diagrams(args[1:])
 	case "help", "-h", "--help":
 		usage()
 		return nil
@@ -81,6 +83,7 @@ usage:
   speclink impact       [flags] <requirement|doc.md#anchor|path>...
   speclink evidence     [flags] [packages]
   speclink generate     [flags] [packages]
+  speclink diagrams     [flags] [packages]
 
 commands:
   init          write a starting point for a new project, from a profile's
@@ -94,6 +97,8 @@ commands:
   evidence      record which tests demonstrated which requirements, reading
                 the output of "go test -json"
   generate      derive the specification document from the source
+  diagrams      write the PlantUML sources of the context, the building blocks
+                and every process; renders nothing itself
 
 run "speclink <command> -h" for the flags of a command.
 `)
