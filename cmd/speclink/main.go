@@ -178,7 +178,19 @@ func verify(args []string) error {
 	if _, ok := model.(lang.ConstructInferrer); ok {
 		str = check.CoverConstructs(constructs, bindings, model.Dialect(), findings)
 	}
-	cov := check.CoverRequirements(tree, bindings, measured, model.Dialect(), findings)
+	// A process satisfies requirements the way a construct does, so it has to
+	// be in hand before coverage is computed: a requirement about the course of
+	// business would otherwise read as covered by nothing.
+	var processes []*ir.Process
+	if pr, ok := model.(lang.ProcessReader); ok {
+		processes = pr.Processes(findings)
+	}
+	satisfiers := bindings
+	for _, p := range processes {
+		satisfiers = append(satisfiers, p.Binding())
+	}
+
+	cov := check.CoverRequirements(tree, satisfiers, measured, model.Dialect(), findings)
 
 	// Only asked when the frontend can answer. Running it over an empty set
 	// would report every requirement as unverified, which is a different claim
@@ -219,10 +231,8 @@ func verify(args []string) error {
 	// K16: the course of business. It needs both halves — the declarations and
 	// the constructs they name — so it is asked only where both are available.
 	var proc check.ProcessReport
-	if pr, ok := model.(lang.ProcessReader); ok {
-		if _, inf := model.(lang.ConstructInferrer); inf {
-			proc = check.Processes(tree, pr.Processes(findings), constructs, scope, model.Dialect(), findings)
-		}
+	if _, inf := model.(lang.ConstructInferrer); inf {
+		proc = check.Processes(tree, processes, constructs, bindings, scope, model.Dialect(), findings)
 	}
 
 	// K15: which states an aggregate can be in. It rides on the same set of
@@ -458,8 +468,8 @@ func report(format string, findings *diag.Set, can lang.Capabilities, cov check.
 		// project that never adopted them that its courses of business are
 		// accounted for.
 		if proc.Declared > 0 {
-			parts = append(parts, fmt.Sprintf("%s (%d sound)",
-				plural(proc.Declared, "process", "processes"), proc.Sound))
+			parts = append(parts, fmt.Sprintf("%s (%d sound, %d of %d steps placed)",
+				plural(proc.Declared, "process", "processes"), proc.Sound, proc.Placed, proc.Work))
 		}
 		parts = append(parts,
 			fmt.Sprintf("%d bindings", bindings),

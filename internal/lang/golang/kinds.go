@@ -13,7 +13,8 @@ import "github.com/worldiety/speclink/internal/ir"
 var (
 	// A named func type whose first parameter is an auth subject. It carries
 	// business meaning and must say which requirement it was written for.
-	ConstructUseCase = ir.NewConstructKind("use case", "a use case", ir.NeedsRequirement())
+	ConstructUseCase = ir.NewConstructKind("use case", "a use case",
+		ir.NeedsRequirement(), ir.PerformsWork())
 
 	// A use case that returns neither an error nor a commit sequence.
 	//
@@ -24,7 +25,8 @@ var (
 	// an omission rather than a decision, and it made a recogniser defect
 	// expensive: while evs.SeqID went unrecognised, every writing use case was
 	// classified as a query and silently left the denominator.
-	ConstructQuery = ir.NewConstructKind("query", "a query", ir.NeedsRequirement())
+	ConstructQuery = ir.NewConstructKind("query", "a query",
+		ir.NeedsRequirement(), ir.PerformsWork())
 
 	// Implements Decide, and is the write side of an aggregate.
 	ConstructCommand = ir.NewConstructKind("command", "a command", ir.NeedsRequirement())

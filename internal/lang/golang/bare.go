@@ -19,7 +19,8 @@ import (
 // code does not carry would be guessing.
 var (
 	// A named func type whose first parameter is a subject.
-	ConstructBareUseCase = ir.NewConstructKind("use case", "a use case", ir.NeedsRequirement())
+	ConstructBareUseCase = ir.NewConstructKind("use case", "a use case",
+		ir.NeedsRequirement(), ir.PerformsWork())
 
 	// A consistency boundary with an identity, or a type marked as storage.
 	ConstructBareAggregate = ir.NewConstructKind("aggregate", "an aggregate",

@@ -530,7 +530,7 @@ Assertions are pure and are passed into a binding. They are never standalone.
 |---|---|
 | `spec.Satisfies(reqs…)` | binds the construct to one or more requirements. **The central statement, and the only one that cannot be inferred.** |
 | `spec.Transition[T](state)` | after event `T` the aggregate assumes this lifecycle state; every event needs one, see `K15` |
-| `spec.External()` | this event arrives from outside, so nothing here produces it |
+| `spec.External()` | this event arrives from outside, so no process here raises it |
 | `spec.Help(text)` | end-user instruction for documentation and help. Use a raw string for several lines |
 | `spec.Term(g)` | anchors a glossary entry at the construct that defines it |
 | `spec.Rationale(text)` | justifies a decision at the construct implementing it |
@@ -609,6 +609,20 @@ except the jump backwards, which is the one thing that occurs constantly. The
 price is that the compiler no longer checks the wiring — and that price is paid
 by `K16`, which refuses a dangling edge, a duplicated name, a node no start
 reaches and a node from which no end can be reached.
+
+**And the backward direction**, which is where a model earns more than a
+drawing. Once a project declares its first process, `K16-WORK-OUTSIDE-PROCESS`
+reports every use case no course of business names, and `K16-EVENT-UNPLACED`
+every event no course raises or awaits — the latter exempted by
+`spec.External()`, which says nothing here produces the fact. The summary
+carries the share:
+
+```
+1 process (1 sound, 5 of 5 steps placed)
+```
+
+Before the first process there is no such claim and no such figure. Reporting
+every use case then would be demanding adoption rather than reporting a gap.
 
 **What is not proved.** Whether every fork is matched by exactly one join on
 every path is reachability in a Petri net and is not cheaply decidable. The
@@ -1493,6 +1507,8 @@ is refused rather than accepted.
 | `K16-NODE-REF-UNKNOWN` | `V6-079` | a step names something that is not what it performs |
 | `K16-PROCESS-UNBOUND` | `V6-080` | a process names no requirement |
 | `K16-PROCESS-DUPLICATE` | `V6-081` | two processes claim one ID |
+| `K16-WORK-OUTSIDE-PROCESS` | `V6-082` | a use case belongs to no course of business |
+| `K16-EVENT-UNPLACED` | `V6-083` | no process raises or awaits an event |
 | `K15-EVENT-NO-TRANSITION` | `V6-060` | an event does not say which state it leaves the aggregate in |
 | `K15-TRANSITION-UNKNOWN` | `V6-061` | a transition names something that folds nothing |
 | `K14-REQ-UNVERIFIED` | `V6-120` | no test demonstrates a normative requirement |

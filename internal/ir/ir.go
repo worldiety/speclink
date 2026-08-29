@@ -62,6 +62,13 @@ const (
 	TargetConst
 	TargetField
 	TargetPackage
+	// TargetProcess is a course of business rather than a place in the code.
+	//
+	// It exists so that a process can satisfy a requirement through the same
+	// machinery a construct does. A requirement about the course of business
+	// is answered by the course, not by whichever use case happens to be named
+	// in it, and without this it would read as covered by nothing.
+	TargetProcess
 )
 
 func (k TargetKind) String() string {
@@ -78,6 +85,8 @@ func (k TargetKind) String() string {
 		return "field"
 	case TargetPackage:
 		return "package"
+	case TargetProcess:
+		return "process"
 	}
 	return "unknown"
 }

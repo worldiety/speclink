@@ -190,7 +190,85 @@ func TestProcessFigureAppearsOnlyWhereThereAreProcesses(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("the nago fixture did not verify:\n%s", out)
 	}
-	if !strings.Contains(out, "1 process (1 sound)") {
+	if !strings.Contains(out, "1 process (1 sound, 5 of 5 steps placed)") {
 		t.Errorf("the declared process is not counted:\n%s", summary(out))
+	}
+}
+
+// The backward direction, and the reason the model is worth more than a
+// drawing: a use case says what one action promises and never where that action
+// sits in the business.
+func TestWorkOutsideEveryProcessIsReported(t *testing.T) {
+	dir := copyFixture(t, "../../testdata/example")
+	rewrite(t, dir, "processes/quote.process.go", "\t\tspec.Do[sales.ListQuotes](\"liste\"),\n", "")
+	rewrite(t, dir, "processes/quote.process.go", "\t\t{From: \"aufteilen\", To: \"liste\"},\n", "")
+	rewrite(t, dir, "processes/quote.process.go", "\t\t{From: \"liste\", To: \"zusammen\"},\n", "")
+
+	out, code := runVerify(t, dir)
+	if code == 0 {
+		t.Fatalf("a use case belongs to no process and nothing was reported:\n%s", out)
+	}
+	if !strings.Contains(out, "ListQuotes belongs to no process") {
+		t.Errorf("expected K16-WORK-OUTSIDE-PROCESS:\n%s", out)
+	}
+	// The figure is the honest half of the same statement: four of five, not a
+	// bare percentage with the denominator left off.
+	if !strings.Contains(out, "4 of 5 steps placed") {
+		t.Errorf("the share of placed work did not move:\n%s", summary(out))
+	}
+}
+
+// A fact that outlives the code is recorded at some moment in the business.
+// An event no course mentions is a moment nobody wrote down.
+func TestEventNoProcessMentionsIsReported(t *testing.T) {
+	dir := copyFixture(t, "../../testdata/example")
+	rewrite(t, dir, "processes/quote.process.go", "\t\tspec.Emit[sales.QuoteWithdrawn](\"zurueckgezogen\"),\n", "")
+	rewrite(t, dir, "processes/quote.process.go",
+		"\t\t{From: \"zurueckziehen\", To: \"zurueckgezogen\"},\n\t\t{From: \"zurueckgezogen\", To: \"verworfen\"},\n",
+		"\t\t{From: \"zurueckziehen\", To: \"verworfen\"},\n")
+
+	out, code := runVerify(t, dir)
+	if code == 0 {
+		t.Fatalf("an event is in no process and nothing was reported:\n%s", out)
+	}
+	if !strings.Contains(out, "QuoteWithdrawn is raised or awaited by no process") {
+		t.Errorf("expected K16-EVENT-UNPLACED:\n%s", out)
+	}
+}
+
+// spec.External finally does something.
+//
+// It was recorded and read by nothing for as long as it existed, and its own
+// documentation named a check that never was. This is the rule it was written
+// for: nothing here produces the fact, so no process can be expected to.
+func TestExternalExemptsAnEventFromEveryProcess(t *testing.T) {
+	dir := copyFixture(t, "../../testdata/example")
+	rewrite(t, dir, "processes/quote.process.go", "\t\tspec.Emit[sales.QuoteWithdrawn](\"zurueckgezogen\"),\n", "")
+	rewrite(t, dir, "processes/quote.process.go",
+		"\t\t{From: \"zurueckziehen\", To: \"zurueckgezogen\"},\n\t\t{From: \"zurueckgezogen\", To: \"verworfen\"},\n",
+		"\t\t{From: \"zurueckziehen\", To: \"verworfen\"},\n")
+	rewrite(t, dir, "app/sales/model.annotation.go",
+		"\tspec.Transition[QuoteWithdrawn](\"withdrawn\"),\n",
+		"\tspec.Transition[QuoteWithdrawn](\"withdrawn\"),\n\tspec.External(),\n")
+
+	out, _ := runVerify(t, dir)
+	if strings.Contains(out, "QuoteWithdrawn is raised or awaited by no process") {
+		t.Errorf("an event declared as arriving from outside was still demanded:\n%s", out)
+	}
+}
+
+// A process satisfies requirements the way a construct does, through the same
+// machinery rather than a second path — because a second path is where two
+// answers to one question come from.
+func TestProcessCountsTowardsCoverage(t *testing.T) {
+	dir := copyFixture(t, "../../testdata/example")
+	// The approval requirement loses its construct binding and keeps only the
+	// process. It must still read as covered.
+	rewrite(t, dir, "app/sales/uc_approve_quote.annotation.go",
+		"spec.Satisfies(quote.RQuoteApprove)", "spec.Satisfies(quote.RQuoteSubmit)")
+
+	out, _ := runVerify(t, dir)
+	if strings.Contains(out, "R-QUOTE-APPROVE") && strings.Contains(out, "is satisfied by nothing") {
+		t.Errorf("a requirement covered only by a process read as uncovered:\n%s", out)
 	}
 }

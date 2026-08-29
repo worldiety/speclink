@@ -142,3 +142,25 @@ func (p *Process) In(id string) []ProcessEdge {
 	}
 	return in
 }
+
+// Binding renders the process as the satisfier it is.
+//
+// Coverage is computed over bindings, and a process satisfies requirements the
+// way a construct does. Giving it the same shape means the existing machinery
+// counts it without a second path through the rules — and a second path is
+// where two answers to one question come from.
+func (p *Process) Binding() Binding {
+	as := make([]Assertion, 0, 1)
+	if len(p.Satisfies) > 0 {
+		as = append(as, Assertion{
+			Kind:         AssertSatisfies,
+			Pos:          p.Pos,
+			Requirements: p.Satisfies,
+		})
+	}
+	return Binding{
+		Target:     Target{Kind: TargetProcess, Name: p.ID},
+		Assertions: as,
+		Pos:        p.Pos,
+	}
+}

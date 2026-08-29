@@ -36,6 +36,11 @@ const (
 	// RuleNodeRefUnknown fires when a node names a construct that is not what
 	// that kind of node performs.
 	RuleNodeRefUnknown = "K16-NODE-REF-UNKNOWN"
+	// RuleWorkOutsideProcess fires when nothing says where a piece of work
+	// belongs in the course of business.
+	RuleWorkOutsideProcess = "K16-WORK-OUTSIDE-PROCESS"
+	// RuleEventUnplaced fires when no process raises or awaits an event.
+	RuleEventUnplaced = "K16-EVENT-UNPLACED"
 )
 
 // ProcessReport is what the run can say about the declared processes.
@@ -46,6 +51,19 @@ type ProcessReport struct {
 	Declared int
 	// Sound is how many came through every graph rule without a finding.
 	Sound int
+	// Work is how many steps the recognisers found, and Placed how many of
+	// them some process names. The pair is printed rather than the ratio
+	// alone, because a percentage with no denominator beside it invites the
+	// reader to forget how much was being talked about.
+	Work, Placed int
+}
+
+// PlacedRatio is the share of the work that has a place in a process.
+func (r ProcessReport) PlacedRatio() float64 {
+	if r.Work == 0 {
+		return 1
+	}
+	return float64(r.Placed) / float64(r.Work)
 }
 
 // Processes checks the declared courses of business.
@@ -70,7 +88,7 @@ type ProcessReport struct {
 // cheaply decidable; claiming it would be worse than not checking it. The
 // degree rules make the common shapes right, and the run says plainly that
 // deadlock freedom was not established.
-func Processes(tree *reqtree.Tree, procs []*ir.Process, constructs []ir.Construct, scope map[string]bool, d ir.Dialect, out *diag.Set) ProcessReport {
+func Processes(tree *reqtree.Tree, procs []*ir.Process, constructs []ir.Construct, bindings []ir.Binding, scope map[string]bool, d ir.Dialect, out *diag.Set) ProcessReport {
 	rep := ProcessReport{Declared: len(procs)}
 	if len(procs) == 0 {
 		return rep
@@ -105,7 +123,97 @@ func Processes(tree *reqtree.Tree, procs []*ir.Process, constructs []ir.Construc
 			rep.Sound++
 		}
 	}
+
+	rep.Work, rep.Placed = placeWork(procs, constructs, bindings, out)
 	return rep
+}
+
+// placeWork is the backward direction, and the reason the model is worth more
+// than a drawing.
+//
+// A use case says what one action promises. Nothing said where that action sits
+// in the business, and a step that belongs to no course is either work nobody
+// asked for or a process somebody forgot to write down. Which of the two it is
+// cannot be guessed, so it is reported and the author says.
+//
+// It runs only once a project has declared a process. Before that there is no
+// claim to be incomplete against, and reporting every use case would be
+// demanding adoption rather than reporting a gap — which is why the figure only
+// appears alongside the processes it is a share of.
+func placeWork(procs []*ir.Process, constructs []ir.Construct, bindings []ir.Binding, out *diag.Set) (work, placed int) {
+	named := map[string]bool{}
+	for _, p := range procs {
+		for _, n := range p.Nodes {
+			if n.Ref != "" {
+				named[n.Ref] = true
+			}
+		}
+	}
+
+	waived := ir.CollectWaivers(bindings)
+	external := externalEvents(bindings)
+
+	sorted := append([]ir.Construct(nil), constructs...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Pos.Less(sorted[j].Pos) })
+
+	for _, c := range sorted {
+		switch {
+		case c.Kind.PerformsWork():
+			work++
+			if named[c.Name] {
+				placed++
+				continue
+			}
+			if waived.Has(c.Name, RuleWorkOutsideProcess) {
+				continue
+			}
+			out.Add(diag.Finding{
+				Code: diag.Code(diag.PhaseSemantic, 82),
+				Pos:  c.Pos,
+				Rule: RuleWorkOutsideProcess,
+				What: shortName(c.Name) + " belongs to no process.",
+				Why:  "A use case says what one action promises; where that action sits in the business it does not say. Work outside every course is either something nobody asked for or a course somebody has not written down, and the two look identical from here.",
+				How:  "Name it as a step of the process it belongs to, or waive this with the reason it stands alone.",
+			})
+
+		case c.Kind.MovesLifecycle():
+			if named[c.Name] || external[c.Name] {
+				continue
+			}
+			if waived.Has(c.Name, RuleEventUnplaced) {
+				continue
+			}
+			out.Add(diag.Finding{
+				Code: diag.Code(diag.PhaseSemantic, 83),
+				Pos:  c.Pos,
+				Rule: RuleEventUnplaced,
+				What: shortName(c.Name) + " is raised or awaited by no process.",
+				Why:  "A fact that outlives the code is recorded at some moment in the business. An event no course mentions is a moment nobody wrote down — and if it truly comes from outside, that is a different statement and worth making.",
+				How:  "Name it in the process that raises or awaits it, or mark it as arriving from outside.",
+			})
+		}
+	}
+	return work, placed
+}
+
+// externalEvents collects the events declared as arriving from outside.
+//
+// This is the rule spec.External was written for and then waited on: it says
+// nothing here produces this fact, which is exactly the exemption the backward
+// direction needs.
+func externalEvents(bindings []ir.Binding) map[string]bool {
+	out := map[string]bool{}
+	for _, b := range bindings {
+		if b.Target.Kind != ir.TargetType {
+			continue
+		}
+		for _, a := range b.Assertions {
+			if a.Kind == ir.AssertExternal {
+				out[b.Target.Name] = true
+			}
+		}
+	}
+	return out
 }
 
 func checkProcess(tree *reqtree.Tree, p *ir.Process, known map[string]ir.Construct, scope map[string]bool, d ir.Dialect, out *diag.Set) {

@@ -27,6 +27,7 @@ type ConstructKind struct {
 	domainModel      bool
 	storageDecision  bool
 	movesLifecycle   bool
+	performsWork     bool
 }
 
 // NewConstructKind declares a role a frontend can recognise.
@@ -85,6 +86,18 @@ func MovesLifecycle() ConstructKindOption {
 	return func(k *ConstructKind) { k.movesLifecycle = true }
 }
 
+// PerformsWork marks a role that is a step somebody takes, and can therefore
+// appear in a process.
+//
+// It is not the same question as NeedsRequirement, which is why it is its own.
+// A command carries business meaning and needs a requirement, but it is a
+// message rather than an action; a projection is a read model that nobody
+// performs. Conflating the two would put both into a process diagram, where
+// neither is a step.
+func PerformsWork() ConstructKindOption {
+	return func(k *ConstructKind) { k.performsWork = true }
+}
+
 // WithArticle renders the kind as a noun phrase for diagnostics.
 func (k ConstructKind) WithArticle() string {
 	if k.article == "" {
@@ -114,6 +127,9 @@ func (k ConstructKind) EmbodiesStorageDecision() bool { return k.storageDecision
 
 // MovesLifecycle reports whether this construct must name the state it leads to.
 func (k ConstructKind) MovesLifecycle() bool { return k.movesLifecycle }
+
+// PerformsWork reports whether this construct is a step somebody takes.
+func (k ConstructKind) PerformsWork() bool { return k.performsWork }
 
 // Construct is an architectural fact recognised in the host language.
 type Construct struct {
