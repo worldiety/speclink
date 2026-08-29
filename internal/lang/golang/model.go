@@ -42,6 +42,7 @@ type Model struct {
 var (
 	_ lang.Model               = (*Model)(nil)
 	_ lang.ConstructInferrer   = (*Model)(nil)
+	_ lang.ProcessReader       = (*Model)(nil)
 	_ lang.SchemaReader        = (*Model)(nil)
 	_ lang.VerificationReader  = (*Model)(nil)
 	_ lang.SyntaxChecker       = (*Model)(nil)
@@ -66,6 +67,20 @@ func (m *Model) Bindings(out *diag.Set) []ir.Binding {
 		bindings = append(bindings, p.ReadBindings(m.Style, out)...)
 	}
 	return bindings
+}
+
+// Processes reads the declared courses of business.
+//
+// Measured packages only, like every other reader here. A process lives above
+// the contexts it names, so a scope that lists only contexts will not include
+// it — but that is what a scope is for, and inventing an exception would make
+// the one setting whose meaning is "what is measured" mean something else here.
+func (m *Model) Processes(out *diag.Set) []*ir.Process {
+	var procs []*ir.Process
+	for _, p := range m.Measured {
+		procs = append(procs, p.ReadProcesses(out)...)
+	}
+	return procs
 }
 
 func (m *Model) Constructs(out *diag.Set) []ir.Construct {

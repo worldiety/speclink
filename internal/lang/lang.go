@@ -62,6 +62,16 @@ type ConstructInferrer interface {
 	Constructs(out *diag.Set) []ir.Construct
 }
 
+// ProcessReader is implemented by a frontend that can find the process
+// declarations of a project.
+//
+// Separate from ConstructInferrer because the two answer different questions
+// and a frontend may well be able to do one and not the other: reading a
+// declaration needs a parser, recognising a use case needs to know a framework.
+type ProcessReader interface {
+	Processes(out *diag.Set) []*ir.Process
+}
+
 // SchemaReader is implemented by a frontend that can say which types are
 // persisted and what shape they have on the wire.
 type SchemaReader interface {

@@ -216,6 +216,15 @@ func verify(args []string) error {
 		check.CoverFields(schema, constructs, bindings, domain, model.Dialect(), findings)
 	}
 
+	// K16: the course of business. It needs both halves — the declarations and
+	// the constructs they name — so it is asked only where both are available.
+	var proc check.ProcessReport
+	if pr, ok := model.(lang.ProcessReader); ok {
+		if _, inf := model.(lang.ConstructInferrer); inf {
+			proc = check.Processes(tree, pr.Processes(findings), constructs, scope, model.Dialect(), findings)
+		}
+	}
+
 	// K15: which states an aggregate can be in. It rides on the same set of
 	// constructs as forward coverage and is therefore asked under the same
 	// condition — a frontend that infers nothing has no events to hold to it.
@@ -223,7 +232,7 @@ func verify(args []string) error {
 		check.Lifecycle(constructs, bindings, model.Dialect(), findings)
 	}
 
-	if err := report(*format, findings, lang.Of(model), cov, str, src, ver, len(bindings), skippedPackages(model)); err != nil {
+	if err := report(*format, findings, lang.Of(model), cov, str, src, ver, proc, len(bindings), skippedPackages(model)); err != nil {
 		return err
 	}
 	if *format == "text" {
@@ -424,7 +433,7 @@ func loadLayout(absRoot, explicit string) (config.Config, error) {
 // question above both: whether every part of what was actually asked for
 // became a requirement at all. Without the third the other two measure a tree
 // against itself.
-func report(format string, findings *diag.Set, can lang.Capabilities, cov check.Coverage, str check.Structure, src check.SourceCoverage, ver check.Verification, bindings, skipped int) error {
+func report(format string, findings *diag.Set, can lang.Capabilities, cov check.Coverage, str check.Structure, src check.SourceCoverage, ver check.Verification, proc check.ProcessReport, bindings, skipped int) error {
 	switch format {
 	case "json":
 		return findings.WriteJSON(os.Stdout)
@@ -443,7 +452,16 @@ func report(format string, findings *diag.Set, can lang.Capabilities, cov check.
 		if can.Verifications {
 			requirements += fmt.Sprintf(", %.0f%% verified, %.0f%% demonstrated", ver.Ratio()*100, ver.ShownRatio()*100)
 		}
-		parts = append(parts, requirements+")",
+		parts = append(parts, requirements+")")
+		// Only where processes exist. A share of nothing is not a hundred
+		// percent, it is no claim at all, and printing one would tell a
+		// project that never adopted them that its courses of business are
+		// accounted for.
+		if proc.Declared > 0 {
+			parts = append(parts, fmt.Sprintf("%s (%d sound)",
+				plural(proc.Declared, "process", "processes"), proc.Sound))
+		}
+		parts = append(parts,
 			fmt.Sprintf("%d bindings", bindings),
 			plural(findings.Len(), "finding", "findings"))
 

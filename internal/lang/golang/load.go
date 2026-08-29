@@ -36,6 +36,13 @@ const (
 	// RequirementSuffix marks a requirement declaration file in the
 	// requirement tree: R-QUOTE-SUBMIT.spec.go.
 	RequirementSuffix = ".spec.go"
+	// ProcessSuffix marks a process declaration: quote-to-invoice.process.go.
+	//
+	// It is its own suffix rather than a requirement file because a process
+	// imports the contexts it names, and a requirement must import nothing:
+	// the requirement tree is the leaf of the dependency graph, and a cycle
+	// through it would make the whole thing unloadable.
+	ProcessSuffix = ".process.go"
 	// TestSuffix marks a test file. Go requires it to be the final suffix, so
 	// a test file can never also carry one of the two above.
 	TestSuffix = "_test.go"
@@ -74,6 +81,8 @@ type Package struct {
 	annotationFiles []*ast.File
 	// requirementFiles are the *.spec.go files of this package.
 	requirementFiles []*ast.File
+	// processFiles are the *.process.go files of this package.
+	processFiles []*ast.File
 	// sourceNames holds the base names of ordinary Go files, used to detect
 	// orphaned annotation files.
 	sourceNames map[string]bool
@@ -147,6 +156,8 @@ func load(dir string, tests bool, patterns ...string) ([]*Package, error) {
 				p.testFiles = append(p.testFiles, f)
 			case strings.HasSuffix(name, AnnotationSuffix):
 				p.annotationFiles = append(p.annotationFiles, f)
+			case strings.HasSuffix(name, ProcessSuffix):
+				p.processFiles = append(p.processFiles, f)
 			case strings.HasSuffix(name, RequirementSuffix):
 				p.requirementFiles = append(p.requirementFiles, f)
 			default:

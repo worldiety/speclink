@@ -419,7 +419,7 @@ convention too.
 
 ---
 
-## 4. The two kinds of file you write
+## 4. The three kinds of file you write
 
 ### 4.1 Requirement files: `<ID>.spec.go`
 
@@ -543,6 +543,78 @@ A field binding satisfies a requirement for that field, not for the type it
 belongs to — annotating one field does not make the whole command covered.
 
 ---
+
+### 4.3 Process files: `<name>.process.go`
+
+A process is the course of business: not what there is, but what happens, in
+which order, and where it can end. It answers the question a building block view
+cannot, and it satisfies requirements the way a construct does.
+
+```go
+var PQuoteDecision = spec.Process{
+	ID:        "P-QUOTE-DECISION",
+	Title:     "Angebot bis zur Entscheidung",
+	Purpose:   "Ein abgegebenes Angebot wird freigegeben, zurückgezogen oder zurückgereicht.",
+	Satisfies: []spec.Requirement{quote.RQuoteSubmit, quote.RQuoteApprove},
+	Nodes: []spec.Node{
+		spec.Start("entwurf", "Angebot ist entworfen"),
+		spec.Do[sales.SubmitQuote]("abgeben"),
+		spec.Emit[sales.QuoteSubmitted]("abgegeben"),
+		spec.Choice("pruefen"),
+		spec.Do[sales.ApproveQuote]("freigeben"),
+		spec.End("freigegeben", "freigegeben"),
+		spec.End("verworfen", "zurückgezogen"),
+	},
+	Edges: []spec.Edge{
+		{From: "entwurf", To: "abgeben"},
+		{From: "abgeben", To: "abgegeben"},
+		{From: "abgegeben", To: "pruefen"},
+		{From: "pruefen", To: "freigeben", When: "angenommen"},
+		{From: "pruefen", To: "verworfen", When: "abgelehnt"},
+		{From: "freigeben", To: "freigegeben"},
+	},
+}
+```
+
+**It lives above the contexts**, in a package of its own, because a process is
+precisely the thing no single context owns. A context that declared it would
+have to import its neighbour, which the layering rules forbid.
+
+**A step names a construct, not a caption.** `spec.Do[sales.SubmitQuote]` is
+checked by the compiler and then by `K16-NODE-REF-UNKNOWN`, which refuses an
+activity that names an event and an event that names a use case. A step written
+as prose would be a caption, and a caption cannot go stale in a way anybody
+notices.
+
+**The vocabulary is nine nodes**, and what is missing is missing on purpose:
+
+| Node | Means |
+|---|---|
+| `spec.Start(id, label)` | a beginning; more than one is allowed |
+| `spec.End(id, label)` | an outcome; several are the point, not a defect |
+| `spec.Do[UseCase](id)` | a step somebody takes |
+| `spec.Emit[Event](id)` | a fact is recorded here |
+| `spec.On[Event](id)` | the course waits for a fact |
+| `spec.Fork(id)` / `spec.Join(id)` | branches that all run, and the wait for them |
+| `spec.Choice(id)` / `spec.Merge(id)` | exactly one branch, and the rejoining |
+
+Inclusive and event based gateways, boundary events, timers, compensation and
+subprocesses are deliberately absent. Each is expressible the moment a real case
+asks for it, and each one added before then would be another vocabulary nobody
+reads.
+
+**Why a graph and not nested blocks.** Real processes come back: a quote sent
+for rework returns to the drafting step. A nested form can express everything
+except the jump backwards, which is the one thing that occurs constantly. The
+price is that the compiler no longer checks the wiring — and that price is paid
+by `K16`, which refuses a dangling edge, a duplicated name, a node no start
+reaches and a node from which no end can be reached.
+
+**What is not proved.** Whether every fork is matched by exactly one join on
+every path is reachability in a Petri net and is not cheaply decidable. The
+degree rules make the common shapes right and the tracer finds loops with no
+exit; deadlock freedom is not established, and the rule set says so rather than
+implying otherwise.
 
 ## 5. nago in one page
 
@@ -1316,6 +1388,10 @@ a profile's style, and a run that does not have them says so:
 not measured: architecture, because profile java_springboot_ddd1 prescribes no rules yet
 ```
 
+The **K16** family runs wherever a project declares a process. None declared
+means no figure about processes is printed at all, because a share of nothing is
+no claim.
+
 The **K15** family runs wherever the frontend recognises events. An architecture
 with none — `go_bare_ddd1` is not event sourced — has no lifecycles to check and
 no figure that claims otherwise, so nothing is reported either way.
@@ -1405,6 +1481,18 @@ is refused rather than accepted.
 | `K11-SOURCE-UNANCHORED` | `V5-026` | a citation names a document but no part of it |
 | `K12-SOURCE-UNCOVERED` | `V6-100` | a section or region became no requirement |
 | `K13-SOURCE-DRIFT` | `V6-111` | a source segment was rewritten under the requirements derived from it |
+| `K16-PROCESS-NO-START` | `V6-070` | a process has no beginning |
+| `K16-PROCESS-NO-END` | `V6-071` | a process has no way to finish |
+| `K16-PROCESS-NO-ACTIVITY` | `V6-072` | a process routes and finishes but performs nothing |
+| `K16-NODE-DUPLICATE` | `V6-073` | two nodes of one process share a name |
+| `K16-EDGE-DANGLING` | `V6-074` | an edge names a node that does not exist |
+| `K16-NODE-DEGREE` | `V6-075` | the wiring at a node cannot mean anything |
+| `K16-CHOICE-UNCONDITIONAL` | `V6-076` | an alternative states no condition |
+| `K16-NODE-UNREACHABLE` | `V6-077` | no start reaches a node |
+| `K16-NODE-TRAPPED` | `V6-078` | from a node no end can be reached |
+| `K16-NODE-REF-UNKNOWN` | `V6-079` | a step names something that is not what it performs |
+| `K16-PROCESS-UNBOUND` | `V6-080` | a process names no requirement |
+| `K16-PROCESS-DUPLICATE` | `V6-081` | two processes claim one ID |
 | `K15-EVENT-NO-TRANSITION` | `V6-060` | an event does not say which state it leaves the aggregate in |
 | `K15-TRANSITION-UNKNOWN` | `V6-061` | a transition names something that folds nothing |
 | `K14-REQ-UNVERIFIED` | `V6-120` | no test demonstrates a normative requirement |

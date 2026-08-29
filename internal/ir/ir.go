@@ -26,6 +26,18 @@ type Position struct {
 	Col  int
 }
 
+// Less orders two positions by file and line, so that findings come out in the
+// order somebody reads the source rather than in map order.
+func (p Position) Less(q Position) bool {
+	if p.File != q.File {
+		return p.File < q.File
+	}
+	if p.Line != q.Line {
+		return p.Line < q.Line
+	}
+	return p.Col < q.Col
+}
+
 func (p Position) String() string {
 	if p.File == "" {
 		return "<unknown>"
