@@ -149,3 +149,62 @@ func appendTo(t *testing.T, root, rel, body string) {
 		t.Fatal(err)
 	}
 }
+
+// The interface catalogue is the table somebody assembles by hand before every
+// review and gets wrong, because the information lives at both ends of each
+// channel and in neither place as a list.
+func TestDocumentCarriesTheInterfaceCatalogue(t *testing.T) {
+	out, _ := runSpeclink(t, "generate", "../../testdata/bare", "./...")
+
+	for _, want := range []string{
+		"## The boundary",
+		"| Vertrieb | actor |",
+		"| Dateiablage | foreign system |",
+		"Angebotsablage",
+		// The four descriptive columns are mandatory in the model, so a blank
+		// cell cannot reach this page.
+		"| Dateisystem | Abgelegte Angebote als aktueller Stand | Rechte des Prozessbenutzers | entfällt, lokal |",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q in the document:\n%s", want, out)
+		}
+	}
+}
+
+// A course of business is rendered as its edges rather than as a numbered
+// sequence. Where a process branches and comes back, any numbering is a lie
+// about which step follows which.
+func TestDocumentCarriesTheCoursesOfBusiness(t *testing.T) {
+	out, _ := runSpeclink(t, "generate", "../../testdata/example", "./...")
+
+	for _, want := range []string{
+		"## Courses of business",
+		"### Angebot bis zur Entscheidung",
+		"Answers to: R-QUOTE-SUBMIT, R-QUOTE-APPROVE",
+		// The step names the construct it performs, not a caption.
+		"| SubmitQuote *(activity)* | QuoteSubmitted *(event raised)* |",
+		// The jump backwards survives into the table.
+		"| pruefen *(choice)* | SubmitQuote *(activity)* | nachzubessern |",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q in the document:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "| 1 |") {
+		t.Error("the graph was numbered as if it were a sequence")
+	}
+}
+
+// A project that declares neither gets neither section, rather than an empty
+// heading to wonder about.
+func TestDocumentLeavesOutWhatIsNotDeclared(t *testing.T) {
+	out, _ := runSpeclink(t, "generate", "../../testdata/example", "./...")
+	if strings.Contains(out, "## The boundary") {
+		t.Errorf("a project without a topology was given a boundary section:\n%s", out)
+	}
+
+	out, _ = runSpeclink(t, "generate", "../../testdata/bare", "./...")
+	if strings.Contains(out, "## Courses of business") {
+		t.Errorf("a project without processes was given a courses section:\n%s", out)
+	}
+}

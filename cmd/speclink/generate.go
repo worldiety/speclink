@@ -79,6 +79,9 @@ type specModel struct {
 	base     *baseline.File
 	waived   ir.Waivers
 	skipped  int
+
+	topo      ir.Topology
+	processes []*ir.Process
 }
 
 // readModel assembles the graph without judging it.
@@ -111,6 +114,13 @@ func readModel(absRoot, cfgPath, prof string, patterns []string) (*specModel, er
 	m.cov = check.CoverRequirements(m.tree, bindings, measured, frontend.Dialect(), discard)
 	m.ver = check.CoverVerification(m.tree, verifications, m.cov, measured, ir.CollectWaivers(bindings), frontend.Dialect(), discard)
 
+	if tr, ok := frontend.(lang.TopologyReader); ok {
+		m.topo = tr.Topology(discard)
+	}
+	if pr, ok := frontend.(lang.ProcessReader); ok {
+		m.processes = pr.Processes(discard)
+	}
+
 	m.waived = ir.CollectWaivers(bindings)
 	m.base, err = baseline.Load(absRoot)
 	if err != nil {
@@ -130,6 +140,8 @@ func (m *specModel) writeMarkdown(w io.Writer) error {
 
 	m.writeSummary(b)
 	m.writeGaps(b)
+	m.writeBoundary(b)
+	m.writeProcesses(b)
 	m.writeRequirements(b)
 	m.writeSources(b)
 
@@ -377,4 +389,111 @@ func or(s, fallback string) string {
 		return fallback
 	}
 	return s
+}
+
+// writeBoundary renders the interface catalogue.
+//
+// It is the table somebody assembles by hand before every review and gets
+// wrong, because the information lives at both ends of each channel and in
+// neither place as a list. Here it is one row per declared channel, and the
+// four descriptive columns are mandatory in the model, so a blank cell cannot
+// reach this page.
+func (m *specModel) writeBoundary(b *strings.Builder) {
+	if !m.topo.Declared() {
+		return
+	}
+
+	b.WriteString("## The boundary\n\n")
+
+	if len(m.topo.Participants) > 0 {
+		b.WriteString("| Outside | Kind | Role |\n|---|---|---|\n")
+		for _, p := range m.topo.Participants {
+			fmt.Fprintf(b, "| %s | %s | %s |\n", p.Name, p.Kind, oneLine(p.Role))
+		}
+		b.WriteString("\n")
+	}
+
+	if len(m.topo.Channels) == 0 {
+		return
+	}
+	b.WriteString("### Every way across\n\n")
+	b.WriteString("| Channel | Protocol | Data | Authentication | In transit |\n")
+	b.WriteString("|---|---|---|---|---|\n")
+	for _, c := range m.topo.Channels {
+		fmt.Fprintf(b, "| **%s**<br>%s → %s | %s | %s | %s | %s |\n",
+			c.Label, c.From, c.To, c.Protocol, oneLine(c.Data), oneLine(c.Auth), oneLine(c.Crypto))
+	}
+	b.WriteString("\n")
+}
+
+// writeProcesses renders each course of business as its edges.
+//
+// The edge list rather than a numbered sequence, because the model is a graph
+// and a numbered list would have to pick an order that does not exist. Where a
+// process branches and comes back, any numbering is a lie about which step
+// follows which.
+func (m *specModel) writeProcesses(b *strings.Builder) {
+	if len(m.processes) == 0 {
+		return
+	}
+
+	b.WriteString("## Courses of business\n\n")
+	for _, p := range m.processes {
+		fmt.Fprintf(b, "### %s\n\n", or(p.Title, p.ID))
+		if p.Purpose != "" {
+			fmt.Fprintf(b, "%s\n\n", oneLine(p.Purpose))
+		}
+		fmt.Fprintf(b, "`%s` · drawn in `process-%s.puml`\n\n", p.ID, p.ID)
+
+		if ids := m.satisfiedBy(p); len(ids) > 0 {
+			fmt.Fprintf(b, "Answers to: %s\n\n", strings.Join(ids, ", "))
+		}
+
+		b.WriteString("| From | To | When |\n|---|---|---|\n")
+		for _, e := range p.Edges {
+			fmt.Fprintf(b, "| %s | %s | %s |\n", m.nodeLabel(p, e.From), m.nodeLabel(p, e.To), or(e.When, "—"))
+		}
+		b.WriteString("\n")
+	}
+}
+
+// nodeLabel renders a node for the table: the construct it names where it names
+// one, and what it is where it does not.
+func (m *specModel) nodeLabel(p *ir.Process, id string) string {
+	n, ok := p.Node(id)
+	if !ok {
+		return id
+	}
+	switch {
+	case n.Ref != "":
+		return lastSegment(n.Ref) + " *(" + n.Kind.String() + ")*"
+	case n.Label != "":
+		return n.Label + " *(" + n.Kind.String() + ")*"
+	}
+	return id + " *(" + n.Kind.String() + ")*"
+}
+
+// satisfiedBy resolves the requirement identifiers a process names.
+func (m *specModel) satisfiedBy(p *ir.Process) []string {
+	var out []string
+	for _, ref := range p.Satisfies {
+		if r := m.tree.ByGoIdent(ref); r != nil {
+			out = append(out, r.ID)
+		}
+	}
+	return out
+}
+
+func lastSegment(name string) string {
+	if i := strings.LastIndexByte(name, '.'); i >= 0 {
+		return name[i+1:]
+	}
+	return name
+}
+
+// oneLine keeps a cell from breaking the table it sits in.
+func oneLine(s string) string {
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "|", "\\|")
+	return strings.TrimSpace(s)
 }

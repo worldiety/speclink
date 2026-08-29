@@ -76,6 +76,12 @@ speclink diagrams -root . -out build/puml ./...
 plantuml -tsvg -o ../svg build/puml/*.puml
 ```
 
+`speclink generate` carries the same model into the document: the participants
+and the **interface catalogue** — one row per channel with protocol, data,
+authentication and transport protection — and each **course of business** as its
+edges. Edges rather than a numbered sequence, because where a process branches
+and comes back any numbering is a lie about which step follows which.
+
 Three kinds of drawing come out. **`context.puml`** is the system boundary: one
 box for the whole module, the actors and foreign systems around it, and only the
 channels that cross. **`blocks.puml`** opens the box and shows the packages some
