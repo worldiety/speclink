@@ -1,0 +1,66 @@
+// Package topology names the world around this system and every way across it.
+//
+// This is the one part of the model that is declared rather than read, and the
+// reason is not convenience. Nothing in a Go module states that a user exists,
+// that a directory on disk is outside this program's control, or that the
+// channel to it carries data nothing protects. That is not missing from the
+// code — it is knowledge the code cannot hold.
+//
+// It is then held against what the code does show. An adapter is where this
+// system touches something it does not control, and speclink can see every one
+// of them: a channel naming a package that is not there is reported, and so is
+// an adapter that no channel names.
+package topology
+
+import (
+	"{{.Module}}/requirements/dec"
+	"{{.Module}}/requirements/fun/record"
+	"github.com/worldiety/speclink/spec"
+)
+
+// User is the only person this starting point knows. Rename it, or add the
+// roles this system really serves.
+var User = spec.Actor{
+	ID:   "user",
+	Name: "User",
+	Role: "Creates records and looks them up. Acts under an identity with permissions.",
+}
+
+// FileStore is outside the program even though it sits on the same machine.
+//
+// The distinction that matters is not distance but responsibility: what is
+// written there outlives the process and is not this program's to guarantee.
+var FileStore = spec.Foreign{
+	ID:   "filestore",
+	Name: "File store",
+	Role: "A directory in the file system. Access control and backup belong to whoever runs this, not to this application.",
+}
+
+// SelfService is how a person reaches the system.
+var SelfService = spec.Channel{
+	From:     "user",
+	To:       "app/{{.Context}}/rest",
+	Label:    "Self service",
+	Protocol: "HTTP",
+	Data:     "Record data, identity of the caller",
+	Auth:     "Identity with permissions, audited in the use case",
+	Crypto:   "none; the placeholder authenticator terminates no TLS",
+	Satisfies: []spec.Requirement{
+		record.RRecordCreate,
+		record.RRecordLookup,
+	},
+}
+
+// RecordStorage is the one place this system writes something that outlives it.
+var RecordStorage = spec.Channel{
+	From:     "app/{{.Context}}/adapter/fs",
+	To:       "filestore",
+	Label:    "Record storage",
+	Protocol: "File system",
+	Data:     "Stored records as their current state",
+	Auth:     "Rights of the process user",
+	Crypto:   "none, local",
+	Satisfies: []spec.Requirement{
+		dec.RDecRecordState,
+	},
+}

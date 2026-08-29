@@ -39,6 +39,7 @@ data.
 
 ## Where things go
 
+    topology/             the world outside, and every way across the boundary
     foundation/           the little framework this project has
     app/<context>/        one bounded context: model, ports, use cases
     app/<context>/rest/   HTTP presentation
@@ -72,6 +73,44 @@ Four files, in this order.
    that forgets one does not compile.
 
 Then a test that calls `spec.Verified(t, ...)` naming the requirement it proved.
+
+## The boundary
+
+`topology/` is the one part of the model that is declared rather than read from
+the code, because nothing in a Go module states that a user exists or that a
+directory on disk is outside this program's control.
+
+It is then held against the code. **An adapter is where this system touches
+something it does not control**, and every one of them must be named by a
+channel — `speclink verify` reports an adapter no channel describes and a
+channel naming a package that is not there. Add an adapter, add its channel.
+
+Every channel states its protocol, what crosses it, how the far end is
+established and what protects it in transit. Say plainly that there is none —
+`"none, local"` is an answer and an empty field is refused.
+
+## Courses of business
+
+A process, in `<name>.process.go`, is what happens: the order the use cases run
+in, where it branches, and how it can end. It is a graph, so it may come back to
+an earlier step.
+
+    spec.Start("drafted", "A record is wanted")
+    spec.Do[sales.CreateRecord]("create")
+    spec.Choice("check")
+    spec.End("done", "recorded")
+
+A step names a construct, not a caption, so the compiler checks it exists. Once
+the first process is declared, `speclink verify` reports every use case no
+process names — which is the question "where does this belong in the business"
+asked of each of them.
+
+Processes live above the contexts, in a package of their own, because a process
+names use cases from several of them.
+
+    speclink diagrams -out build/puml
+
+writes the drawings. It runs nothing: PlantUML is your environment's to provide.
 
 ## Requirements
 
