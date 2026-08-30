@@ -173,3 +173,24 @@ func TestAClaimWithoutItsReasonIsReported(t *testing.T) {
 		t.Errorf("expected the missing reason to be reported, got:\n%s", summary(out))
 	}
 }
+
+// TestAnUnstatedWireShapeSaysSo covers the difference between two silences.
+//
+// On a builder that states its types, an empty response means the route
+// promises no shape. On the standard library's router it means nobody asked.
+// Printing nothing in the second case lets a reader take it for the first.
+func TestAnUnstatedWireShapeSaysSo(t *testing.T) {
+	t.Parallel()
+	dir := copyFixture(t, "../../testdata/bare")
+
+	out, code := runSpeclink(t, "generate", dir)
+	if code != 0 {
+		t.Fatalf("generate failed with %d:\n%s", code, out)
+	}
+	if !strings.Contains(out, "What crosses each address") {
+		t.Fatalf("the section is missing entirely:\n%s", out)
+	}
+	if !strings.Contains(out, "Nothing here is known") {
+		t.Errorf("the reason nothing is known is not given:\n%s", out)
+	}
+}

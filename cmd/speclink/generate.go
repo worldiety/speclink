@@ -1340,6 +1340,19 @@ func (m *specModel) writeWireDetail(d *doc.Doc) {
 		}
 	}
 	if len(stated) == 0 {
+		// Silence here would be read as "these addresses carry nothing",
+		// which is the opposite of what is true. The router this project
+		// mounts on reports no shapes, and that is a fact about the router
+		// rather than about the routes.
+		if len(m.endpoints) > 0 {
+			d.H(3, "What crosses each address")
+			// Deliberately not the "Not measured:" wording. That phrase is
+			// reserved for a frontend that cannot read a kind of thing at
+			// all, and this frontend reads these routes perfectly well. What
+			// is missing is a statement from the router, which is a fact
+			// about the router.
+			d.P(doc.Emph("Nothing here is known: the router these routes are mounted on states no request or response types. An empty section would say they carry nothing, which is a different claim."))
+		}
 		return
 	}
 
