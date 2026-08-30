@@ -100,6 +100,15 @@ func freeze(args []string) error {
 		sort.Strings(updated)
 	}
 
+	// The contracts this system depends on, for the same reason and with the
+	// same absence of a guard: a contract that moved is a fact to record and
+	// review, not one to refuse.
+	changedContracts := 0
+	if tr, ok := model.(lang.TopologyReader); ok {
+		topo := tr.Topology(discard)
+		changedContracts = check.RecordContracts(topo.Channels, base)
+	}
+
 	// The requirement texts and source segments are recorded without a guard of
 	// their own. There is nothing to refuse: unlike a shape, which can break a
 	// promise made to data already written, a rewritten requirement breaks
@@ -109,7 +118,7 @@ func freeze(args []string) error {
 	docs, sourceDocs := loadSources(absRoot, layout, discard)
 	changedReqs, changedSegs := check.Record(base, tree, docs, sourceDocs, *reviewer)
 
-	if len(added) == 0 && len(updated) == 0 && changedReqs == 0 && changedSegs == 0 {
+	if len(added) == 0 && len(updated) == 0 && changedReqs == 0 && changedSegs == 0 && changedContracts == 0 {
 		fmt.Fprintln(os.Stderr, "nothing to record; every frozen shape, requirement and source segment is already recorded.")
 		return nil
 	}

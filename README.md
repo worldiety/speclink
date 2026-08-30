@@ -333,6 +333,33 @@ no way to see whether it does. The packages that declare the specification itsel
 are left off the drawing and counted in the prose — in a project that uses this
 tool properly they are most of the nodes and most of the arrows.
 
+*What this system relies on receiving* is the other half, and the sharper one.
+A channel may name the Go type whose shape crosses it, and that structure is
+recorded in `speclink.lock`. speclink froze the surfaces this system offers and
+knew nothing about the ones it depends on — yet a promise this system makes is
+broken by people who are in this repository and can be told, while a promise it
+relies on is broken by somebody who has never heard of this repository, and the
+first sign is a field arriving empty in production.
+
+```go
+var Angebotsablage = spec.Channel{
+	From: "app/sales/adapter/fs",
+	To:   "dateiablage",
+	// …
+	Contract: fs.QuoteStore{},
+}
+```
+
+The type is already in the code — it is what the adapter marshals — so a
+separate schema would be the same fact written twice, and the copy would be the
+one that rots. Where the far end is not modelled in this module at all, leave it
+out: an unstated contract is honest and a fabricated one is not.
+
+A change is reported, never refused. It is nearly always the far end that moved
+and this system that has to follow, so the finding says "what you relied on is
+not what you recorded" and ends where the others do: decide, and record the
+decision with `freeze` so the diff of the lock file is where somebody reviews it.
+
 *What crosses each address* gives the request and response fields, their wire
 names and whether each is required. speclink already read those to detect a
 breaking change and threw them away before the document, so the thing it
@@ -1956,6 +1983,9 @@ is refused rather than accepted.
 | `K17-PARTICIPANT-UNUSED` | `V6-093` | nothing reaches a declared actor or foreign system |
 | `K17-PARTICIPANT-DUPLICATE` | `V6-094` | two participants share an ID |
 | `K17-ADAPTER-NO-CHANNEL` | `V6-095` | the system reaches outside where no channel says so |
+| `K17-CONTRACT-SHAPE-CHANGED` | `V6-170` | a contract this system relies on changed structure, or stopped being named |
+| `K17-CONTRACT-FIELD-REMOVED` | `V6-171` | a field this system relied on receiving is gone from the shape that crosses |
+| `K17-CONTRACT-FIELD-CHANGED` | `V6-172` | a relied-on field kept its name and changed its structure |
 | `K20-ENDPOINT-PATTERN-UNREADABLE` | `V6-150` | a route is mounted under a pattern that is not a constant |
 | `K20-ENDPOINT-DUPLICATE` | `V6-151` | two registrations claim one address |
 | `K20-ENDPOINT-TRACE-TRUNCATED` | `V6-152` | the trace from a route gave up before reaching a use case |

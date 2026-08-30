@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 7,
   "types": {
     "example.com/bare/app/sales/adapter/fs.QuoteStore": {
       "discriminator": "",
@@ -99,6 +99,36 @@
     "requirements/_sources/vorgaben.standard.json#PS-01": {
       "fingerprint": "b1c41262ee33a1978f2fdede2873f67bd0facfadfaab1c7a4da308eac24f848f",
       "kind": "standard"
+    }
+  },
+  "channels": {
+    "Angebotsablage (app/sales/adapter/fs → dateiablage)": {
+      "contract": {
+        "type": "example.com/bare/app/sales/adapter/fs.QuoteStore",
+        "shape": "{id:string,number:string,status:string,note:string}",
+        "fields": [
+          {
+            "name": "ID",
+            "wire": "id",
+            "shape": "string"
+          },
+          {
+            "name": "Number",
+            "wire": "number",
+            "shape": "string"
+          },
+          {
+            "name": "Status",
+            "wire": "status",
+            "shape": "string"
+          },
+          {
+            "name": "Note",
+            "wire": "note",
+            "shape": "string"
+          }
+        ]
+      }
     }
   },
   "verifications": {

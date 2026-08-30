@@ -85,7 +85,10 @@ const FileName = "speclink.lock"
 // would have parsed it, dropped the field it did not know, and written the
 // result back — losing evidence silently, which is the one direction this file
 // must never fail in.
-const Version = 6
+// Version 7 added the contracts a channel depends on. Six recorded only the
+// surfaces this system offers; the surfaces it relies on were the same kind of
+// unchecked edge seen from the other side, and carried no fingerprint at all.
+const Version = 7
 
 // File is the on disk form. Maps are used so the encoding is stable under
 // Go's sorted map marshalling, and so a diff stays readable per type.
@@ -98,6 +101,9 @@ type File struct {
 	// Sources are the recorded document segments, keyed by segment reference
 	// in the form "path/to/doc.md#anchor".
 	Sources map[string]Segment `json:"sources,omitempty"`
+	// Channels are the recorded contracts of the ways across the boundary,
+	// keyed by the channel name.
+	Channels map[string]Channel `json:"channels,omitempty"`
 	// Verifications are the tests that demonstrated a requirement, keyed by
 	// requirement ID.
 	Verifications map[string][]Verification `json:"verifications,omitempty"`
@@ -152,6 +158,17 @@ type Endpoint struct {
 // only a field by field view tells a removal from an addition. The shape
 // answers for a body that is not a struct, where there are no fields and
 // something still has to be held to.
+// Channel is the recorded shape a boundary crossing depends on.
+//
+// Only channels whose declaration names a type appear. A channel that states
+// no contract is not recorded as having an empty one: unstated and empty are
+// different facts, and the whole point of the record is that it can tell them
+// apart.
+type Channel struct {
+	// Contract is the structure that was promised to cross here.
+	Contract *Wire `json:"contract,omitempty"`
+}
+
 type Wire struct {
 	// Type is the qualified name that produced the shape. Recorded so a reader
 	// can find it; nothing is decided on it, because a rename is not a change

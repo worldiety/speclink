@@ -138,6 +138,16 @@ func (p *Package) checkNoPresentationImport(rel string, out *diag.Set) {
 // place that cannot be swapped for a test.
 func (p *Package) checkNoAdapterImport(rel, what string, out *diag.Set) {
 	for _, f := range p.pkg.Syntax {
+		if p.declaresSpecFile(f) {
+			// A specification file names types; it does not build anything.
+			// The reason for this rule is that an import decides which
+			// implementation is in use somewhere that cannot be swapped for a
+			// test, and a declaration that says "this is the shape that
+			// crosses the boundary to the file store" decides nothing and
+			// constructs nothing. Refusing it would leave the one place that
+			// can state what a stored shape is unable to name it.
+			continue
+		}
 		for _, imp := range f.Imports {
 			path, err := unquote(imp.Path.Value)
 			if err != nil || !isAdapterPackage(path) {

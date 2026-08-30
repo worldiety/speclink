@@ -1,6 +1,7 @@
 package golang
 
 import (
+	"go/ast"
 	"path"
 	"strings"
 
@@ -72,6 +73,22 @@ func (m *Model) PackageGraph() ir.PackageGraph {
 // than the system: requirements, processes or topology.
 func (p *Package) declaresSpec() bool {
 	return len(p.requirementFiles) > 0 || len(p.processFiles) > 0 || len(p.topologyFiles) > 0
+}
+
+// declaresSpec reports whether one file is a specification declaration.
+//
+// The package level answer is too coarse for a rule about imports: a package
+// may hold a topology file beside ordinary code, and only the declaration
+// itself earns the latitude.
+func (p *Package) declaresSpecFile(f *ast.File) bool {
+	for _, set := range [][]*ast.File{p.requirementFiles, p.processFiles, p.topologyFiles} {
+		for _, cand := range set {
+			if cand == f {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // contextOf names the bounded context a directory belongs to, if any.

@@ -81,6 +81,14 @@ func (p *Package) readChannel(vs *ast.ValueSpec, lit *ast.CompositeLit) ir.Chann
 			ch.Crypto, _ = p.stringArg(value)
 		case "Satisfies":
 			ch.Satisfies = p.identList(value)
+		case "Contract":
+			// The declaration gives a zero value, so the type of the
+			// expression is the contract. Read the same way a request body
+			// is, so that a change inside a nested struct reaches the string
+			// a rule compares.
+			if t := p.pkg.TypesInfo.TypeOf(value); t != nil {
+				ch.Contract = p.wireShape(t)
+			}
 		}
 	}
 	return ch

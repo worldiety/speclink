@@ -78,4 +78,32 @@ type Channel struct {
 	// the boundary that answers to nothing is a way somebody opened without
 	// being asked.
 	Satisfies []Requirement
+
+	// Contract is the Go type whose shape crosses here, given as a zero value:
+	//
+	//	Contract: fs.QuoteFile{}
+	//
+	// # Why this exists
+	//
+	// speclink freezes the surface this system offers. Every route it serves
+	// carries a recorded shape, and a field removed from a response is a
+	// finding. It knew nothing at all about the surfaces this system depends
+	// on, which is the same edge seen from the other side and the more
+	// dangerous one: a promise this system makes is broken by somebody who can
+	// be told, and a promise it relies on is broken by somebody who cannot.
+	//
+	// The four descriptive fields say what crosses in the words of a data
+	// protection register. That is the right register for a reviewer and no use
+	// at all to a compiler. This is the same fact in a form that can be
+	// compared: the structure is recorded in speclink.lock, and a change to it
+	// is reported the next run.
+	//
+	// # Why a type and not a schema file
+	//
+	// The type is already in the code — it is what the adapter marshals. A
+	// separate schema would be the same fact written twice, and the copy would
+	// be the one that rots. Where the far end is not modelled in this module
+	// at all, leave it empty: an unstated contract is honest, and a fabricated
+	// one is not.
+	Contract any
 }

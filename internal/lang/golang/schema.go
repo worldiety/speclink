@@ -170,10 +170,11 @@ func (p *Package) readFields(st *types.Struct) []ir.SchemaField {
 			continue
 		}
 		out = append(out, ir.SchemaField{
-			Name:  f.Name(),
-			Wire:  wire,
-			Shape: shapeOf(f.Type(), map[*types.Named]bool{}),
-			Pos:   p.pos(f.Pos()),
+			Name:      f.Name(),
+			Wire:      wire,
+			Shape:     shapeOf(f.Type(), map[*types.Named]bool{}),
+			OmitEmpty: hasTagOption(st.Tag(i), "omitempty"),
+			Pos:       p.pos(f.Pos()),
 		})
 	}
 	return out
@@ -194,6 +195,19 @@ func wireName(f *types.Var, tag string) (name string, skipped bool) {
 		return f.Name(), false
 	}
 	return parts[0], false
+}
+
+// hasTagOption reports whether the json tag carries an option such as
+// omitempty. Read separately from the name so that the name resolution stays
+// the one thing a rule compares.
+func hasTagOption(tag, option string) bool {
+	parts := strings.Split(reflectTag(tag, "json"), ",")
+	for _, p := range parts[min(1, len(parts)):] {
+		if strings.TrimSpace(p) == option {
+			return true
+		}
+	}
+	return false
 }
 
 // reflectTag reads one key out of a struct tag without pulling in reflect.

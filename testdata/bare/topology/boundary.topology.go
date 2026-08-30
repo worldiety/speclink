@@ -9,6 +9,7 @@
 package topology
 
 import (
+	"example.com/bare/app/sales/adapter/fs"
 	"example.com/bare/requirements/dec"
 	"example.com/bare/requirements/fun/quote"
 	"github.com/worldiety/speclink/spec"
@@ -59,4 +60,7 @@ var Angebotsablage = spec.Channel{
 	Satisfies: []spec.Requirement{
 		dec.RDecQuoteState,
 	},
+	// The shape that outlives the process. Naming it here is what lets a run
+	// notice that the thing on disk stopped being what this system reads.
+	Contract: fs.QuoteStore{},
 }

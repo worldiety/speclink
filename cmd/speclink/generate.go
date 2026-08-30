@@ -1106,6 +1106,43 @@ func (m *specModel) writeArchitecture(d *doc.Doc) {
 	}
 }
 
+// writeContracts prints the shapes this system depends on receiving.
+//
+// The four descriptive fields of a channel answer "what crosses, who may, what
+// protects it" in the words of a data protection register. That is the right
+// register for a reviewer and no use at all to somebody wiring the far end. A
+// channel that names a type gets its structure printed, from the same reading
+// that records it in the lock file — so what a developer sees here is exactly
+// what a run compares.
+func (m *specModel) writeContracts(d *doc.Doc) {
+	var stated []ir.Channel
+	for _, c := range m.topo.Channels {
+		if c.Contract != nil {
+			stated = append(stated, c)
+		}
+	}
+	if len(stated) == 0 {
+		return
+	}
+
+	d.H(3, "What this system relies on receiving")
+	d.P(doc.T("These structures cross the boundary and are recorded in "), doc.Code("speclink.lock"),
+		doc.T(". A change to one is reported the next run, which is the only warning available: "),
+		doc.T("the far end of a channel has not heard of this repository and cannot be told."))
+
+	for _, c := range stated {
+		d.H(4, c.Name())
+		w := c.Contract
+		if len(w.Fields) == 0 {
+			d.P(doc.Strong("Shape"), doc.T(" "), doc.Code(lastSegment(w.Type)),
+				doc.T(" — "), doc.Code(w.Shape))
+			continue
+		}
+		d.P(doc.Strong("Shape"), doc.T(" "), doc.Code(lastSegment(w.Type)))
+		fieldTable(d, w)
+	}
+}
+
 func (m *specModel) writeBoundary(d *doc.Doc) {
 	if !m.can.Topology {
 		omitted(d, "The boundary", "Not measured: this frontend reads no topology declarations, so what this system talks to is missing from this document.")
@@ -1143,6 +1180,7 @@ func (m *specModel) writeBoundary(d *doc.Doc) {
 	if len(m.topo.Channels) == 0 {
 		return
 	}
+	m.writeContracts(d)
 	d.H(3, "Every way across")
 	t := d.Table("Channel", "Protocol", "Data", "Authentication", "In transit")
 	for _, c := range m.topo.Channels {
@@ -1233,18 +1271,30 @@ func (m *specModel) writeShapeTable(d *doc.Doc, side string, w *ir.WireShape) {
 		return
 	}
 	d.P(doc.Strong(side), doc.T(" "), doc.Code(lastSegment(w.Type)))
-	t := d.Table("Field", "Wire", "Shape", "Required")
+	fieldTable(d, w)
+}
+
+// fieldTable prints the fields of one shape.
+//
+// The last column says whether the encoder leaves the field out when it is
+// empty, which is what a consumer needs in order to write a parser. It used to
+// be headed "Required" and filled from ir.SchemaField.Optional, which nothing
+// on this path ever sets — so every field of every payload was published as
+// required, including the ones tagged omitempty. A column that is right by
+// accident on the majority of rows is worse than no column.
+func fieldTable(d *doc.Doc, w *ir.WireShape) {
+	t := d.Table("Field", "Wire", "Shape", "Omitted when empty")
 	t.Aligned(doc.Left, doc.Left, doc.Left, doc.Right)
 	for _, f := range w.Fields {
-		required := doc.Yes
-		if f.Optional {
-			required = doc.No
+		omitted := doc.No
+		if f.OmitEmpty {
+			omitted = doc.Yes
 		}
 		t.Add(
 			doc.Cell(doc.Code(f.Name)),
 			doc.Cell(doc.Code(f.Wire)),
 			doc.Cell(doc.Code(f.Shape)),
-			doc.Cell(required),
+			doc.Cell(omitted),
 		)
 	}
 }

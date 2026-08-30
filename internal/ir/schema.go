@@ -45,6 +45,17 @@ type SchemaField struct {
 	// Optional reports whether the field may be absent from stored data. It is
 	// set for fields added after the type was promised.
 	Optional bool
+	// OmitEmpty reports that the encoder leaves this field out when it holds
+	// the zero value.
+	//
+	// Deliberately not the same as Optional. Optional is a decision somebody
+	// declared: readers may not rely on this being present. This is a fact
+	// about the encoding: the field will simply be missing from the payload
+	// when it is empty, whether or not anybody thought about it. A consumer
+	// needs the second to write a parser and the first to know what the
+	// absence means, and reporting either as the other is how a nullable field
+	// becomes a crash.
+	OmitEmpty bool
 	// Pos is the declaration of the field itself.
 	//
 	// A finding about a field has to point at that field. Pointing at the

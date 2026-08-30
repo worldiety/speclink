@@ -44,6 +44,10 @@ type Channel struct {
 	Crypto   string
 
 	Satisfies []string
+	// Contract is the structure that crosses, where the declaration names a
+	// type for it. Nil where none was stated, which is different from a
+	// channel that carries nothing: one is unknown and the other is empty.
+	Contract *WireShape
 
 	Pos Position
 }

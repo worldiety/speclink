@@ -256,6 +256,11 @@ func verify(args []string) error {
 	// K17: what surrounds the code, and where it reaches out.
 	tp := check.Topology(tree, topo, bindings, model.Dialect(), findings)
 
+	// K17 again, in the other direction: the shapes this system depends on
+	// receiving. The rules above hold a channel to describing itself; this
+	// holds it to the structure it was recorded as carrying.
+	check.ContractEvolution(topo.Channels, base, findings)
+
 	var proc check.ProcessReport
 	if _, inf := model.(lang.ConstructInferrer); inf {
 		proc = check.Processes(tree, processes, constructs, bindings, scope, model.Dialect(), findings)
