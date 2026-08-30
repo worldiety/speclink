@@ -225,3 +225,60 @@ func TestAnchorsDoNotFollowTheTitle(t *testing.T) {
 		t.Errorf("rewording a title moved its anchor: %q became %q", first[1], second[1])
 	}
 }
+
+// TestAReferenceKeepsItsWords is the defect that made the register useless.
+//
+// Typst renders a bare reference as the number of the section it points at, so
+// a table whose entire job is to name requirements came out as a column of
+// "Section 15.1", "Section 15.2". Every row was a link to something the reader
+// could not identify without following it — in a printed document, not at all.
+//
+// The words have to survive, and the guarantee has to survive with them: a
+// reference that lands nowhere must still refuse to compile. Both are checked,
+// because the obvious fix for the first quietly gives up the second.
+func TestAReferenceKeepsItsWords(t *testing.T) {
+	t.Parallel()
+	d := doc.New("t")
+	d.HID(2, "R-QUOTE-SUBMIT", "R-QUOTE-SUBMIT — Submitting a quote")
+	d.P(doc.Ref{ID: "R-QUOTE-SUBMIT", Text: "R-QUOTE-SUBMIT"})
+
+	for _, r := range []doc.Renderer{doc.Markdown{}, doc.Typst{}} {
+		out := r.Render(d)
+		if !strings.Contains(out, "R-QUOTE-SUBMIT") {
+			t.Errorf("%s dropped the words of a reference:\n%s", r.Ext(), out)
+		}
+	}
+	// Specifically: the Typst output must not fall back on the numbering.
+	if out := (doc.Typst{}).Render(d); strings.Contains(out, "@req-R-QUOTE-SUBMIT") {
+		t.Errorf("the reference renders as a section number rather than its words:\n%s", out)
+	}
+}
+
+// TestADanglingReferenceStillFailsAfterKeepingTheWords guards the trade the
+// previous test invites.
+//
+// Rendering a reference as plain text keeps the words and throws away the only
+// thing that made a Markdown anchor better than a hope. This checks that the
+// spelling chosen keeps both.
+func TestADanglingReferenceStillFailsAfterKeepingTheWords(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("typst"); err != nil {
+		t.Skip("typst is not installed")
+	}
+	d := doc.New("t")
+	d.HID(2, "R-1", "R-1 — real")
+	d.P(doc.Ref{ID: "R-GONE", Text: "R-GONE"})
+
+	dir := t.TempDir()
+	src := filepath.Join(dir, "spec.typ")
+	if err := os.WriteFile(src, []byte(doc.Typst{}.Render(d)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command("typst", "compile", src, filepath.Join(dir, "spec.pdf")).CombinedOutput()
+	if err == nil {
+		t.Fatal("a reference to a requirement that does not exist compiled cleanly")
+	}
+	if !strings.Contains(string(out), "does not exist") {
+		t.Errorf("the build failed for some other reason:\n%s", out)
+	}
+}

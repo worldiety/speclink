@@ -155,8 +155,9 @@ func (r Typst) preamble(b *strings.Builder, d *Doc) {
 #show heading.where(level: 4): it => block(above: 1em, below: 0.4em,
   text(10.5pt, weight: "semibold", style: "italic", it))
 
-#show link: it => text(fill: accent, underline(offset: 2pt, stroke: 0.4pt + accent.lighten(50%), it))
-#show ref: it => text(fill: accent, it)
+// Colour alone for links. Underlining every requirement identifier in a table
+// that is nothing but identifiers turns the column into a rule.
+#show link: it => text(fill: accent, it)
 #show raw: set text(font: "DejaVu Sans Mono", size: 8.5pt)
 
 // Tables are read down a column, so the vertical rules come out and the
@@ -286,7 +287,13 @@ func (r Typst) inline(i Inline) string {
 	case Mark:
 		return typMark(t)
 	case Ref:
-		return "@" + label(t.ID)
+		// link(<label>)[text] rather than @label. The bare reference renders
+		// as the section number of the target — "Section 15.1" — which in a
+		// register whose whole job is to name requirements tells the reader
+		// nothing about which row they are looking at. This keeps the words
+		// and keeps the guarantee: Typst refuses to compile a link to a label
+		// that does not exist, exactly as it refuses a bare reference.
+		return fmt.Sprintf("#link(<%s>)[%s]", label(t.ID), typEscape(t.Text))
 	default:
 		panic(fmt.Sprintf("doc: typst has no case for inline %T", i))
 	}
