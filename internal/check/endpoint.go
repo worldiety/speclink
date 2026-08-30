@@ -28,6 +28,15 @@ const (
 	// RuleEndpointMeaningChanged fires when an address keeps its name and the
 	// work behind it changes.
 	RuleEndpointMeaningChanged = "K20-ENDPOINT-MEANING-CHANGED"
+	// RuleResponseFieldRemoved fires when a field an address promised to
+	// return is gone.
+	RuleResponseFieldRemoved = "K20-RESPONSE-FIELD-REMOVED"
+	// RuleRequestFieldDropped fires when a field an address promised to accept
+	// is no longer read.
+	RuleRequestFieldDropped = "K20-REQUEST-FIELD-DROPPED"
+	// RuleWireShapeChanged fires when what crosses a boundary keeps its name
+	// and changes its structure.
+	RuleWireShapeChanged = "K20-WIRE-SHAPE-CHANGED"
 )
 
 // EndpointReport is what the run can say about the surface the system exposes.
@@ -222,6 +231,13 @@ func EndpointEvolution(eps []ir.Endpoint, base *baseline.File, scope map[string]
 			// the run counts the route as unmeasured rather than clean.
 			continue
 		}
+		// What crosses the boundary is held to account whether or not the work
+		// behind it changed. They are independent promises: a route can keep
+		// its use case and change its JSON, which is the break a caller feels
+		// and nothing else here would see.
+		wireEvolution(ref, was.Request, wireOf(now.RequestShape), "request", RuleRequestFieldDropped, now.Pos, out)
+		wireEvolution(ref, was.Response, wireOf(now.ResponseShape), "response", RuleResponseFieldRemoved, now.Pos, out)
+
 		if sameStrings(was.UseCases, now.UseCases) {
 			continue
 		}
@@ -249,12 +265,20 @@ func RecordEndpoints(base *baseline.File, eps []ir.Endpoint) (added, updated []s
 		if e.Path == "" || e.LeftScope {
 			continue
 		}
-		entry := baseline.Endpoint{UseCases: e.UseCases, Package: e.Package}
+		entry := baseline.Endpoint{
+			UseCases: e.UseCases,
+			Package:  e.Package,
+			Request:  wireOf(e.RequestShape),
+			Response: wireOf(e.ResponseShape),
+		}
 		previous, existed := base.Endpoints[e.Ref()]
 		switch {
 		case !existed:
 			added = append(added, e.Ref())
-		case !sameStrings(previous.UseCases, entry.UseCases), previous.Package != entry.Package:
+		case !sameStrings(previous.UseCases, entry.UseCases),
+			previous.Package != entry.Package,
+			!sameWire(previous.Request, entry.Request),
+			!sameWire(previous.Response, entry.Response):
 			updated = append(updated, e.Ref())
 		default:
 			continue
@@ -294,4 +318,135 @@ func join(names []string) string {
 		return "nothing this could trace"
 	}
 	return strings.Join(names, ", ")
+}
+
+// wireEvolution holds the bodies of one address to what it promised.
+//
+// # Why three rules and not five
+//
+// A boundary breaks asymmetrically, and only the breaks are rules. A field
+// removed from a response breaks every caller reading it. A field dropped from
+// a request is worse than an error: the caller still sends it, still gets its
+// two hundred, and the value is discarded in silence. A field that keeps its
+// wire name and changes its structure breaks both directions at once.
+//
+// The other two directions are not rules and are deliberately not. A field
+// added to a response is what every client is required to tolerate, and
+// reporting it would train people to run freeze without reading the diff. A
+// field added to a request breaks callers only when it is required, and nothing
+// in a Go struct says that it is — a rule that fired on every optional
+// parameter would be wrong far more often than right, and a rule that guessed
+// which were required would be wrong invisibly.
+//
+// # Why the wire name and not the Go name
+//
+// A caller sees the tag. Renaming the Go field while keeping the tag changes
+// nothing outside this repository, and reporting it would be reporting a
+// refactor as an outage. The reverse — same Go name, new tag — is a real break
+// and is caught, because the promised wire name is then found nowhere.
+func wireEvolution(ref string, was, now *baseline.Wire, direction string, rule string, pos ir.Position, out *diag.Set) {
+	if was == nil || now == nil {
+		// One side states nothing, so there is nothing to compare. A dialect
+		// that never reported a body cannot be held to one, and the address
+		// having gained or lost the ability to say is not a change to what
+		// crosses it.
+		return
+	}
+
+	// A body that is not a struct has no fields to walk, and its whole
+	// structure is the promise.
+	if len(was.Fields) == 0 && len(now.Fields) == 0 {
+		if was.Shape != now.Shape && was.Shape != "" {
+			out.Add(diag.Finding{
+				Code: diag.Code(diag.PhaseSemantic, 158),
+				Pos:  pos,
+				Rule: RuleWireShapeChanged,
+				What: "the " + direction + " of " + ref + " was promised as " + was.Shape + " and is now " + now.Shape + ".",
+				Why:  "Every caller that parses it was written against the old structure. Nothing in this repository will tell them, because the address did not change and neither did anything they can see from outside.",
+				How:  "Restore the structure, or publish a new address and leave this one answering as it did. If the change is intended, record it with freeze so the diff of the lock file is where somebody reviews it.",
+			})
+		}
+		return
+	}
+
+	for _, promised := range was.Fields {
+		current, still := now.ByWire(promised.Wire)
+		if !still {
+			out.Add(diag.Finding{
+				Code: diag.Code(diag.PhaseSemantic, codeOf(rule)),
+				Pos:  pos,
+				Rule: rule,
+				What: reasonFor(rule, ref, promised.Wire),
+				Why:  whyFor(rule),
+				How:  "Restore the field, or waive " + rule + " on the package that mounts the route once the callers are known to be gone.",
+			})
+			continue
+		}
+		if current.Shape == promised.Shape {
+			continue
+		}
+		out.Add(diag.Finding{
+			Code: diag.Code(diag.PhaseSemantic, 158),
+			Pos:  pos,
+			Rule: RuleWireShapeChanged,
+			What: "the field " + promised.Wire + " in the " + direction + " of " + ref + " was promised as " + promised.Shape + " and is now " + current.Shape + ".",
+			Why:  "A caller that reads or writes it was compiled against the old structure, and a value of the new one either fails to parse or parses into something else. This is the break that no status code reports.",
+			How:  "Restore the structure, or carry the new one under a new wire name and leave the promised one in place.",
+		})
+	}
+}
+
+func codeOf(rule string) int {
+	if rule == RuleResponseFieldRemoved {
+		return 156
+	}
+	return 157
+}
+
+func reasonFor(rule, ref, field string) string {
+	if rule == RuleResponseFieldRemoved {
+		return "the response of " + ref + " promised the field " + field + " and no longer returns it."
+	}
+	return "the request of " + ref + " promised to accept the field " + field + " and no longer reads it."
+}
+
+func whyFor(rule string) string {
+	if rule == RuleResponseFieldRemoved {
+		return "Every caller reading that field breaks, and an address is the one promise whose holders are outside the build. Nothing here can tell them."
+	}
+	return "Callers still send it, still receive a success, and the value is discarded. A break that answers with two hundred is worse than one that answers with an error, because nothing anywhere reports it."
+}
+
+// wireOf converts a recognised body into the form the baseline keeps.
+//
+// Nil stays nil. A dialect that states no body must not be recorded as one that
+// states an empty body, or the next run holds it to a promise it never made.
+func wireOf(w *ir.WireShape) *baseline.Wire {
+	if w == nil {
+		return nil
+	}
+	out := &baseline.Wire{Type: w.Type, Shape: w.Shape}
+	for _, f := range w.Fields {
+		out.Fields = append(out.Fields, baseline.Field{
+			Name:  f.Name,
+			Wire:  f.Wire,
+			Shape: f.Shape,
+		})
+	}
+	return out
+}
+
+func sameWire(a, b *baseline.Wire) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	if a.Type != b.Type || a.Shape != b.Shape || len(a.Fields) != len(b.Fields) {
+		return false
+	}
+	for i := range a.Fields {
+		if a.Fields[i] != b.Fields[i] {
+			return false
+		}
+	}
+	return true
 }

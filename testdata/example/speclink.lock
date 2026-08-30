@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "types": {
     "example.com/erp/app/sales.CustomerEntity": {
       "discriminator": "",
@@ -186,13 +186,51 @@
       "useCases": [
         "example.com/erp/app/sales.ListQuotes"
       ],
-      "package": "example.com/erp/cmd/erp"
+      "package": "example.com/erp/cmd/erp",
+      "response": {
+        "type": "example.com/erp/cmd/erp.ListQuotesResponse",
+        "shape": "{quotes:[]{Submitted:int,LastQuote:string}}",
+        "fields": [
+          {
+            "name": "Quotes",
+            "wire": "quotes",
+            "shape": "[]{Submitted:int,LastQuote:string}"
+          }
+        ]
+      }
     },
     "POST /api/v1/quotes": {
       "useCases": [
         "example.com/erp/app/sales.SubmitQuote"
       ],
-      "package": "example.com/erp/cmd/erp"
+      "package": "example.com/erp/cmd/erp",
+      "request": {
+        "type": "example.com/erp/cmd/erp.SubmitQuoteBody",
+        "shape": "{quoteId:string,title:string}",
+        "fields": [
+          {
+            "name": "QuoteID",
+            "wire": "quoteId",
+            "shape": "string"
+          },
+          {
+            "name": "Title",
+            "wire": "title",
+            "shape": "string"
+          }
+        ]
+      },
+      "response": {
+        "type": "example.com/erp/cmd/erp.SubmitQuoteResponse",
+        "shape": "{sequence:int}",
+        "fields": [
+          {
+            "name": "Sequence",
+            "wire": "sequence",
+            "shape": "int"
+          }
+        ]
+      }
     }
   }
 }

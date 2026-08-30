@@ -291,8 +291,10 @@ func TestSurfaceCatalogueCarriesTheWireShapes(t *testing.T) {
 
 	for _, want := range []string{
 		"| Address | Takes | Returns | Serves | Asked for by |",
-		"| `POST /api/v1/quotes` | `SubmitQuoteRequest` | `SubmitQuoteResponse` | `SubmitQuote` | R-QUOTE-SUBMIT |",
-		"| `GET /api/v1/quotes` | `ListQuotesRequest` | `ListQuotesResponse` | `ListQuotes` | R-QUOTE-OVERVIEW |",
+		"| `POST /api/v1/quotes` | `SubmitQuoteBody` | `SubmitQuoteResponse` | `SubmitQuote` | R-QUOTE-SUBMIT |",
+		// A GET carries no body, so the cell is a dash and not the assembled
+		// request model, which no caller ever sends.
+		"| `GET /api/v1/quotes` | — | `ListQuotesResponse` | `ListQuotes` | R-QUOTE-OVERVIEW |",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("expected the row %q in the catalogue", want)
@@ -310,7 +312,7 @@ func TestCatalogueDistinguishesNoBodyFromNotAsked(t *testing.T) {
 	t.Parallel()
 
 	stated, _ := runSpeclink(t, "generate", "../../testdata/example", "./...")
-	if !strings.Contains(stated, "| `DELETE /api/v1/quotes/{quoteId}` | `WithdrawQuoteRequest` | — |") {
+	if !strings.Contains(stated, "| `DELETE /api/v1/quotes/{quoteId}` | — | — |") {
 		t.Errorf("a route that promises no shape must print a dash:\n%s", surfaceOf(stated))
 	}
 

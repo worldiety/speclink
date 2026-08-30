@@ -75,17 +75,19 @@ func (m *Model) Endpoints() []ir.Endpoint {
 			}
 
 			e := ir.Endpoint{
-				Method:       site.method,
-				Path:         site.path,
-				Package:      p.PkgPath(),
-				Handler:      render(p, site.handler),
-				UseCases:     t.names(),
-				Request:      site.request,
-				Response:     site.response,
-				ShapesStated: site.shapesStated,
-				Truncated:    t.truncated,
-				LeftScope:    t.leftScope,
-				Pos:          p.pos(site.pos),
+				Method:        site.method,
+				Path:          site.path,
+				Package:       p.PkgPath(),
+				Handler:       render(p, site.handler),
+				UseCases:      t.names(),
+				Request:       site.request,
+				Response:      site.response,
+				RequestShape:  site.requestShape,
+				ResponseShape: site.responseShape,
+				ShapesStated:  site.shapesStated,
+				Truncated:     t.truncated,
+				LeftScope:     t.leftScope,
+				Pos:           p.pos(site.pos),
 			}
 			// Request and Response are whatever the dialect stated and nothing
 			// more. They could be guessed from the use case's own signature,
@@ -120,9 +122,10 @@ type site struct {
 	trace []ast.Expr
 	// request and response are the wire shapes, filled only by a dialect that
 	// states them, and shapesStated says whether this dialect is one of those.
-	request, response string
-	shapesStated      bool
-	pos               token.Pos
+	request, response           string
+	requestShape, responseShape *ir.WireShape
+	shapesStated                bool
+	pos                         token.Pos
 	// pattern is the unreadable expression, kept for the diagnostic.
 	pattern ast.Expr
 }

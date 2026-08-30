@@ -3,6 +3,8 @@ package golang
 import (
 	"go/ast"
 	"go/types"
+
+	"github.com/worldiety/speclink/internal/ir"
 )
 
 // Recognising the routes of a fluent builder.
@@ -143,10 +145,15 @@ func (p *Package) hapiSite(links []*ast.CallExpr, root *ast.CallExpr, verb strin
 		}
 	}
 
-	// The request shape is the type argument of the verb itself.
-	if args := p.typeArgsOf(root); args != nil && args.Len() > 0 {
-		s.request = typeName(args.At(0))
-	}
+	// What crosses is read from the options, not from the verb's own type
+	// argument.
+	//
+	// That type is the assembled request model: the bearer subject, the
+	// headers, the query and the body all mapped into one struct. It is what
+	// the handler receives and it is emphatically not what the caller sends,
+	// so promising it would promise a shape no client can produce — a field
+	// carrying an auth.Subject among them. The body is stated separately, by
+	// the option that reads it, and that is the one a caller depends on.
 
 	// Every argument of every link is traced, and the links are traced apart
 	// rather than as one expression. Request and Response are siblings in
@@ -156,21 +163,48 @@ func (p *Package) hapiSite(links []*ast.CallExpr, root *ast.CallExpr, verb strin
 	// never look at the other.
 	for _, l := range links {
 		s.trace = append(s.trace, l.Args...)
-		if s.response == "" {
-			s.response = p.hapiResponse(l, root)
+
+		body := p.hapiBody(l, root)
+		if body == nil {
+			continue
+		}
+		switch linkName(l) {
+		case "Request":
+			if s.request == "" {
+				s.request = typeName(body)
+				s.requestShape = p.wireShape(body)
+			}
+		case "Response":
+			if s.response == "" {
+				s.response = typeName(body)
+				s.responseShape = p.wireShape(body)
+			}
 		}
 	}
 	return s
 }
 
-// hapiResponse reads the type a link states it writes back.
+// linkName returns the method a chain link calls, empty for the call that
+// started the chain.
+func linkName(link *ast.CallExpr) string {
+	sel, ok := deparen(link.Fun).(*ast.SelectorExpr)
+	if !ok {
+		return ""
+	}
+	return sel.Sel.Name
+}
+
+// hapiBody reads the body an option maps, in whichever direction it maps it.
 //
-// Only from a call that carries two type arguments whose first is the request
-// shape, which is what the response options of this builder look like. A
-// response written as raw bytes states no type and leaves this empty, and that
-// is the truthful answer rather than a gap: the route genuinely promises no
-// shape.
-func (p *Package) hapiResponse(link *ast.CallExpr, root *ast.CallExpr) string {
+// Recognised by shape rather than by name: an option that carries two type
+// arguments whose first is the request model is one that states a structured
+// body, and that is true of the ones that read JSON in and of the ones that
+// write JSON out alike. The options that map a header, a query parameter or a
+// file carry one type argument and are correctly not bodies.
+//
+// A response written as raw bytes states nothing here, and that is the truthful
+// answer rather than a gap: the route genuinely promises no shape.
+func (p *Package) hapiBody(link *ast.CallExpr, root *ast.CallExpr) types.Type {
 	request := ""
 	if args := p.typeArgsOf(root); args != nil && args.Len() > 0 {
 		request = typeName(args.At(0))
@@ -187,9 +221,25 @@ func (p *Package) hapiResponse(link *ast.CallExpr, root *ast.CallExpr) string {
 		if typeName(args.At(0)) != request {
 			continue
 		}
-		return typeName(args.At(1))
+		return args.At(1)
 	}
-	return ""
+	return nil
+}
+
+// wireShape reads a body the way a persisted type is read.
+//
+// The same expansion through named types, so that a change inside a nested
+// struct reaches the string a rule compares. Fields are collected where the
+// body is a struct, because the two directions of a boundary break
+// asymmetrically and only a field by field view can tell a removal from an
+// addition; a body that is a list or a string has none, and the whole shape is
+// then what carries the promise.
+func (p *Package) wireShape(t types.Type) *ir.WireShape {
+	w := &ir.WireShape{Type: typeName(t), Shape: shapeOf(t, map[*types.Named]bool{})}
+	if st, ok := t.Underlying().(*types.Struct); ok {
+		w.Fields = p.readFields(st)
+	}
+	return w
 }
 
 // hapiField reads a constant string out of a field of a struct literal.

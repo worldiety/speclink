@@ -964,13 +964,33 @@ Two things this deliberately does **not** do:
   right there and would usually be correct — but a presentation layer that maps
   a request body onto a command makes the guess silently wrong, and this is a
   frozen promise.
-- **It does not freeze the wire types.** What a caller depends on is the shape
-  of the body, and the name of the type is not the shape. Freezing the name
-  would report a harmless rename as a break and let a removed field pass as
-  unchanged — wrong in both directions, which is worse than unmeasured. The
-  stored shapes are compared field by field for exactly this reason; until a
-  wire type is read the same way, this reports what crosses the boundary and
-  claims nothing about whether it stayed the same.
+- **It never freezes a type name.** What a caller depends on is the shape of
+  the body. The name is frozen nowhere and decided on nowhere: renaming the Go
+  type, or the Go field behind an unchanged tag, is invisible outside this
+  repository and is reported as nothing.
+
+What *is* frozen is the shape, read the way a persisted shape is read — expanded
+through named types, compared field by field on the wire name a caller sees.
+Because the expansion is structural, a change reaches the route from anywhere:
+adding a JSON tag to a field of a projection two packages away shows up as
+`the field quotes in the response of GET /api/v1/quotes was promised as
+[]{Submitted:int,LastQuote:string} and is now []{submittedCount:int,…}`.
+
+A boundary breaks asymmetrically, so only the breaks are rules:
+
+| change | reported | why |
+|---|---|---|
+| response field removed | `K20-RESPONSE-FIELD-REMOVED` | every caller reading it breaks |
+| request field no longer read | `K20-REQUEST-FIELD-DROPPED` | callers still send it, still get a 200, value discarded |
+| field kept its wire name, changed structure | `K20-WIRE-SHAPE-CHANGED` | breaks both directions at once |
+| response field **added** | — | every client must tolerate unknown fields |
+| request field **added** | — | breaks only if required, and nothing in a Go struct says it is |
+| Go field renamed, tag unchanged | — | no caller can see it |
+| `int` widened to `int64` | — | JSON has one number type |
+
+The two omissions are the point. A rule that fired on a harmless addition would
+teach people to run `freeze` without reading the diff, and reading the diff is
+the only thing that makes `freeze` worth having.
 
 ### Two type aliases that will bite you
 
@@ -1839,6 +1859,9 @@ is refused rather than accepted.
 | `K20-ENDPOINT-NO-USE-CASE` | `V6-153` | nothing accountable was found behind a route |
 | `K20-ENDPOINT-REMOVED` | `V6-154` | a promised address is no longer mounted |
 | `K20-ENDPOINT-MEANING-CHANGED` | `V6-155` | an address kept its name and the work behind it changed |
+| `K20-RESPONSE-FIELD-REMOVED` | `V6-156` | a field an address promised to return is gone |
+| `K20-REQUEST-FIELD-DROPPED` | `V6-157` | a field an address promised to accept is no longer read |
+| `K20-WIRE-SHAPE-CHANGED` | `V6-158` | what crosses a boundary kept its name and changed its structure |
 | `K15-EVENT-NO-TRANSITION` | `V6-060` | an event does not say which state it leaves the aggregate in |
 | `K15-TRANSITION-UNKNOWN` | `V6-061` | a transition names something that folds nothing |
 | `K14-REQ-UNVERIFIED` | `V6-120` | no test demonstrates a normative requirement |

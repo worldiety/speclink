@@ -48,10 +48,17 @@ type Endpoint struct {
 	// type is not the shape. Freezing the name would report a rename that
 	// changes nothing as a break, and pass a field removed from the same type
 	// as unchanged — wrong in both directions at once, which is worse than
-	// unmeasured. The stored shapes already have the machinery for this: they
-	// are compared field by field against the baseline, not by name. Until a
-	// wire type is read that way too, this reports what crosses the boundary
-	// and claims nothing about whether it stayed the same.
+	// unmeasured. What is frozen instead is below.
+
+	// RequestShape and ResponseShape are what actually crosses: the structure
+	// of each body, expanded through named types, and its fields where it has
+	// any. This is the same reading a persisted type gets, for the same
+	// reason — a caller and a stored message both depend on the shape and
+	// neither can see the identifier that produced it.
+	//
+	// Nil where the dialect states no shape at all, which is not the same as a
+	// body with no fields. See ShapesStated.
+	RequestShape, ResponseShape *WireShape
 
 	// Truncated records that the trace hit its depth limit before it ran out
 	// of places to look. The distinction matters: no use case found because
@@ -78,3 +85,22 @@ type Endpoint struct {
 
 // Ref renders the endpoint as a reader addresses it.
 func (e Endpoint) Ref() string { return e.Method + " " + e.Path }
+
+// WireShape is one body crossing the boundary.
+//
+// It carries both readings on purpose. Fields is what a rule works with,
+// because the two directions break asymmetrically and only a field by field
+// view can tell a removal from an addition. Shape is the whole structure as one
+// string, which is what answers for a body that is not a struct at all — a
+// list, a string, a map — where there are no fields to compare and something
+// still has to be promised.
+type WireShape struct {
+	// Type is the qualified name of the type that produced it, for a reader
+	// who wants to find it. Nothing is decided on this.
+	Type string
+	// Shape is the structure expanded through named types, so that a change
+	// inside a nested type reaches this string.
+	Shape string
+	// Fields are the serialised fields, empty where the body is not a struct.
+	Fields []SchemaField
+}

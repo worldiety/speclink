@@ -208,11 +208,21 @@ func TestHapiRoutesCarryTheirWireShapes(t *testing.T) {
 	m := nagoModel(t)
 
 	e := endpointAt(t, m, "POST /api/v1/quotes")
-	if e.Request != "example.com/erp/cmd/erp.SubmitQuoteRequest" {
+	// The body a caller posts, not the assembled request model. That model is
+	// the union of the bearer subject, the headers, the query and the body, so
+	// promising it would promise a shape no client can produce — an auth
+	// interface among its fields.
+	if e.Request != "example.com/erp/cmd/erp.SubmitQuoteBody" {
 		t.Errorf("request shape: %q", e.Request)
+	}
+	if e.RequestShape == nil || e.RequestShape.Shape != "{quoteId:string,title:string}" {
+		t.Errorf("the request body was not expanded: %+v", e.RequestShape)
 	}
 	if e.Response != "example.com/erp/cmd/erp.SubmitQuoteResponse" {
 		t.Errorf("response shape: %q", e.Response)
+	}
+	if e.ResponseShape == nil || e.ResponseShape.Shape != "{sequence:int}" {
+		t.Errorf("the response body was not expanded: %+v", e.ResponseShape)
 	}
 	if !e.ShapesStated {
 		t.Error("a dialect that reports its wire types must say that it does")
@@ -238,8 +248,13 @@ func TestHapiVerbComesFromTheCallNotADefault(t *testing.T) {
 	// The response is written as bytes, so the route promises no shape. That
 	// is a dash in the catalogue and not a gap, which is why the dialect has
 	// to say it reports shapes even when this one has none.
-	if e.Response != "" {
-		t.Errorf("a binary response must state no type, got %q", e.Response)
+	if e.Response != "" || e.ResponseShape != nil {
+		t.Errorf("a binary response must state no shape, got %q", e.Response)
+	}
+	// Nothing is read from the body either: the identifier comes from the path
+	// and the caller sends none.
+	if e.RequestShape != nil {
+		t.Errorf("a route with no body must promise none, got %+v", e.RequestShape)
 	}
 	if !e.ShapesStated {
 		t.Error("an empty response on this dialect means none, not unknown")

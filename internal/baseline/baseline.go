@@ -74,8 +74,8 @@ const FileName = "speclink.lock"
 // the file forbids.
 //
 // Version 2 added the requirement and source records, version 3 the
-// verifications, version 4 the endpoints and version 5 the package each
-// endpoint was mounted in. Upgrading leaves the new maps empty, which is exactly right:
+// verifications, version 4 the endpoints, version 5 the package each endpoint
+// was mounted in and version 6 the shapes crossing them. Upgrading leaves the new maps empty, which is exactly right:
 // nothing has been recorded about them yet, so nothing can have drifted, and
 // the next freeze or evidence run reads them for the first time.
 //
@@ -85,7 +85,7 @@ const FileName = "speclink.lock"
 // would have parsed it, dropped the field it did not know, and written the
 // result back — losing evidence silently, which is the one direction this file
 // must never fail in.
-const Version = 5
+const Version = 6
 
 // File is the on disk form. Maps are used so the encoding is stable under
 // Go's sorted map marshalling, and so a diff stays readable per type.
@@ -134,6 +134,46 @@ type Endpoint struct {
 	// entry recorded before version 5 has none, and is held to the older and
 	// noisier reading: a removal it cannot rule out is a removal it reports.
 	Package string `json:"package,omitempty"`
+	// Request and Response are the bodies the address promised to accept and
+	// to return.
+	//
+	// Absent where the dialect states none, which is why they are pointers: a
+	// route that promises an empty body and a route mounted on a router that
+	// never reported one are different promises, and a rule reading them as
+	// the same would either accuse the second or excuse the first.
+	Request  *Wire `json:"request,omitempty"`
+	Response *Wire `json:"response,omitempty"`
+}
+
+// Wire is one promised body.
+//
+// Both readings are kept for the same reason the recogniser produces both. The
+// fields are what a rule compares, because a boundary breaks asymmetrically and
+// only a field by field view tells a removal from an addition. The shape
+// answers for a body that is not a struct, where there are no fields and
+// something still has to be held to.
+type Wire struct {
+	// Type is the qualified name that produced the shape. Recorded so a reader
+	// can find it; nothing is decided on it, because a rename is not a change
+	// to anything a caller can see.
+	Type string `json:"type,omitempty"`
+	// Shape is the structure expanded through named types.
+	Shape string `json:"shape"`
+	// Fields are the serialised fields, absent for a body that is not a struct.
+	Fields []Field `json:"fields,omitempty"`
+}
+
+// ByWire returns the promised field carrying the given wire name.
+func (w *Wire) ByWire(wire string) (Field, bool) {
+	if w == nil {
+		return Field{}, false
+	}
+	for _, f := range w.Fields {
+		if f.Wire == wire {
+			return f, true
+		}
+	}
+	return Field{}, false
 }
 
 // Construct records the provenance of one declaration.
