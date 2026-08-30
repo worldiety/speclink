@@ -47,7 +47,7 @@ speclink freeze       [flags] [packages]
 speclink inventory    [flags] [packages]
 speclink impact       [flags] <requirement|doc.md#anchor|path>...
 
-  -format text|json   text is the default
+  -format text|json   text is the default; generate takes markdown|typst
   -root <dir>         repository root, default "."
   -config <file>      layout configuration; defaults to speclink.json in the root
   -n                  freeze only: report what would be recorded, write nothing
@@ -55,6 +55,8 @@ speclink impact       [flags] <requirement|doc.md#anchor|path>...
   -in <file>          evidence only: read the test stream from a file
   -coverprofile <f>   evidence only: record how much of each declaration ran
   -out <file>         generate only: write here instead of standard output
+  -author <who>       generate only: the issuer on the title page, typst only
+  -date <date>        generate only: the date on the title page, typst only
   -profile <name>     overrides the profile from speclink.json
   -kind <kind>        inventory only: restrict to one kind, e.g. event
   -template <name>    init only: which starting point of the profile to write
@@ -265,6 +267,37 @@ This is the part that decides whether the tool is worth having. As long as
 speclink exists *beside* a hand written specification, it makes the situation
 worse: one more thing to keep in step. Nothing can be removed until the document
 comes out of here.
+
+#### A PDF for review
+
+Markdown is the default, because it renders everywhere and it diffs, and a diff
+is the form in which this document is actually reviewed. For the version that
+gets handed to an auditor there is Typst:
+
+```
+speclink generate -root . -format typst -author "worldiety GmbH" -date 2026-08-30 -out spec.typ
+typst compile spec.typ spec.pdf
+```
+
+That gives numbered chapters, a table of contents, a running header and a title
+page. speclink writes the source and runs nothing, the same bargain the diagram
+output makes — Typst is a prerequisite of the environment that renders the
+document, not something this tool links against.
+
+Both formats are rendered from one document model. Neither renderer can see the
+model that produced the tree it is handed, so a fact can be spelled differently
+in the two outputs but cannot be present in one and missing from the other.
+
+The date is passed in and never read from the clock, because generating the
+document twice from the same tree has to produce the same bytes. A title page
+that changed at midnight would put a spurious change in front of every reviewer,
+and after a week of that nobody reads the diff.
+
+Typst is also the format that can check a cross reference. Markdown can only
+emit an anchor, and one that lands nowhere reads exactly like one that lands —
+the reader follows it, arrives at the top of the page and assumes they
+misclicked. Typst refuses to compile it, so a citation to a requirement that was
+deleted cannot reach a reviewer.
 
 Markdown, and deliberately nothing cleverer. It renders everywhere and it diffs,
 and a diff is the form in which this document is actually reviewed.

@@ -23,9 +23,9 @@ func TestGeneratedDocumentCarriesTheWholeChain(t *testing.T) {
 	// back to holding the graph in their head.
 	for _, want := range []string{
 		"R-QUOTE-SUBMIT", // the requirement
-		"sequential, duplicate free quote number MUST be drawn",   // its words
-		"requirements/_sources/sales/quoteflow.md#8-abgabe",       // where they came from
-		"requirements/_sources/sales/quotescreen.png#abgabeknopf", // and from which mockup
+		"sequential, duplicate free quote number MUST be drawn",    // its words
+		`requirements/\_sources/sales/quoteflow.md#8-abgabe`,       // where they came from
+		`requirements/\_sources/sales/quotescreen.png#abgabeknopf`, // and from which mockup
 		"sales.SubmitQuote",                  // what implements them
 		"TestSubmitQuoteDrawsAGaplessNumber", // what demonstrated them
 	} {
@@ -190,9 +190,9 @@ func TestDocumentCarriesTheCoursesOfBusiness(t *testing.T) {
 		"### Angebot bis zur Entscheidung",
 		"Answers to: R-QUOTE-SUBMIT, R-QUOTE-APPROVE",
 		// The step names the construct it performs, not a caption.
-		"| SubmitQuote *(activity)* | QuoteSubmitted *(event raised)* |",
+		"| SubmitQuote _(activity)_ | QuoteSubmitted _(event raised)_ |",
 		// The jump backwards survives into the table.
-		"| pruefen *(choice)* | SubmitQuote *(activity)* | nachzubessern |",
+		"| pruefen _(choice)_ | SubmitQuote _(activity)_ | nachzubessern |",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("expected %q in the document:\n%s", want, out)

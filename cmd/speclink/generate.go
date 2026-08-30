@@ -13,6 +13,7 @@ import (
 	"github.com/worldiety/speclink/internal/check"
 	"github.com/worldiety/speclink/internal/config"
 	"github.com/worldiety/speclink/internal/diag"
+	"github.com/worldiety/speclink/internal/doc"
 	"github.com/worldiety/speclink/internal/ir"
 	"github.com/worldiety/speclink/internal/lang"
 	"github.com/worldiety/speclink/internal/reqtree"
@@ -32,18 +33,53 @@ import (
 // came from, what implements them, what demonstrates them, and who has read
 // them. All of it was already known and none of it was rendered.
 //
-// Markdown, and deliberately nothing cleverer. It renders everywhere, it diffs,
-// and a diff is the form in which this document is actually reviewed. An HTML
-// backend with an asset pipeline would be a second thing to maintain, which is
-// the failure mode this command exists to end.
+// What is built here is a document, not Markdown.
+//
+// This reverses what used to stand in this comment. It said Markdown and
+// deliberately nothing cleverer, on the grounds that a second backend would be
+// a second thing to maintain, which is the failure this command exists to end.
+// That objection was right about parallel writers and is not answered by
+// ignoring it: two functions walking this model and each deciding what the
+// document says would drift apart on the first change.
+//
+// It is answered by there still being exactly one place that decides what the
+// specification contains. Only the spelling moved, into internal/doc, where a
+// renderer is handed a tree of headings, tables and sentences and gets no
+// access to the model that produced them. Two outputs that disagree is not a
+// bug that can be introduced by editing a renderer.
+//
+// What forced the question was the PDF. An audit document cites a requirement
+// from a chapter, and Markdown can only emit an anchor nobody checks; Typst
+// refuses to compile a reference that lands nowhere. Pivoting through Markdown
+// would have capped the document forever at what Markdown can express.
+//
+// Markdown remains the default, because it renders everywhere, it diffs, and a
+// diff is the form in which this document is actually reviewed.
 func generate(args []string) error {
 	fs := flag.NewFlagSet("generate", flag.ExitOnError)
 	root := fs.String("root", ".", "repository root, used to resolve source documents")
 	cfgPath := fs.String("config", "", "layout configuration; defaults to "+config.FileName+" in the root")
 	prof := fs.String("profile", "", "language, framework and architectural style; overrides "+config.FileName)
 	out := fs.String("out", "", "write to this `file` instead of standard output")
+	format := fs.String("format", "markdown", "markdown or typst")
+	author := fs.String("author", "", "who the document is issued by; typst only, left off when empty")
+	date := fs.String("date", "", "the date on the title page; typst only, left off when empty")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+
+	var r doc.Renderer
+	switch *format {
+	case "markdown":
+		r = doc.Markdown{}
+	case "typst":
+		// The date is passed in and never read from the clock. Generating the
+		// document twice from the same tree has to produce the same bytes, or
+		// it cannot be committed and diffed, and a title page that changes at
+		// midnight would put a spurious change in front of every reviewer.
+		r = doc.Typst{Author: *author, Date: *date}
+	default:
+		return fmt.Errorf("unknown format %q: markdown or typst", *format)
 	}
 
 	absRoot, err := absRootOf(*root)
@@ -65,7 +101,8 @@ func generate(args []string) error {
 		defer f.Close()
 		w = f
 	}
-	return model.writeMarkdown(w)
+	_, err = io.WriteString(w, r.Render(model.document()))
+	return err
 }
 
 // specModel is everything the document needs, gathered once.
@@ -150,41 +187,40 @@ func readModel(absRoot, cfgPath, prof string, patterns []string) (*specModel, er
 	return m, nil
 }
 
-func (m *specModel) writeMarkdown(w io.Writer) error {
-	b := &strings.Builder{}
+// document builds the specification. It decides what the document says and
+// nothing about how it is spelled; a renderer does the rest.
+func (m *specModel) document() *doc.Doc {
+	d := doc.New("Specification")
 
-	b.WriteString("# Specification\n\n")
-	b.WriteString("Derived from the source by `speclink generate`. Do not edit: every\n")
-	b.WriteString("sentence here is written somewhere else, and the point of this file is\n")
-	b.WriteString("that there is only one such place.\n\n")
+	d.P(doc.T("Derived from the source by "), doc.Code("speclink generate"),
+		doc.T(". Do not edit: every sentence here is written somewhere else, and the point of this file is that there is only one such place."))
 
-	m.writeSummary(b)
-	m.writeGaps(b)
-	m.writeDocuments(b)
-	m.writeTopics(b)
-	m.writeStandards(b)
-	m.writeBoundary(b)
-	m.writeSurface(b)
-	m.writeProcesses(b)
-	m.writeRequirements(b)
-	m.writeSources(b)
+	m.writeSummary(d)
+	m.writeGaps(d)
+	m.writeDocuments(d)
+	m.writeTopics(d)
+	m.writeStandards(d)
+	m.writeBoundary(d)
+	m.writeSurface(d)
+	m.writeProcesses(d)
+	m.writeRequirements(d)
+	m.writeSources(d)
 
-	_, err := io.WriteString(w, b.String())
-	return err
+	return d
 }
 
-func (m *specModel) writeSummary(b *strings.Builder) {
-	b.WriteString("## Where it stands\n\n")
-	b.WriteString("| | measured | complete |\n|---|---:|---:|\n")
-	fmt.Fprintf(b, "| Source segments accounted for | %d | %.0f%% |\n", m.src.Total, m.src.Ratio()*100)
-	fmt.Fprintf(b, "| Normative requirements covered | %d | %.0f%% |\n", m.cov.Normative, m.cov.Ratio()*100)
-	fmt.Fprintf(b, "| … claimed by a test | %d | %.0f%% |\n", m.ver.Normative, m.ver.Ratio()*100)
-	fmt.Fprintf(b, "| … demonstrated by a run | %d | %.0f%% |\n", m.ver.Normative, m.ver.ShownRatio()*100)
-	fmt.Fprintf(b, "| … read by a person | %d | %.0f%% |\n", m.cov.Normative, m.reviewedRatio()*100)
-	b.WriteString("\n")
+func (m *specModel) writeSummary(d *doc.Doc) {
+	d.H(2, "Where it stands")
+	d.Table("", "measured", "complete").
+		Aligned(doc.Left, doc.Right, doc.Right).
+		Add(doc.Cell(doc.T("Source segments accounted for")), doc.Cell(doc.Tf("%d", m.src.Total)), doc.Cell(doc.Tf("%.0f%%", m.src.Ratio()*100))).
+		Add(doc.Cell(doc.T("Normative requirements covered")), doc.Cell(doc.Tf("%d", m.cov.Normative)), doc.Cell(doc.Tf("%.0f%%", m.cov.Ratio()*100))).
+		Add(doc.Cell(doc.T("… claimed by a test")), doc.Cell(doc.Tf("%d", m.ver.Normative)), doc.Cell(doc.Tf("%.0f%%", m.ver.Ratio()*100))).
+		Add(doc.Cell(doc.T("… demonstrated by a run")), doc.Cell(doc.Tf("%d", m.ver.Normative)), doc.Cell(doc.Tf("%.0f%%", m.ver.ShownRatio()*100))).
+		Add(doc.Cell(doc.T("… read by a person")), doc.Cell(doc.Tf("%d", m.cov.Normative)), doc.Cell(doc.Tf("%.0f%%", m.reviewedRatio()*100)))
 
 	if m.skipped > 0 {
-		fmt.Fprintf(b, "> %s lie outside the configured scope. Nothing above is claimed about them.\n\n",
+		d.Notef("%s lie outside the configured scope. Nothing above is claimed about them.",
 			plural(m.skipped, "package", "packages"))
 	}
 }
@@ -195,17 +231,17 @@ func (m *specModel) writeSummary(b *strings.Builder) {
 // the opposite direction: a run tells an agent what to fix next, this tells a
 // reader what the specification does not yet cover. Same graph, different
 // question, and the second one has never had an answer.
-func (m *specModel) writeGaps(b *strings.Builder) {
+func (m *specModel) writeGaps(d *doc.Doc) {
 	type gap struct {
 		title string
-		items []string
+		items []doc.Bullet
 	}
 	gaps := []gap{
-		{"Requirements nothing implements", m.cov.Uncovered},
+		{"Requirements nothing implements", plainItems(m.cov.Uncovered)},
 		{"Requirements no test claims", m.unclaimed()},
-		{"Requirements no run has demonstrated", m.undemonstrated()},
-		{"Requirements nobody has read", m.unreviewed()},
-		{"Source segments that became no requirement", m.unaccounted()},
+		{"Requirements no run has demonstrated", plainItems(m.undemonstrated())},
+		{"Requirements nobody has read", plainItems(m.unreviewed())},
+		{"Source segments that became no requirement", plainItems(m.unaccounted())},
 	}
 
 	empty := true
@@ -214,82 +250,113 @@ func (m *specModel) writeGaps(b *strings.Builder) {
 			empty = false
 		}
 	}
-	b.WriteString("## Gaps\n\n")
+	d.H(2, "Gaps")
 	if empty {
-		b.WriteString("None.\n\n")
+		d.P(doc.T("None."))
 		return
 	}
 	for _, g := range gaps {
 		if len(g.items) == 0 {
 			continue
 		}
-		fmt.Fprintf(b, "### %s\n\n", g.title)
-		for _, item := range g.items {
-			fmt.Fprintf(b, "- %s\n", item)
-		}
-		b.WriteString("\n")
+		d.H(3, g.title)
+		d.Bullets(g.items...)
 	}
 }
 
-func (m *specModel) writeRequirements(b *strings.Builder) {
-	b.WriteString("## Requirements\n\n")
+// plainItems turns a list of identifiers the model produced into list items.
+func plainItems(in []string) []doc.Bullet {
+	var out []doc.Bullet
+	for _, s := range in {
+		out = append(out, doc.Item(doc.T(s)))
+	}
+	return out
+}
+
+func (m *specModel) writeRequirements(d *doc.Doc) {
+	d.H(2, "Requirements")
 
 	for _, r := range m.tree.All() {
-		fmt.Fprintf(b, "### %s — %s\n\n", r.ID, or(r.Title, "(untitled)"))
+		d.HID(3, r.ID, r.ID+" — "+or(r.Title, "(untitled)"))
 		if r.Text != "" {
-			fmt.Fprintf(b, "%s\n\n", r.Text)
+			d.P(doc.T(r.Text))
 		}
-		fmt.Fprintf(b, "*%s, %s, %s.*\n\n", r.Kind, r.Discipline, r.Status)
+		d.P(doc.Emph(fmt.Sprintf("%s, %s, %s.", r.Kind, r.Discipline, r.Status)))
 		if r.Rationale != "" {
-			fmt.Fprintf(b, "**Why.** %s\n\n", r.Rationale)
+			d.P(doc.Strong("Why."), doc.T(" "+r.Rationale))
 		}
 
-		m.writeList(b, "Asked for in", m.origins(r))
-		m.writeList(b, "Derived from", r.DerivedFrom)
-		m.writeList(b, "Supersedes", r.Supersedes)
-		m.writeImplementation(b, r)
-		m.writeList(b, "Demonstrated by", m.demonstratedBy(r))
+		it := &items{}
+		m.writeList(it, "Asked for in", m.origins(r))
+		m.writeList(it, "Derived from", r.DerivedFrom)
+		m.writeList(it, "Supersedes", r.Supersedes)
+		m.writeImplementation(it, r)
+		m.writeList(it, "Demonstrated by", m.demonstratedBy(r))
 		if who := m.base.Requirements[r.ID]; who.ReviewedBy != "" && who.Text == baseline.HashText(r.Text, r.Title) {
-			fmt.Fprintf(b, "- **Read by** %s\n", who.ReviewedBy)
+			it.add(doc.Strong("Read by"), doc.T(" "+who.ReviewedBy))
 		}
-		b.WriteString("\n")
+		d.Bullets(it.list...)
 	}
 }
 
-func (m *specModel) writeSources(b *strings.Builder) {
-	b.WriteString("## Source documents\n\n")
-	b.WriteString("What people wrote, and what became of each part of it.\n\n")
+// items collects the bullets under one requirement.
+//
+// They were separate writes into one Markdown buffer and so happened to form a
+// single list; a document has to say that on purpose, because two lists in a
+// row are two lists.
+// items collects the bullets under one requirement.
+//
+// The list is assembled by four separate contributors — origins, derivation,
+// implementation, demonstration — and they form one list, not four. An
+// accumulator is passed instead of the document so that stays true.
+type items struct{ list []doc.Bullet }
 
-	var last string
-	for _, doc := range m.segments {
-		d := m.docs.Get(doc)
-		if d.Err != nil {
-			continue
-		}
-		for _, seg := range d.Segments {
-			if seg.Doc != last {
-				fmt.Fprintf(b, "### %s\n\n| section | became |\n|---|---|\n", seg.Doc)
-				last = seg.Doc
-			}
-			became := strings.Join(m.src.ByCiter[seg.Ref()], ", ")
-			switch {
-			case became != "":
-			case seg.Informative:
-				became = "*nothing, and says so*"
-			default:
-				became = "**nothing**"
-			}
-			fmt.Fprintf(b, "| %s | %s |\n", or(seg.Title, seg.ID), became)
-		}
-	}
-	b.WriteString("\n")
-}
+func (it *items) add(in ...doc.Inline) { it.list = append(it.list, doc.Item(in...)) }
 
-func (m *specModel) writeList(b *strings.Builder, label string, items []string) {
-	if len(items) == 0 {
+// under hangs a sub item off the bullet most recently added.
+func (it *items) under(in ...doc.Inline) {
+	if len(it.list) == 0 {
+		it.add(in...)
 		return
 	}
-	fmt.Fprintf(b, "- **%s** %s\n", label, strings.Join(items, ", "))
+	it.list[len(it.list)-1] = it.list[len(it.list)-1].Under(in...)
+}
+
+func (m *specModel) writeSources(d *doc.Doc) {
+	d.H(2, "Source documents")
+	d.P(doc.T("What people wrote, and what became of each part of it."))
+
+	var last string
+	var t *doc.Table
+	for _, name := range m.segments {
+		dd := m.docs.Get(name)
+		if dd.Err != nil {
+			continue
+		}
+		for _, seg := range dd.Segments {
+			if seg.Doc != last {
+				d.H(3, seg.Doc)
+				t = d.Table("section", "became")
+				last = seg.Doc
+			}
+			became := doc.Cell(doc.T(strings.Join(m.src.ByCiter[seg.Ref()], ", ")))
+			switch {
+			case len(m.src.ByCiter[seg.Ref()]) > 0:
+			case seg.Informative:
+				became = doc.Cell(doc.Emph("nothing, and says so"))
+			default:
+				became = doc.Cell(doc.Strong("nothing"))
+			}
+			t.Add(doc.Cell(doc.T(or(seg.Title, seg.ID))), became)
+		}
+	}
+}
+
+func (m *specModel) writeList(it *items, label string, vals []string) {
+	if len(vals) == 0 {
+		return
+	}
+	it.add(doc.Strong(label), doc.T(" "+strings.Join(vals, ", ")))
 }
 
 func (m *specModel) origins(r *ir.Requirement) []string {
@@ -311,11 +378,12 @@ func (m *specModel) demonstratedBy(r *ir.Requirement) []string {
 	return m.base.VerifiedBy(r.ID, baseline.HashText(r.Text, r.Title))
 }
 
-func (m *specModel) unclaimed() []string {
-	var out []string
+func (m *specModel) unclaimed() []doc.Bullet {
+	var out []doc.Bullet
 	for _, r := range m.tree.All() {
 		if r.Status.MustBeCovered() && len(m.ver.ByTest[r.ID]) == 0 {
-			out = append(out, r.ID+m.excuse(r.ID, check.RuleRequirementUnverified))
+			out = append(out, doc.Item(append([]doc.Inline{doc.T(r.ID)},
+				m.excuse(r.ID, check.RuleRequirementUnverified)...)...))
 		}
 	}
 	return out
@@ -327,16 +395,16 @@ func (m *specModel) unclaimed() []string {
 // gap looks like an oversight to whoever reads it, and the sentence somebody
 // was made to write disappears. The reason is mandatory precisely so that it
 // can be read here.
-func (m *specModel) excuse(id, rule string) string {
+func (m *specModel) excuse(id, rule string) []doc.Inline {
 	for _, t := range m.cov.BySatisfier[id] {
 		if reason := m.waived.Reason(t.String(), rule); reason != "" {
-			return " — *accepted:* " + reason
+			return []doc.Inline{doc.T(" — "), doc.Emph("accepted:"), doc.T(" " + reason)}
 		}
 	}
 	if reason := m.waived.Reason("", rule); reason != "" {
-		return " — *accepted for every requirement:* " + reason
+		return []doc.Inline{doc.T(" — "), doc.Emph("accepted for every requirement:"), doc.T(" " + reason)}
 	}
-	return ""
+	return nil
 }
 
 func (m *specModel) undemonstrated() []string {
@@ -368,8 +436,8 @@ func (m *specModel) unreviewed() []string {
 
 func (m *specModel) unaccounted() []string {
 	var out []string
-	for _, doc := range m.segments {
-		d := m.docs.Get(doc)
+	for _, name := range m.segments {
+		d := m.docs.Get(name)
 		if d.Err != nil {
 			continue
 		}
@@ -399,15 +467,6 @@ func (m *specModel) reviewedRatio() float64 {
 	return float64(read) / float64(m.cov.Normative)
 }
 
-func targetNames(targets []ir.Target) []string {
-	out := make([]string, 0, len(targets))
-	for _, t := range targets {
-		out = append(out, "`"+t.String()+"`")
-	}
-	sort.Strings(out)
-	return out
-}
-
 func or(s, fallback string) string {
 	if s == "" {
 		return fallback
@@ -422,37 +481,43 @@ func or(s, fallback string) string {
 // neither place as a list. Here it is one row per declared channel, and the
 // four descriptive columns are mandatory in the model, so a blank cell cannot
 // reach this page.
-func (m *specModel) writeBoundary(b *strings.Builder) {
+func (m *specModel) writeBoundary(d *doc.Doc) {
 	if !m.can.Topology {
-		omitted(b, "The boundary", "Not measured: this frontend reads no topology declarations, so what this system talks to is missing from this document.")
+		omitted(d, "The boundary", "Not measured: this frontend reads no topology declarations, so what this system talks to is missing from this document.")
 		return
 	}
 	if !m.topo.Declared() {
-		omitted(b, "The boundary", "No topology is declared, so what this system talks to is stated nowhere.")
+		omitted(d, "The boundary", "No topology is declared, so what this system talks to is stated nowhere.")
 		return
 	}
 
-	b.WriteString("## The boundary\n\n")
+	d.H(2, "The boundary")
 
 	if len(m.topo.Participants) > 0 {
-		b.WriteString("| Outside | Kind | Role |\n|---|---|---|\n")
+		t := d.Table("Outside", "Kind", "Role")
 		for _, p := range m.topo.Participants {
-			fmt.Fprintf(b, "| %s | %s | %s |\n", p.Name, p.Kind, oneLine(p.Role))
+			t.Add(
+				doc.Cell(doc.T(p.Name)),
+				doc.Cell(doc.Tf("%s", p.Kind)),
+				doc.Cell(doc.T(oneLine(p.Role))),
+			)
 		}
-		b.WriteString("\n")
 	}
 
 	if len(m.topo.Channels) == 0 {
 		return
 	}
-	b.WriteString("### Every way across\n\n")
-	b.WriteString("| Channel | Protocol | Data | Authentication | In transit |\n")
-	b.WriteString("|---|---|---|---|---|\n")
+	d.H(3, "Every way across")
+	t := d.Table("Channel", "Protocol", "Data", "Authentication", "In transit")
 	for _, c := range m.topo.Channels {
-		fmt.Fprintf(b, "| **%s**<br>%s → %s | %s | %s | %s | %s |\n",
-			c.Label, c.From, c.To, c.Protocol, oneLine(c.Data), oneLine(c.Auth), oneLine(c.Crypto))
+		t.Add(
+			doc.Cell(doc.Strong(c.Label), doc.Break{}, doc.Tf("%s → %s", c.From, c.To)),
+			doc.Cell(doc.Tf("%s", c.Protocol)),
+			doc.Cell(doc.T(oneLine(c.Data))),
+			doc.Cell(doc.T(oneLine(c.Auth))),
+			doc.Cell(doc.T(oneLine(c.Crypto))),
+		)
 	}
-	b.WriteString("\n")
 }
 
 // writeSurface renders the addresses the system answers on.
@@ -468,13 +533,13 @@ func (m *specModel) writeBoundary(b *strings.Builder) {
 // on its own is routing; an address with the requirement behind it is the
 // answer to the question every review actually asks, which is why this system
 // answers here and on whose authority.
-func (m *specModel) writeSurface(b *strings.Builder) {
+func (m *specModel) writeSurface(d *doc.Doc) {
 	if !m.can.Endpoints {
-		omitted(b, "What answers from outside", "Not measured: this frontend recognises no routes, so any address this system answers on is missing from this document.")
+		omitted(d, "What answers from outside", "Not measured: this frontend recognises no routes, so any address this system answers on is missing from this document.")
 		return
 	}
 	if len(m.endpoints) == 0 {
-		omitted(b, "What answers from outside", "No route was recognised: this system answers on no address of its own.")
+		omitted(d, "What answers from outside", "No route was recognised: this system answers on no address of its own.")
 		return
 	}
 
@@ -496,48 +561,53 @@ func (m *specModel) writeSurface(b *strings.Builder) {
 		}
 	}
 
-	b.WriteString("## What answers from outside\n\n")
+	d.H(2, "What answers from outside")
+	var t *doc.Table
 	if shapes {
-		b.WriteString("| Address | Takes | Returns | Serves | Asked for by |\n|---|---|---|---|---|\n")
+		t = d.Table("Address", "Takes", "Returns", "Serves", "Asked for by")
 	} else {
-		b.WriteString("| Address | Serves | Asked for by |\n|---|---|---|\n")
+		t = d.Table("Address", "Serves", "Asked for by")
 	}
 	for _, e := range m.endpoints {
-		address := "`" + e.Ref() + "`"
+		address := []doc.Inline{doc.Code(e.Ref())}
 		if e.Path == "" {
 			// Not a gap in the table but the most important row in it: an
 			// address that only exists at run time is one no catalogue can
 			// name, and printing a blank would hide exactly that.
-			address = "_computed, not readable_"
+			address = []doc.Inline{doc.Emph("computed, not readable")}
 		}
 
-		var serves, asked []string
+		var served []doc.Inline
+		var asked []string
 		for _, uc := range e.UseCases {
 			short := lastSegment(uc)
-			serves = append(serves, "`"+short+"`")
+			if len(served) > 0 {
+				served = append(served, doc.T(", "))
+			}
+			served = append(served, doc.Code(short))
 			asked = append(asked, byConstruct[uc]...)
 			asked = append(asked, byConstruct[short]...)
 		}
-		served := orDash(strings.Join(serves, ", "))
+		if len(served) == 0 {
+			served = orDash("")
+		}
 		if e.LeftScope {
 			// The trace walked out of what this run loaded, so the cell is not
 			// empty for want of a use case but for want of a look. The dash
 			// that means "nothing is behind this" would be a different and
 			// much worse claim, and a document that cannot tell them apart is
 			// the document this tool replaces.
-			served = "_outside this scope_"
+			served = []doc.Inline{doc.Emph("outside this scope")}
 		}
 
 		if shapes {
-			fmt.Fprintf(b, "| %s | %s | %s | %s | %s |\n", address,
+			t.Add(address,
 				wireShape(e, e.Request), wireShape(e, e.Response),
 				served, orDash(strings.Join(unique(asked), ", ")))
 			continue
 		}
-		fmt.Fprintf(b, "| %s | %s | %s |\n", address,
-			served, orDash(strings.Join(unique(asked), ", ")))
+		t.Add(address, served, orDash(strings.Join(unique(asked), ", ")))
 	}
-	b.WriteString("\n")
 }
 
 // wireShape renders what crosses the boundary, and says which kind of nothing
@@ -547,14 +617,14 @@ func (m *specModel) writeSurface(b *strings.Builder) {
 // promises no shape: it writes bytes, and a dash is the whole truth. A route
 // mounted on a router that reports nothing is a route whose body this never
 // asked about, and the two must not print alike.
-func wireShape(e ir.Endpoint, name string) string {
+func wireShape(e ir.Endpoint, name string) []doc.Inline {
 	if name != "" {
-		return "`" + lastSegment(name) + "`"
+		return []doc.Inline{doc.Code(lastSegment(name))}
 	}
 	if e.ShapesStated {
-		return "—"
+		return []doc.Inline{doc.T("—")}
 	}
-	return "_not stated here_"
+	return []doc.Inline{doc.Emph("not stated here")}
 }
 
 // orDash renders an empty cell as something a reader notices.
@@ -562,11 +632,11 @@ func wireShape(e ir.Endpoint, name string) string {
 // A blank cell reads as nothing to say, and here it never is: a route with no
 // use case is work the architecture has no name for, and a route with no
 // requirement is an address nobody asked for.
-func orDash(s string) string {
+func orDash(s string) []doc.Inline {
 	if s == "" {
-		return "**nothing**"
+		return []doc.Inline{doc.Strong("nothing")}
 	}
-	return s
+	return []doc.Inline{doc.T(s)}
 }
 
 // unique keeps the first occurrence of each entry, in order.
@@ -589,50 +659,50 @@ func unique(in []string) []string {
 // and a numbered list would have to pick an order that does not exist. Where a
 // process branches and comes back, any numbering is a lie about which step
 // follows which.
-func (m *specModel) writeProcesses(b *strings.Builder) {
+func (m *specModel) writeProcesses(d *doc.Doc) {
 	if !m.can.Processes {
-		omitted(b, "Courses of business", "Not measured: this frontend reads no process declarations.")
+		omitted(d, "Courses of business", "Not measured: this frontend reads no process declarations.")
 		return
 	}
 	if len(m.processes) == 0 {
-		omitted(b, "Courses of business", "No course of business is declared, so no requirement is placed in one.")
+		omitted(d, "Courses of business", "No course of business is declared, so no requirement is placed in one.")
 		return
 	}
 
-	b.WriteString("## Courses of business\n\n")
+	d.H(2, "Courses of business")
 	for _, p := range m.processes {
-		fmt.Fprintf(b, "### %s\n\n", or(p.Title, p.ID))
+		d.H(3, or(p.Title, p.ID))
 		if p.Purpose != "" {
-			fmt.Fprintf(b, "%s\n\n", oneLine(p.Purpose))
+			d.P(doc.T(oneLine(p.Purpose)))
 		}
-		fmt.Fprintf(b, "`%s` · drawn in `process-%s.puml`\n\n", p.ID, p.ID)
+		d.P(doc.Code(p.ID), doc.T(" · drawn in "), doc.Code("process-"+p.ID+".puml"))
 
 		if ids := m.satisfiedBy(p); len(ids) > 0 {
-			fmt.Fprintf(b, "Answers to: %s\n\n", strings.Join(ids, ", "))
+			d.Pf("Answers to: %s", strings.Join(ids, ", "))
 		}
 
-		b.WriteString("| From | To | When |\n|---|---|---|\n")
+		t := d.Table("From", "To", "When")
 		for _, e := range p.Edges {
-			fmt.Fprintf(b, "| %s | %s | %s |\n", m.nodeLabel(p, e.From), m.nodeLabel(p, e.To), or(e.When, "—"))
+			t.Add(m.nodeLabel(p, e.From), m.nodeLabel(p, e.To), doc.Cell(doc.T(or(e.When, "—"))))
 		}
-		b.WriteString("\n")
 	}
 }
 
 // nodeLabel renders a node for the table: the construct it names where it names
 // one, and what it is where it does not.
-func (m *specModel) nodeLabel(p *ir.Process, id string) string {
+func (m *specModel) nodeLabel(p *ir.Process, id string) []doc.Inline {
 	n, ok := p.Node(id)
 	if !ok {
-		return id
+		return doc.Cell(doc.T(id))
 	}
+	kind := doc.Emph("(" + n.Kind.String() + ")")
 	switch {
 	case n.Ref != "":
-		return lastSegment(n.Ref) + " *(" + n.Kind.String() + ")*"
+		return doc.Cell(doc.T(lastSegment(n.Ref)), doc.T(" "), kind)
 	case n.Label != "":
-		return n.Label + " *(" + n.Kind.String() + ")*"
+		return doc.Cell(doc.T(n.Label), doc.T(" "), kind)
 	}
-	return id + " *(" + n.Kind.String() + ")*"
+	return doc.Cell(doc.T(id), doc.T(" "), kind)
 }
 
 // satisfiedBy resolves the requirement identifiers a process names.
@@ -654,9 +724,12 @@ func lastSegment(name string) string {
 }
 
 // oneLine keeps a cell from breaking the table it sits in.
+//
+// It no longer escapes the pipe: a cell is a run of text now, and the renderer
+// that knows what a separator looks like in its own format is the one that has
+// to protect it.
 func oneLine(s string) string {
 	s = strings.ReplaceAll(s, "\n", " ")
-	s = strings.ReplaceAll(s, "|", "\\|")
 	return strings.TrimSpace(s)
 }
 
@@ -672,48 +745,49 @@ func oneLine(s string) string {
 // a document in its own right, and here it is the collected reasons of every
 // clause somebody excluded — which is the form it has to take anyway, and the
 // form nobody maintains by hand for long.
-func (m *specModel) writeStandards(b *strings.Builder) {
+func (m *specModel) writeStandards(d *doc.Doc) {
 	if len(m.src.Standards) == 0 {
-		omitted(b, "Standards", "No standard is declared, so no external clause is answered here.")
+		omitted(d, "Standards", "No standard is declared, so no external clause is answered here.")
 		return
 	}
 
-	b.WriteString("## Standards\n\n")
+	d.H(2, "Standards")
 	for _, st := range m.src.Standards {
-		fmt.Fprintf(b, "### %s\n\n", or(st.Title, st.Doc))
-		fmt.Fprintf(b, "%d of %s answered", st.Answered,
-			plural(st.Clauses, "applicable clause", "applicable clauses"))
-		if st.Excluded > 0 {
-			fmt.Fprintf(b, " · %d not applicable", st.Excluded)
-		}
-		fmt.Fprintf(b, " · `%s`\n\n", st.Doc)
+		d.H(3, or(st.Title, st.Doc))
 
-		doc := m.docs.Get(st.Doc)
-		m.writeClauses(b, doc)
-		m.writeApplicability(b, doc)
+		line := []doc.Inline{doc.Tf("%d of %s answered", st.Answered,
+			plural(st.Clauses, "applicable clause", "applicable clauses"))}
+		if st.Excluded > 0 {
+			line = append(line, doc.Tf(" · %d not applicable", st.Excluded))
+		}
+		line = append(line, doc.T(" · "), doc.Code(st.Doc))
+		d.P(line...)
+
+		sd := m.docs.Get(st.Doc)
+		m.writeClauses(d, sd)
+		m.writeApplicability(d, sd)
 	}
 }
 
-func (m *specModel) writeClauses(b *strings.Builder, doc source.Document) {
-	b.WriteString("| Clause | Obligation | Answered by |\n|---|---|---|\n")
-	for _, seg := range doc.Segments {
+func (m *specModel) writeClauses(d *doc.Doc, sd source.Document) {
+	t := d.Table("Clause", "Obligation", "Answered by")
+	for _, seg := range sd.Segments {
 		if seg.Informative {
 			continue
 		}
 		by := m.src.ByCiter[seg.Ref()]
-		answer := "**nothing**"
+		answer := doc.Cell(doc.Strong("nothing"))
 		if len(by) > 0 {
-			answer = strings.Join(by, ", ")
+			answer = doc.Cell(doc.T(strings.Join(by, ", ")))
 		}
-		fmt.Fprintf(b, "| `%s` | %s | %s |\n", seg.ID, oneLine(seg.Title), answer)
+		t.Add(doc.Cell(doc.Code(seg.ID)), doc.Cell(doc.T(oneLine(seg.Title))), answer)
 	}
-	b.WriteString("\n")
 }
 
 // writeApplicability renders the exclusions with the reason each was given.
-func (m *specModel) writeApplicability(b *strings.Builder, doc source.Document) {
+func (m *specModel) writeApplicability(d *doc.Doc, sd source.Document) {
 	var excluded []source.Segment
-	for _, seg := range doc.Segments {
+	for _, seg := range sd.Segments {
 		if seg.Informative {
 			excluded = append(excluded, seg)
 		}
@@ -722,13 +796,16 @@ func (m *specModel) writeApplicability(b *strings.Builder, doc source.Document) 
 		return
 	}
 
-	b.WriteString("#### Statement of applicability\n\n")
-	b.WriteString("Clauses excluded here, and why. An exclusion is a decision somebody\nmade; the reason is the whole of what it is worth.\n\n")
-	b.WriteString("| Clause | Obligation | Does not apply because |\n|---|---|---|\n")
+	d.H(4, "Statement of applicability")
+	d.P(doc.T("Clauses excluded here, and why. An exclusion is a decision somebody made; the reason is the whole of what it is worth."))
+	t := d.Table("Clause", "Obligation", "Does not apply because")
 	for _, seg := range excluded {
-		fmt.Fprintf(b, "| `%s` | %s | %s |\n", seg.ID, oneLine(seg.Title), oneLine(seg.Because))
+		t.Add(
+			doc.Cell(doc.Code(seg.ID)),
+			doc.Cell(doc.T(oneLine(seg.Title))),
+			doc.Cell(doc.T(oneLine(seg.Because))),
+		)
 	}
-	b.WriteString("\n")
 }
 
 // writeTopics renders one chapter per theme, and one for what carries none.
@@ -742,36 +819,35 @@ func (m *specModel) writeApplicability(b *strings.Builder, doc source.Document) 
 // is not a defect — themes are optional on purpose — but leaving it out of the
 // document silently would be, because an absent requirement reads as one that
 // does not exist rather than as one nobody filed.
-func (m *specModel) writeTopics(b *strings.Builder) {
+func (m *specModel) writeTopics(d *doc.Doc) {
 	topics := m.tree.Topics()
 	if !m.can.Topics {
-		omitted(b, "Themes", "Not measured: this frontend reads no theme declarations.")
+		omitted(d, "Themes", "Not measured: this frontend reads no theme declarations.")
 		return
 	}
 	if len(topics) == 0 {
-		omitted(b, "Themes", "No theme is declared, so the requirements are not grouped.")
+		omitted(d, "Themes", "No theme is declared, so the requirements are not grouped.")
 		return
 	}
 
 	filed := map[string]bool{}
-	b.WriteString("## Themes\n\n")
+	d.H(2, "Themes")
 
 	for _, top := range topics {
-		fmt.Fprintf(b, "### %s\n\n", or(top.Title, top.ID))
+		d.H(3, or(top.Title, top.ID))
 		if top.Description != "" {
-			fmt.Fprintf(b, "%s\n\n", oneLine(top.Description))
+			d.P(doc.T(oneLine(top.Description)))
 		}
 
-		b.WriteString("| ID | Requirement |\n|---|---|\n")
+		t := d.Table("ID", "Requirement")
 		for _, id := range m.sortedRequirementIDs() {
 			r := m.tree.ByID[id]
 			if !hasTopic(r, top.ID) {
 				continue
 			}
 			filed[id] = true
-			fmt.Fprintf(b, "| `%s` | %s |\n", r.ID, oneLine(or(r.Title, r.Text)))
+			t.Add(doc.Cell(doc.Code(r.ID)), doc.Cell(doc.T(oneLine(or(r.Title, r.Text)))))
 		}
-		b.WriteString("\n")
 	}
 
 	var loose []string
@@ -784,15 +860,14 @@ func (m *specModel) writeTopics(b *strings.Builder) {
 		return
 	}
 
-	b.WriteString("### Under no theme\n\n")
-	fmt.Fprintf(b, "%s filed under no theme. Themes are optional, so this is not a\ndefect — but the count belongs here, because a requirement left out of every\nchapter reads as one that does not exist.\n\n",
+	d.H(3, "Under no theme")
+	d.Pf("%s filed under no theme. Themes are optional, so this is not a defect — but the count belongs here, because a requirement left out of every chapter reads as one that does not exist.",
 		plural(len(loose), "requirement is", "requirements are"))
-	b.WriteString("| ID | Requirement |\n|---|---|\n")
+	t := d.Table("ID", "Requirement")
 	for _, id := range loose {
 		r := m.tree.ByID[id]
-		fmt.Fprintf(b, "| `%s` | %s |\n", r.ID, oneLine(or(r.Title, r.Text)))
+		t.Add(doc.Cell(doc.Code(r.ID)), doc.Cell(doc.T(oneLine(or(r.Title, r.Text)))))
 	}
-	b.WriteString("\n")
 }
 
 func hasTopic(r *ir.Requirement, id string) bool {
@@ -827,25 +902,26 @@ func (m *specModel) sortedRequirementIDs() []string {
 // Reviewed is the strict reading: a segment counts as read when every
 // requirement citing it has been. The weaker one, at least one, would let a
 // section with four requirements and one reviewer read as accounted for.
-func (m *specModel) writeDocuments(b *strings.Builder) {
+func (m *specModel) writeDocuments(d *doc.Doc) {
 	if len(m.segments) == 0 {
-		omitted(b, "The material", "No source document is configured, so nothing here is traced back to prose.")
+		omitted(d, "The material", "No source document is configured, so nothing here is traced back to prose.")
 		return
 	}
 
-	b.WriteString("## The material\n\n")
-	b.WriteString("| Document | Kind | Segments | Cited | Read | Drifted |\n")
-	b.WriteString("|---|---|---:|---:|---:|---:|\n")
+	d.H(2, "The material")
+	t := d.Table("Document", "Kind", "Segments", "Cited", "Read", "Drifted").
+		Aligned(doc.Left, doc.Left, doc.Right, doc.Right, doc.Right, doc.Right)
 
 	for _, path := range m.segments {
-		d := m.docs.Get(path)
-		if d.Err != nil {
-			fmt.Fprintf(b, "| `%s` | — | — | — | — | — |\n", path)
+		sd := m.docs.Get(path)
+		if sd.Err != nil {
+			t.Add(doc.Cell(doc.Code(path)), doc.Cell(doc.T("—")), doc.Cell(doc.T("—")),
+				doc.Cell(doc.T("—")), doc.Cell(doc.T("—")), doc.Cell(doc.T("—")))
 			continue
 		}
 
 		var total, cited, read, drifted int
-		for _, seg := range d.Segments {
+		for _, seg := range sd.Segments {
 			if seg.Informative {
 				continue
 			}
@@ -863,9 +939,10 @@ func (m *specModel) writeDocuments(b *strings.Builder) {
 				drifted++
 			}
 		}
-		fmt.Fprintf(b, "| `%s` | %s | %d | %d | %d | %d |\n", path, d.Kind, total, cited, read, drifted)
+		t.Add(doc.Cell(doc.Code(path)), doc.Cell(doc.Tf("%s", sd.Kind)),
+			doc.Cell(doc.Tf("%d", total)), doc.Cell(doc.Tf("%d", cited)),
+			doc.Cell(doc.Tf("%d", read)), doc.Cell(doc.Tf("%d", drifted)))
 	}
-	b.WriteString("\n")
 }
 
 // allReviewed reports whether every requirement in the list has been read.
@@ -890,7 +967,7 @@ func (m *specModel) allReviewed(ids []string) bool {
 // there now. A profile taken before a rewrite is not evidence about what is
 // there today, and printing it as though it were would be worse than leaving
 // the column out.
-func (m *specModel) writeImplementation(b *strings.Builder, r *ir.Requirement) {
+func (m *specModel) writeImplementation(it *items, r *ir.Requirement) {
 	targets := m.cov.BySatisfier[r.ID]
 	if len(targets) == 0 {
 		return
@@ -907,25 +984,27 @@ func (m *specModel) writeImplementation(b *strings.Builder, r *ir.Requirement) {
 		byName[lastSegment(c.Name)] = c
 	}
 
-	b.WriteString("- **Implemented by**\n")
+	it.add(doc.Strong("Implemented by"))
 	for _, name := range names {
 		c, known := byName[name]
 		if !known || c.EndLine == 0 {
-			fmt.Fprintf(b, "  - `%s`\n", name)
+			it.under(doc.Code(name))
 			continue
 		}
-		fmt.Fprintf(b, "  - `%s` — `%s:%d–%d`%s\n",
-			name, m.relative(c.Pos.File), c.Pos.Line, c.EndLine, m.exercised(c))
+		it.under(append([]doc.Inline{
+			doc.Code(name), doc.T(" — "),
+			doc.Code(fmt.Sprintf("%s:%d–%d", m.relative(c.Pos.File), c.Pos.Line, c.EndLine)),
+		}, m.exercised(c)...)...)
 	}
 }
 
 // exercised renders the share of a declaration a run reached, or nothing.
-func (m *specModel) exercised(c ir.Construct) string {
+func (m *specModel) exercised(c ir.Construct) []doc.Inline {
 	rec, ok := m.base.Constructs[c.Name]
 	if !ok || rec.Statements == 0 || rec.Fingerprint != c.Fingerprint {
-		return ""
+		return nil
 	}
-	return fmt.Sprintf(", %d of %d statements exercised", rec.Covered, rec.Statements)
+	return []doc.Inline{doc.Tf(", %d of %d statements exercised", rec.Covered, rec.Statements)}
 }
 
 // relative shortens an absolute source path to something a reader can find.
@@ -946,6 +1025,7 @@ func (m *specModel) relative(file string) string {
 //
 // The heading stays so the document keeps its shape between runs and a diff of
 // two generations stays readable.
-func omitted(b *strings.Builder, title, reason string) {
-	fmt.Fprintf(b, "## %s\n\n_%s_\n\n", title, reason)
+func omitted(d *doc.Doc, title, reason string) {
+	d.H(2, title)
+	d.P(doc.Emph(reason))
 }
