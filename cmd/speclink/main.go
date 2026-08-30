@@ -509,8 +509,13 @@ func report(format string, findings *diag.Set, can lang.Capabilities, cov check.
 				plural(proc.Declared, "process", "processes"), proc.Sound, proc.Placed, proc.Work))
 		}
 		if prov.Total > 0 {
-			parts = append(parts, fmt.Sprintf("%s (%d machine written, %d read by a person)",
-				plural(prov.Total, "declaration", "declarations"), prov.Machine, prov.Reviewed))
+			line := fmt.Sprintf("%s (%d machine written, %d read by a person",
+				plural(prov.Total, "declaration", "declarations"), prov.Machine, prov.Reviewed)
+			if prov.Statements > 0 {
+				line += fmt.Sprintf(", %.0f%% of statements exercised",
+					float64(prov.Executed)/float64(prov.Statements)*100)
+			}
+			parts = append(parts, line+")")
 		}
 		if tp.Declared {
 			parts = append(parts, fmt.Sprintf("%s (%d of %d boundaries described)",

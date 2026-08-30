@@ -53,6 +53,7 @@ speclink impact       [flags] <requirement|doc.md#anchor|path>...
   -n                  freeze only: report what would be recorded, write nothing
   -reviewer <who>     freeze only: record that this person read the requirements
   -in <file>          evidence only: read the test stream from a file
+  -coverprofile <f>   evidence only: record how much of each declaration ran
   -out <file>         generate only: write here instead of standard output
   -profile <name>     overrides the profile from speclink.json
   -kind <kind>        inventory only: restrict to one kind, e.g. event
@@ -93,6 +94,25 @@ figure:
 
 ```
 8 declarations (8 machine written, 2 read by a person)
+```
+
+**Coverage is recorded beside it**, from the profile the go tool already
+writes:
+
+```
+go test -json -coverprofile=cover.out ./... | speclink evidence -coverprofile cover.out
+```
+
+The figure is carried with the fingerprint it was measured against, so it can
+never outlive the declaration it describes. A profile taken before a rewrite is
+not evidence about what is there now, and the column simply disappears rather
+than lying. That closes the chain an audit asks for and nothing could answer:
+
+```
+- **Asked for in** …/quoteflow.md#8-abgabe, …/vorgaben.standard.json#IAM-01
+- **Implemented by**
+  - `…/app/sales.SubmitQuote` — `app/sales/uc_submit_quote.go:6–21`, 6 of 7 statements exercised
+- **Demonstrated by** TestSubmitDrawsAGaplessNumber, TestSubmitRefusesWithoutPermission
 ```
 
 **Unattested is not human.** A declaration nothing has said anything about

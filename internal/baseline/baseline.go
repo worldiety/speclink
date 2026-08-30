@@ -129,6 +129,11 @@ type Construct struct {
 	Origin string `json:"origin,omitempty"`
 	// ReviewedBy names whoever read it. Empty until somebody has.
 	ReviewedBy string `json:"reviewedBy,omitempty"`
+	// Statements is how many statements the declaration holds, and Covered how
+	// many a test run executed. Both from the last coverage profile handed to
+	// evidence; zero when none ever was.
+	Statements int `json:"statements,omitempty"`
+	Covered    int `json:"covered,omitempty"`
 }
 
 // Verification is one test that demonstrated a requirement and passed.

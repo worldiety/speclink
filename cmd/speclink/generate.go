@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -80,8 +81,9 @@ type specModel struct {
 	waived   ir.Waivers
 	skipped  int
 
-	topo      ir.Topology
-	processes []*ir.Process
+	topo       ir.Topology
+	processes  []*ir.Process
+	constructs []ir.Construct
 }
 
 // readModel assembles the graph without judging it.
@@ -106,6 +108,9 @@ func readModel(absRoot, cfgPath, prof string, patterns []string) (*specModel, er
 	}
 
 	m := &specModel{root: absRoot, skipped: skippedPackages(frontend)}
+	if inf, ok := frontend.(lang.ConstructInferrer); ok {
+		m.constructs = inf.Constructs(discard)
+	}
 	m.tree = reqtree.Build(absRoot, reqs, discard)
 	if tr, ok := frontend.(lang.TopicReader); ok {
 		m.tree.ResolveTopics(tr.Topics(), discard)
@@ -229,7 +234,7 @@ func (m *specModel) writeRequirements(b *strings.Builder) {
 		m.writeList(b, "Asked for in", m.origins(r))
 		m.writeList(b, "Derived from", r.DerivedFrom)
 		m.writeList(b, "Supersedes", r.Supersedes)
-		m.writeList(b, "Implemented by", targetNames(m.cov.BySatisfier[r.ID]))
+		m.writeImplementation(b, r)
 		m.writeList(b, "Demonstrated by", m.demonstratedBy(r))
 		if who := m.base.Requirements[r.ID]; who.ReviewedBy != "" && who.Text == baseline.HashText(r.Text, r.Title) {
 			fmt.Fprintf(b, "- **Read by** %s\n", who.ReviewedBy)
@@ -714,4 +719,61 @@ func (m *specModel) allReviewed(ids []string) bool {
 		}
 	}
 	return len(ids) > 0
+}
+
+// writeImplementation names what implements a requirement, down to the lines.
+//
+// The list of satisfiers alone answers "is there code for this" and stops
+// there. What a review or an audit asks next is where that code is and whether
+// anything ran it, and both were knowable: the extent comes from the
+// declaration, the coverage from the last profile handed to evidence.
+//
+// The coverage figure appears only where it was measured on the text that is
+// there now. A profile taken before a rewrite is not evidence about what is
+// there today, and printing it as though it were would be worse than leaving
+// the column out.
+func (m *specModel) writeImplementation(b *strings.Builder, r *ir.Requirement) {
+	targets := m.cov.BySatisfier[r.ID]
+	if len(targets) == 0 {
+		return
+	}
+	names := make([]string, 0, len(targets))
+	for _, t := range targets {
+		names = append(names, t.String())
+	}
+	sort.Strings(names)
+
+	byName := map[string]ir.Construct{}
+	for _, c := range m.constructs {
+		byName[c.Name] = c
+		byName[lastSegment(c.Name)] = c
+	}
+
+	b.WriteString("- **Implemented by**\n")
+	for _, name := range names {
+		c, known := byName[name]
+		if !known || c.EndLine == 0 {
+			fmt.Fprintf(b, "  - `%s`\n", name)
+			continue
+		}
+		fmt.Fprintf(b, "  - `%s` — `%s:%d–%d`%s\n",
+			name, m.relative(c.Pos.File), c.Pos.Line, c.EndLine, m.exercised(c))
+	}
+}
+
+// exercised renders the share of a declaration a run reached, or nothing.
+func (m *specModel) exercised(c ir.Construct) string {
+	rec, ok := m.base.Constructs[c.Name]
+	if !ok || rec.Statements == 0 || rec.Fingerprint != c.Fingerprint {
+		return ""
+	}
+	return fmt.Sprintf(", %d of %d statements exercised", rec.Covered, rec.Statements)
+}
+
+// relative shortens an absolute source path to something a reader can find.
+func (m *specModel) relative(file string) string {
+	if rel, err := filepath.Rel(m.root, file); err == nil {
+		return filepath.ToSlash(rel)
+	}
+	return file
 }

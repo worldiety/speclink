@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -127,5 +128,68 @@ func TestAttestRefusesWhatItCannotRecord(t *testing.T) {
 	}
 	if out, code := runSpeclink(t, "attest", dir, "-reviewer", "TS", "NoSuchThing"); code == 0 {
 		t.Errorf("a construct that does not exist was accepted:\n%s", out)
+	}
+}
+
+// The chain an audit asks for, end to end: the obligation, the requirement, the
+// lines that implement it, how much of them a run reached, and the test that
+// demonstrated it. Every link was knowable and the last two were never shown.
+func TestDocumentCarriesTheLineLevelChain(t *testing.T) {
+	dir := copyFixture(t, "../../testdata/bare")
+
+	profile := filepath.Join(t.TempDir(), "cover.out")
+	stream := filepath.Join(t.TempDir(), "tests.json")
+	runGoTest(t, dir, profile, stream)
+
+	if out, code := runSpeclink(t, "evidence", dir, "-in", stream, "-coverprofile", profile, "./..."); code != 0 {
+		t.Fatalf("evidence failed with %d:\n%s", code, out)
+	}
+
+	out, _ := runSpeclink(t, "generate", dir, "./...")
+	if !strings.Contains(out, "app/sales/uc_submit_quote.go:") {
+		t.Errorf("the document does not say where the requirement is implemented:\n%s", out)
+	}
+	if !strings.Contains(out, "statements exercised") {
+		t.Errorf("the document does not say how much of it a run reached:\n%s", out)
+	}
+
+	verified, _ := runVerify(t, dir)
+	if !strings.Contains(verified, "% of statements exercised") {
+		t.Errorf("the summary carries no coverage figure:\n%s", summary(verified))
+	}
+}
+
+// A figure measured before a rewrite is not a figure about what is there now.
+func TestCoverageDoesNotSurviveARewrite(t *testing.T) {
+	dir := copyFixture(t, "../../testdata/bare")
+
+	profile := filepath.Join(t.TempDir(), "cover.out")
+	stream := filepath.Join(t.TempDir(), "tests.json")
+	runGoTest(t, dir, profile, stream)
+	if out, code := runSpeclink(t, "evidence", dir, "-in", stream, "-coverprofile", profile, "./..."); code != 0 {
+		t.Fatalf("evidence failed with %d:\n%s", code, out)
+	}
+
+	rewrite(t, dir, "app/sales/uc_submit_quote.go",
+		"\t\treturn number, quotes.Save(", "\t\t_ = number\n\t\treturn \"\", quotes.Save(")
+
+	out, _ := runSpeclink(t, "generate", dir, "./...")
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, "sales.SubmitQuote`") && strings.Contains(line, "statements exercised") {
+			t.Errorf("a coverage figure outlived the text it was measured on:\n%s", line)
+		}
+	}
+}
+
+// runGoTest runs the fixture's tests with a coverage profile.
+func runGoTest(t *testing.T, dir, profile, stream string) {
+	t.Helper()
+
+	cmd := exec.Command("go", "test", "-json", "-coverprofile="+profile, "./...")
+	cmd.Dir = dir
+	// A failing test is not this test's business; the streams are what matter.
+	body, _ := cmd.Output()
+	if err := os.WriteFile(stream, body, 0o644); err != nil {
+		t.Fatal(err)
 	}
 }

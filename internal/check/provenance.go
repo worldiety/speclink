@@ -20,6 +20,11 @@ type ProvenanceReport struct {
 	Machine int
 	// Reviewed is how many a person has read, in the state they are in now.
 	Reviewed int
+	// Statements is how many statements the measured declarations hold, and
+	// Executed how many a run reached. Both zero where no coverage profile was
+	// ever handed over — which is not the same as nothing being exercised, and
+	// is why the figure is left out rather than printed as zero per cent.
+	Statements, Executed int
 }
 
 // Provenance checks the record of who wrote what and who has read it.
@@ -70,6 +75,12 @@ func Provenance(constructs []ir.Construct, base *baseline.File, out *diag.Set) P
 		}
 		if rec.Origin == "llm" {
 			rep.Machine++
+		}
+		// Only where the figure was measured on this text. A profile taken
+		// before a rewrite says nothing about what is there now.
+		if rec.Fingerprint == c.Fingerprint {
+			rep.Statements += rec.Statements
+			rep.Executed += rec.Covered
 		}
 		if rec.ReviewedBy == "" {
 			continue

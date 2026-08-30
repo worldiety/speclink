@@ -15,6 +15,7 @@ import (
 	"github.com/worldiety/speclink/internal/check"
 	"github.com/worldiety/speclink/internal/config"
 	"github.com/worldiety/speclink/internal/diag"
+	"github.com/worldiety/speclink/internal/lang"
 	"github.com/worldiety/speclink/internal/lang/jvm"
 	"github.com/worldiety/speclink/internal/profile"
 	"github.com/worldiety/speclink/internal/reqtree"
@@ -57,6 +58,7 @@ func evidence(args []string) error {
 	cfgPath := fs.String("config", "", "layout configuration; defaults to "+config.FileName+" in the root")
 	in := fs.String("in", "", "`file` holding the output of \"go test -json\"; standard input by default")
 	prof := fs.String("profile", "", "language, framework and architectural style; overrides "+config.FileName)
+	cover := fs.String("coverprofile", "", "`file` written by \"go test -coverprofile\"; records how much of each declaration a run executed")
 	dry := fs.Bool("n", false, "report what would be recorded, write nothing")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -105,6 +107,14 @@ func evidence(args []string) error {
 		return err
 	}
 
+	// The coverage of a declaration is recorded beside the verifications, and
+	// for the same reason: both are what one run showed, and both are worth
+	// nothing unless they are tied to the text they were measured against.
+	measured, err := recordCoverage(base, model, *cover, discard)
+	if err != nil {
+		return err
+	}
+
 	changed, unknown := check.RecordVerifications(base, tree, demonstrated)
 	for _, id := range unknown {
 		// A record naming a requirement the tree does not have is a defect
@@ -113,9 +123,12 @@ func evidence(args []string) error {
 		// silently would leave the test looking useful.
 		fmt.Fprintf(os.Stderr, "ignored   %s: no such requirement\n", id)
 	}
-	if len(changed) == 0 {
+	if len(changed) == 0 && measured == 0 {
 		fmt.Fprintln(os.Stderr, "nothing to record; the record already matches this run.")
 		return nil
+	}
+	if measured > 0 {
+		fmt.Fprintf(os.Stderr, "measured  %s\n", plural(measured, "declaration", "declarations"))
 	}
 	for _, line := range changed {
 		fmt.Fprintln(os.Stderr, line)
@@ -279,4 +292,45 @@ func (t treeLookup) IDOf(ref string) (string, bool) {
 		return r.ID, true
 	}
 	return "", false
+}
+
+// recordCoverage attributes a coverage profile to the declarations.
+//
+// It writes into the same record attest does, because both say something about
+// one text: the fingerprint is carried along so that a figure can never outlive
+// the declaration it was measured on. A profile taken before a rewrite is not
+// evidence about what is there now.
+func recordCoverage(base *baseline.File, model lang.Model, profilePath string, discard *diag.Set) (int, error) {
+	if profilePath == "" {
+		return 0, nil
+	}
+	inferrer, ok := model.(lang.ConstructInferrer)
+	if !ok {
+		return 0, nil
+	}
+	blocks, err := loadCoverProfile(profilePath)
+	if err != nil {
+		return 0, err
+	}
+
+	n := 0
+	for _, c := range inferrer.Constructs(discard) {
+		if c.Fingerprint == "" {
+			continue
+		}
+		statements, covered := coverageOf(c, blocks)
+		if statements == 0 {
+			continue
+		}
+
+		rec := base.Constructs[c.Name]
+		if rec.Fingerprint != c.Fingerprint {
+			// A figure about older text is not a figure about this one.
+			rec = baseline.Construct{Fingerprint: c.Fingerprint}
+		}
+		rec.Statements, rec.Covered = statements, covered
+		base.Constructs[c.Name] = rec
+		n++
+	}
+	return n, nil
 }
