@@ -1766,6 +1766,10 @@ is refused rather than accepted.
 | `K17-PARTICIPANT-UNUSED` | `V6-093` | nothing reaches a declared actor or foreign system |
 | `K17-PARTICIPANT-DUPLICATE` | `V6-094` | two participants share an ID |
 | `K17-ADAPTER-NO-CHANNEL` | `V6-095` | the system reaches outside where no channel says so |
+| `K20-ENDPOINT-PATTERN-UNREADABLE` | `V6-150` | a route is mounted under a pattern that is not a constant |
+| `K20-ENDPOINT-DUPLICATE` | `V6-151` | two registrations claim one address |
+| `K20-ENDPOINT-TRACE-TRUNCATED` | `V6-152` | the trace from a route gave up before reaching a use case |
+| `K20-ENDPOINT-NO-USE-CASE` | `V6-153` | nothing accountable was found behind a route |
 | `K15-EVENT-NO-TRANSITION` | `V6-060` | an event does not say which state it leaves the aggregate in |
 | `K15-TRANSITION-UNKNOWN` | `V6-061` | a transition names something that folds nothing |
 | `K14-REQ-UNVERIFIED` | `V6-120` | no test demonstrates a normative requirement |

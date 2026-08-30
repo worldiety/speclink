@@ -10,5 +10,5 @@ import (
 
 // Mount registers the routes of this context.
 func Mount(mux *http.ServeMux, who rest.Authenticator, draft billing.DraftInvoice) {
-	mux.Handle("POST /invoices/draft", rest.Handle(who, draft))
+	mux.Handle("POST /invoices/draft", rest.Log(rest.Handle(who, draft)))
 }

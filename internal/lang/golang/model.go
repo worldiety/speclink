@@ -45,6 +45,7 @@ var (
 	_ lang.ProcessReader       = (*Model)(nil)
 	_ lang.TopicReader         = (*Model)(nil)
 	_ lang.TopologyReader      = (*Model)(nil)
+	_ lang.EndpointReader      = (*Model)(nil)
 	_ lang.SchemaReader        = (*Model)(nil)
 	_ lang.VerificationReader  = (*Model)(nil)
 	_ lang.SyntaxChecker       = (*Model)(nil)

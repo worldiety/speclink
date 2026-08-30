@@ -261,6 +261,15 @@ func verify(args []string) error {
 		proc = check.Processes(tree, processes, constructs, bindings, scope, model.Dialect(), findings)
 	}
 
+	// K20: what the system answers on. Asked only where the frontend can
+	// recognise a registration: a run that cannot see routes must report no
+	// routes, never an empty surface, because "there are none" and "nobody
+	// looked" are the two answers this whole tool exists to keep apart.
+	var eps check.EndpointReport
+	if er, ok := model.(lang.EndpointReader); ok {
+		eps = check.Endpoints(er.Endpoints(), findings)
+	}
+
 	// K18: who wrote each declaration and who has read it. A record of what
 	// happened, so it reads the lock rather than the code.
 	var prov check.ProvenanceReport
@@ -275,7 +284,7 @@ func verify(args []string) error {
 		check.Lifecycle(constructs, bindings, model.Dialect(), findings)
 	}
 
-	if err := report(*format, findings, lang.Of(model), cov, str, src, ver, proc, tp, prov, len(bindings), skippedPackages(model)); err != nil {
+	if err := report(*format, findings, lang.Of(model), cov, str, src, ver, proc, tp, prov, eps, len(bindings), skippedPackages(model)); err != nil {
 		return err
 	}
 	if *format == "text" {
@@ -480,7 +489,7 @@ func loadLayout(absRoot, explicit string) (config.Config, error) {
 // question above both: whether every part of what was actually asked for
 // became a requirement at all. Without the third the other two measure a tree
 // against itself.
-func report(format string, findings *diag.Set, can lang.Capabilities, cov check.Coverage, str check.Structure, src check.SourceCoverage, ver check.Verification, proc check.ProcessReport, tp check.TopologyReport, prov check.ProvenanceReport, bindings, skipped int) error {
+func report(format string, findings *diag.Set, can lang.Capabilities, cov check.Coverage, str check.Structure, src check.SourceCoverage, ver check.Verification, proc check.ProcessReport, tp check.TopologyReport, prov check.ProvenanceReport, eps check.EndpointReport, bindings, skipped int) error {
 	switch format {
 	case "json":
 		return findings.WriteJSON(os.Stdout)
@@ -516,6 +525,13 @@ func report(format string, findings *diag.Set, can lang.Capabilities, cov check.
 					float64(prov.Executed)/float64(prov.Statements)*100)
 			}
 			parts = append(parts, line+")")
+		}
+		// Both halves, always. A surface where every route is traced still
+		// prints the total, because "12 of 12" and a silent line are different
+		// claims: the first says somebody looked.
+		if eps.Routes > 0 {
+			parts = append(parts, fmt.Sprintf("%s (%d traced to a use case)",
+				plural(eps.Routes, "route", "routes"), eps.Traced))
 		}
 		if tp.Declared {
 			parts = append(parts, fmt.Sprintf("%s (%d of %d boundaries described)",

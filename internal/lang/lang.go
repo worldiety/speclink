@@ -88,6 +88,18 @@ type TopologyReader interface {
 	Topology(out *diag.Set) ir.Topology
 }
 
+// EndpointReader is implemented by a frontend that can say what addresses the
+// system answers on.
+//
+// Separate from TopologyReader although both describe the edge, because they
+// are known in different ways. A channel is declared: no module states that an
+// object store is somebody else's responsibility. An endpoint is recognised:
+// the code that mounts it already says everything there is to say. A frontend
+// may well be able to do one and not the other.
+type EndpointReader interface {
+	Endpoints() []ir.Endpoint
+}
+
 // SchemaReader is implemented by a frontend that can say which types are
 // persisted and what shape they have on the wire.
 type SchemaReader interface {

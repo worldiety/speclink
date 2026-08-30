@@ -75,3 +75,15 @@ func Fail(w http.ResponseWriter, err error) {
 	}
 	http.Error(w, "internal error", http.StatusInternalServerError)
 }
+
+// Log records that a request happened.
+//
+// The shape every wrapper has: a handler in, a handler out, the original called
+// somewhere in the middle. It is here so that at least one route in this
+// project is mounted behind something, because a recogniser that has only ever
+// seen bare handlers is a recogniser nobody has tested.
+func Log(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
+	})
+}
