@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -165,24 +166,94 @@ func TestMain(m *testing.M) {
 
 // runSpeclink runs a command against a fixture, returning combined output and
 // exit code.
+//
+// Runs against an unmodified source fixture are memoised. Two thirds of this
+// package's runtime is go/packages, once per invocation, and half the
+// invocations ask one of five fixtures the same question: 62 runs load
+// testdata/example, 42 load testdata/bare, and every one of them re-parses the
+// same tree to produce the same bytes.
+//
+// Three things make it sound rather than merely fast. The output is
+// deterministic, which was measured rather than assumed. No test writes into a
+// source fixture, which is why `git status` is clean after a full run — the two
+// freeze runs pointed at one are both no-ops by assertion. And anything a test
+// does write goes to a TempDir whose path is part of the key, so a command with
+// an -out flag can never collide with another test's.
+//
+// A copied fixture is never cached: it is unique by construction, and its path
+// is not under testdata.
 func runSpeclink(t *testing.T, command, root string, extra ...string) (string, int) {
 	t.Helper()
 
+	if !shareableFixture(root) {
+		out, code, err := execSpeclink(command, root, extra)
+		if err != nil {
+			t.Fatalf("run speclink: %v\n%s", err, out)
+		}
+		return out, code
+	}
+
+	key := strings.Join(append([]string{command, root}, extra...), "\x00")
+
+	runCacheMu.Lock()
+	entry, known := runCache[key]
+	if !known {
+		entry = &runResult{}
+		runCache[key] = entry
+	}
+	runCacheMu.Unlock()
+
+	// Once rather than a plain check, so that ten parallel tests asking the
+	// same question run it once between them instead of ten times at once,
+	// which is the case the cache exists for.
+	entry.once.Do(func() {
+		entry.out, entry.code, entry.err = execSpeclink(command, root, extra)
+	})
+	if entry.err != nil {
+		t.Fatalf("run speclink: %v\n%s", entry.err, entry.out)
+	}
+	return entry.out, entry.code
+}
+
+// runResult is one memoised invocation.
+//
+// The error is kept rather than reported where it happened. A failure to start
+// the binary belongs to whichever test asked, not to whichever test happened to
+// win the race to run it first.
+type runResult struct {
+	once sync.Once
+	out  string
+	code int
+	err  error
+}
+
+var (
+	runCacheMu sync.Mutex
+	runCache   = map[string]*runResult{}
+)
+
+// shareableFixture reports whether a root is one of the checked in fixtures,
+// which no test modifies and every test therefore sees alike.
+func shareableFixture(root string) bool {
+	return strings.HasPrefix(filepath.ToSlash(root), "../../testdata/")
+}
+
+// execSpeclink drives the real binary. An exit code is a result rather than an
+// error: it is part of the contract a loop runner depends on.
+func execSpeclink(command, root string, extra []string) (string, int, error) {
 	args := append([]string{command, "-root", root}, extra...)
 	cmd := exec.Command(speclinkBin, args...)
 	cmd.Env = os.Environ()
 	out, err := cmd.CombinedOutput()
 
-	code := 0
 	var exit *exec.ExitError
 	if err != nil {
 		if ok := asExitError(err, &exit); ok {
-			code = exit.ExitCode()
-		} else {
-			t.Fatalf("run speclink: %v\n%s", err, out)
+			return string(out), exit.ExitCode(), nil
 		}
+		return string(out), 0, err
 	}
-	return string(out), code
+	return string(out), 0, nil
 }
 
 // runVerify is runSpeclink for the common case: verify over the whole fixture.
