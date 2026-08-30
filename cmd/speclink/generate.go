@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -64,6 +65,9 @@ func generate(args []string) error {
 	format := fs.String("format", "markdown", "markdown or typst")
 	author := fs.String("author", "", "who the document is issued by; typst only, left off when empty")
 	date := fs.String("date", "", "the date on the title page; typst only, left off when empty")
+	title := fs.String("title", "", "the name of the system on the title page; defaults to the directory name")
+	figures := fs.String("figures", "", "`dir` holding rendered diagrams, relative to the document; left out when empty")
+	figExt := fs.String("figure-ext", "svg", "extension of the rendered diagrams")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -91,6 +95,11 @@ func generate(args []string) error {
 	if err != nil {
 		return err
 	}
+	model.figures, model.figureExt = *figures, *figExt
+	// The title names the system, not the genre. "Specification" is already
+	// printed above it, and a document whose heading repeats its own kind
+	// tells a reader nothing about which system they are holding.
+	model.title = or(*title, filepath.Base(absRoot))
 
 	w := io.Writer(os.Stdout)
 	if *out != "" {
@@ -122,6 +131,28 @@ type specModel struct {
 	processes  []*ir.Process
 	constructs []ir.Construct
 	endpoints  []ir.Endpoint
+
+	// figures is the directory the drawings live in, relative to the document.
+	//
+	// Empty when the caller asked for none, and then every diagram chapter
+	// says the picture was not included rather than pointing at a file that is
+	// not there. speclink writes the drawing source and never runs the
+	// renderer, so the pictures are made between generating this and
+	// compiling it, and a document that silently referenced a missing one
+	// would be worse than one that admits it.
+	figures   string
+	figureExt string
+
+	// title names the system this document describes.
+	title string
+
+	// known is the set of requirement identifiers this document contains.
+	//
+	// A cross reference may only point at a chapter that is here. The tree can
+	// legitimately mention an identifier it does not hold — a requirement
+	// outside the measured scope — and a reference to it would refuse to
+	// compile, so those stay plain text.
+	known map[string]bool
 
 	// can records what the frontend was able to look for at all.
 	//
@@ -178,6 +209,11 @@ func readModel(absRoot, cfgPath, prof string, patterns []string) (*specModel, er
 		m.processes = pr.Processes(discard)
 	}
 
+	m.known = map[string]bool{}
+	for _, r := range m.tree.All() {
+		m.known[r.ID] = true
+	}
+
 	m.waived = ir.CollectWaivers(bindings)
 	m.base, err = baseline.Load(absRoot)
 	if err != nil {
@@ -190,19 +226,22 @@ func readModel(absRoot, cfgPath, prof string, patterns []string) (*specModel, er
 // document builds the specification. It decides what the document says and
 // nothing about how it is spelled; a renderer does the rest.
 func (m *specModel) document() *doc.Doc {
-	d := doc.New("Specification")
+	d := doc.New(m.title)
 
 	d.P(doc.T("Derived from the source by "), doc.Code("speclink generate"),
 		doc.T(". Do not edit: every sentence here is written somewhere else, and the point of this file is that there is only one such place."))
 
+	m.writeAudience(d)
 	m.writeSummary(d)
 	m.writeGaps(d)
+	m.writeCoverage(d)
 	m.writeDocuments(d)
 	m.writeTopics(d)
 	m.writeStandards(d)
 	m.writeBoundary(d)
 	m.writeSurface(d)
 	m.writeProcesses(d)
+	m.writeRegister(d)
 	m.writeRequirements(d)
 	m.writeSources(d)
 
@@ -273,6 +312,298 @@ func plainItems(in []string) []doc.Bullet {
 	return out
 }
 
+// writeRegister is the one table somebody scans instead of reading.
+//
+// Every other chapter answers a question about one requirement. This answers
+// the question people actually arrive with — what is there, and how far along
+// is each of it — and until now the only way to get it was to read the whole
+// document and keep a tally. A project manager wants the column. An auditor
+// wants the row. Nobody wants the prose for this particular question.
+//
+// The marks are verdicts and are allowed to say they are not verdicts. A
+// requirement outside the normative set is not failing coverage, it is not
+// being asked; a frontend that reads no test claims has not found zero, it has
+// not looked. Both are distinct from a measured no, and collapsing them is
+// exactly the lie this tool exists to prevent.
+
+// writeAudience is the map at the front.
+//
+// This document has four readers with almost nothing in common. A project
+// manager wants to know how much is left. An auditor wants to know what claim
+// rests on what evidence. Whoever wrote the requirements wants to see their
+// sentences survived. A developer wants the interface and the rules of the
+// house. Serving all four in one document is only possible if it says plainly
+// which parts are addressed to whom — otherwise each of them reads the wrong
+// chapter first, decides the thing is not for them, and stops.
+//
+// It is written here rather than in a README because it describes this
+// document, and a description of a generated file that lives somewhere else is
+// a description that will be wrong within a month.
+
+// figure references a drawing, if the caller arranged for drawings at all.
+//
+// The extension is not .puml. speclink emits PlantUML source; something else
+// turns it into a picture, and the document names the picture. Which format
+// that is belongs to whoever runs the renderer, so it is a parameter and not a
+// decision made here.
+func (m *specModel) figure(d *doc.Doc, id, stem, caption string) bool {
+	if m.figures == "" {
+		return false
+	}
+	d.Fig(id, path.Join(m.figures, stem+"."+m.figureExt), caption)
+	return true
+}
+
+// noFigure says why a chapter that should carry a drawing does not.
+func noFigure(d *doc.Doc) {
+	d.P(doc.Emph("No diagram is included in this document. Pass -figures to speclink generate, " +
+		"after rendering the sources written by speclink diagrams."))
+}
+
+func (m *specModel) writeAudience(d *doc.Doc) {
+	d.H(2, "How to read this")
+	d.P(doc.T("This document is derived from the source. Nothing in it was written by hand, "),
+		doc.T("and nothing in it can be edited into agreement with something that is not "),
+		doc.T("true of the code — which is the property that makes it worth reading, and "),
+		doc.T("the reason it is regenerated rather than maintained."))
+	d.P(doc.T("It is written for four readers at once. Each chapter below names the ones it is for."))
+
+	t := d.Table("If you are", "Start at", "Because it answers")
+	t.Add(
+		doc.Cell(doc.Strong("running the project")),
+		doc.Cell(doc.T("Where it stands, Gaps, The register")),
+		doc.Cell(doc.T("how much is agreed, built, tested and signed, and what is left")))
+	t.Add(
+		doc.Cell(doc.Strong("auditing it")),
+		doc.Cell(doc.T("The register, Standards, Source documents, Requirements")),
+		doc.Cell(doc.T("what is claimed, what evidence stands behind each claim, and what was never measured")))
+	t.Add(
+		doc.Cell(doc.Strong("the one who asked for it")),
+		doc.Cell(doc.T("Courses of business, The material, Requirements")),
+		doc.Cell(doc.T("whether the sentences you wrote survived into the thing that was built")))
+	t.Add(
+		doc.Cell(doc.Strong("building on it")),
+		doc.Cell(doc.T("The boundary, What answers from outside, How it is put together")),
+		doc.Cell(doc.T("what the system exposes, what it talks to, and the rules the code is held to")))
+
+	d.H(3, "What a blank means")
+	d.P(doc.T("A chapter with nothing in it says which of two things happened. "),
+		doc.Emph("Not declared"),
+		doc.T(" means the project states nothing of that kind, and the emptiness is a fact about the project. "),
+		doc.Emph("Not measured"),
+		doc.T(" means this run could not look, and the emptiness is a fact about the run. "),
+		doc.T("They are never printed as the same blank, because a reader has no other way to tell them apart, "),
+		doc.T("and treating an unasked question as a clean answer is the failure this whole tool exists to prevent."))
+}
+
+// writeCoverage is the evidence chapter.
+//
+// The summary at the front says what fraction of requirements a test claims.
+// That is a claim about annotations, not about execution, and it is routinely
+// mistaken for one about execution. This is where the difference is spelled
+// out: what ran, how much of the code it went through, and how much of the
+// code nothing has ever said anything about.
+//
+// Every figure here is left out rather than shown as zero when it was never
+// measured. Nought per cent covered and no profile ever handed over look
+// identical in a bar chart and are opposite facts.
+func (m *specModel) writeCoverage(d *doc.Doc) {
+	d.H(2, "What has actually been run")
+
+	if !m.can.Verifications {
+		omitted(d, "", "this frontend reads no test claims, so nothing is known about what was run")
+		return
+	}
+
+	d.P(doc.T("A test that claims a requirement is a claim. Evidence that the test ran is "),
+		doc.T("something else, and this chapter keeps them apart."))
+
+	t := d.Table("", "count", "of normative")
+	t.Aligned(doc.Left, doc.Right, doc.Right)
+	t.Add(doc.Cell(doc.T("Normative requirements")), doc.Cell(doc.Tf("%d", m.ver.Normative)), doc.Cell(doc.T("")))
+	t.Add(doc.Cell(doc.T("… a test claims")), doc.Cell(doc.Tf("%d", m.ver.Verified)),
+		doc.Cell(doc.Tf("%.0f%%", m.ver.Ratio()*100)))
+	t.Add(doc.Cell(doc.T("… a run demonstrated")), doc.Cell(doc.Tf("%d", m.ver.Shown)),
+		doc.Cell(doc.Tf("%.0f%%", m.ver.ShownRatio()*100)))
+
+	m.writeStatements(d)
+}
+
+// writeStatements reports how much of the implementing code a run went through.
+//
+// Per declaration, never per line: the profile is read at statement
+// granularity and the columns are discarded on purpose, because a percentage
+// against a line count invites the number to be managed rather than the code
+// to be tested. What a reader needs is which declarations nothing has
+// exercised, and that survives the coarser measure intact.
+func (m *specModel) writeStatements(d *doc.Doc) {
+	type row struct {
+		name       string
+		stmts, run int
+		known      bool
+	}
+	var rows []row
+	total, executed := 0, 0
+	for _, c := range m.constructs {
+		rec, ok := m.base.Constructs[c.Name]
+		if !ok || rec.Fingerprint != c.Fingerprint || rec.Statements == 0 {
+			// Either nothing was recorded, or it was recorded against a
+			// different version of this declaration. Both mean this run knows
+			// nothing about it, which is not the same as it being uncovered.
+			rows = append(rows, row{name: c.Name})
+			continue
+		}
+		rows = append(rows, row{name: c.Name, stmts: rec.Statements, run: rec.Covered, known: true})
+		total += rec.Statements
+		executed += rec.Covered
+	}
+	if len(rows) == 0 {
+		return
+	}
+
+	d.H(3, "How much of the code a run went through")
+	if total == 0 {
+		omitted(d, "", "no coverage profile has been handed to speclink evidence, so nothing is known about which code ran")
+		return
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		a, b := rows[i], rows[j]
+		if a.known != b.known {
+			return !a.known
+		}
+		if a.known && b.known {
+			ra := float64(a.run) / float64(a.stmts)
+			rb := float64(b.run) / float64(b.stmts)
+			if ra != rb {
+				return ra < rb
+			}
+		}
+		return a.name < b.name
+	})
+
+	d.Pf("%d of %d statements in the measured declarations were reached by a run (%.0f%%). "+
+		"The least exercised come first, because those are the ones a reader is looking for.",
+		executed, total, float64(executed)/float64(total)*100)
+
+	t := d.Table("Declaration", "Statements", "Run", "Share")
+	t.Aligned(doc.Left, doc.Right, doc.Right, doc.Right)
+	for _, r := range rows {
+		if !r.known {
+			t.Add(doc.Cell(doc.Code(r.name)), doc.Cell(doc.Unknown), doc.Cell(doc.Unknown),
+				doc.Cell(doc.Emph("not measured")))
+			continue
+		}
+		t.Add(doc.Cell(doc.Code(r.name)),
+			doc.Cell(doc.Tf("%d", r.stmts)),
+			doc.Cell(doc.Tf("%d", r.run)),
+			doc.Cell(doc.Tf("%.0f%%", float64(r.run)/float64(r.stmts)*100)))
+	}
+}
+
+func (m *specModel) writeRegister(d *doc.Doc) {
+	all := m.tree.All()
+	if len(all) == 0 {
+		return
+	}
+	d.H(2, "The register")
+	d.P(doc.T("Every requirement that was read, and how far each one has got. "),
+		doc.T("A mark states what was measured; where nothing looked, it says so rather than reporting a zero."))
+
+	t := d.Table("Requirement", "Kind", "Field", "Status", "Built", "Tested", "Run", "Read").
+		Aligned(doc.Left, doc.Left, doc.Left, doc.Left, doc.Right, doc.Right, doc.Right, doc.Right)
+
+	for _, r := range all {
+		t.Add(
+			doc.Cell(doc.Ref{ID: r.ID, Text: r.ID}),
+			doc.Cell(doc.T(r.Kind.String())),
+			doc.Cell(doc.T(r.Discipline.String())),
+			doc.Cell(doc.T(r.Status.String())),
+			doc.Cell(m.builtMark(r)),
+			doc.Cell(m.testedMark(r)),
+			doc.Cell(m.runMark(r)),
+			doc.Cell(m.readMark(r)),
+		)
+	}
+
+	d.H(3, "Reading the marks")
+	var legend []doc.Bullet
+	for _, l := range doc.Legend() {
+		legend = append(legend, doc.Item(l.Mark, doc.T("  "+l.Text)))
+	}
+	d.Bullets(legend...)
+	d.Bullets(
+		doc.Item(doc.Strong("Built"), doc.T(" — something in the source declares that it satisfies this.")),
+		doc.Item(doc.Strong("Tested"), doc.T(" — a test claims it.")),
+		doc.Item(doc.Strong("Run"), doc.T(" — that test was seen to pass against this exact wording.")),
+		doc.Item(doc.Strong("Read"), doc.T(" — a named person recorded that they read this exact wording.")),
+	)
+}
+
+// builtMark answers whether anything implements the requirement.
+func (m *specModel) builtMark(r *ir.Requirement) doc.Mark {
+	if !m.can.Constructs {
+		return doc.Unknown
+	}
+	if !r.Status.MustBeCovered() {
+		return doc.NotRequired
+	}
+	if len(m.cov.BySatisfier[r.ID]) > 0 {
+		return doc.Yes
+	}
+	return doc.No
+}
+
+// testedMark answers whether a test claims it.
+func (m *specModel) testedMark(r *ir.Requirement) doc.Mark {
+	if !m.can.Verifications {
+		return doc.Unknown
+	}
+	if !r.Status.MustBeCovered() {
+		return doc.NotRequired
+	}
+	if len(m.ver.ByTest[r.ID]) > 0 {
+		return doc.Yes
+	}
+	return doc.No
+}
+
+// runMark answers whether that claim was ever seen to hold.
+//
+// A claim nobody ran is the gap this tool cares about most: the test exists,
+// the annotation exists, and no evidence says either of them executed. It is
+// only a No once a test claims it at all — otherwise the question does not
+// arise and saying No twice would double count one gap.
+func (m *specModel) runMark(r *ir.Requirement) doc.Mark {
+	if !m.can.Verifications {
+		return doc.Unknown
+	}
+	if !r.Status.MustBeCovered() || len(m.ver.ByTest[r.ID]) == 0 {
+		return doc.NotRequired
+	}
+	if len(m.demonstratedBy(r)) > 0 {
+		return doc.Yes
+	}
+	return doc.No
+}
+
+// readMark answers whether a person signed this exact wording.
+func (m *specModel) readMark(r *ir.Requirement) doc.Mark {
+	if !r.Status.MustBeCovered() {
+		return doc.NotRequired
+	}
+	rec := m.base.Requirements[r.ID]
+	if rec.ReviewedBy == "" {
+		return doc.No
+	}
+	if rec.Text != baseline.HashText(r.Text, r.Title) {
+		// Signed, but not this wording. Reporting that as read would let an
+		// edit launder itself through an old signature.
+		return doc.Partly
+	}
+	return doc.Yes
+}
+
 func (m *specModel) writeRequirements(d *doc.Doc) {
 	d.H(2, "Requirements")
 
@@ -288,8 +619,8 @@ func (m *specModel) writeRequirements(d *doc.Doc) {
 
 		it := &items{}
 		m.writeList(it, "Asked for in", m.origins(r))
-		m.writeList(it, "Derived from", r.DerivedFrom)
-		m.writeList(it, "Supersedes", r.Supersedes)
+		m.writeRefs(it, "Derived from", r.DerivedFrom)
+		m.writeRefs(it, "Supersedes", r.Supersedes)
 		m.writeImplementation(it, r)
 		m.writeList(it, "Demonstrated by", m.demonstratedBy(r))
 		if who := m.base.Requirements[r.ID]; who.ReviewedBy != "" && who.Text == baseline.HashText(r.Text, r.Title) {
@@ -357,6 +688,34 @@ func (m *specModel) writeList(it *items, label string, vals []string) {
 		return
 	}
 	it.add(doc.Strong(label), doc.T(" "+strings.Join(vals, ", ")))
+}
+
+// writeRefs is writeList for values that name another requirement.
+//
+// Derivation and supersession are the two places the tree refers to itself,
+// and printing them as plain text made the document a set of dead ends: the
+// reader is told R-QUOTE-SUBMIT derives from R-NFR-TRACEABILITY and has to go
+// looking. A reference that the renderer resolves also fails loudly when the
+// target was deleted, which plain text never could.
+func (m *specModel) writeRefs(it *items, label string, ids []string) {
+	if len(ids) == 0 {
+		return
+	}
+	line := []doc.Inline{doc.Strong(label), doc.T(" ")}
+	for i, id := range ids {
+		if i > 0 {
+			line = append(line, doc.T(", "))
+		}
+		// Only requirements this document actually contains can be linked;
+		// an identifier from outside the measured tree stays text, because a
+		// reference to a chapter that is not here would refuse to compile.
+		if m.known[id] {
+			line = append(line, doc.Ref{ID: id, Text: id})
+			continue
+		}
+		line = append(line, doc.T(id))
+	}
+	it.add(line...)
 }
 
 func (m *specModel) origins(r *ir.Requirement) []string {
@@ -492,6 +851,17 @@ func (m *specModel) writeBoundary(d *doc.Doc) {
 	}
 
 	d.H(2, "The boundary")
+	d.P(doc.T("What this system talks to, and every way across. "),
+		doc.T("A channel that does not name its protocol, its data, who may use it and what protects it in transit is refused at the source, "),
+		doc.T("so every row below is complete by construction."))
+
+	if !m.figure(d, "fig-context", "context",
+		"The system in its surroundings: who uses it and what it depends on.") {
+		noFigure(d)
+	} else {
+		m.figure(d, "fig-blocks", "blocks",
+			"The same boundary, showing which package inside the system each channel reaches.")
+	}
 
 	if len(m.topo.Participants) > 0 {
 		t := d.Table("Outside", "Kind", "Role")
@@ -675,7 +1045,10 @@ func (m *specModel) writeProcesses(d *doc.Doc) {
 		if p.Purpose != "" {
 			d.P(doc.T(oneLine(p.Purpose)))
 		}
-		d.P(doc.Code(p.ID), doc.T(" · drawn in "), doc.Code("process-"+p.ID+".puml"))
+		d.P(doc.Code(p.ID))
+		if !m.figure(d, "fig-"+p.ID, "process-"+p.ID, or(p.Title, p.ID)) {
+			d.P(doc.T("Drawing source: "), doc.Code("process-"+p.ID+".puml"))
+		}
 
 		if ids := m.satisfiedBy(p); len(ids) > 0 {
 			d.Pf("Answers to: %s", strings.Join(ids, ", "))
@@ -1026,6 +1399,11 @@ func (m *specModel) relative(file string) string {
 // The heading stays so the document keeps its shape between runs and a diff of
 // two generations stays readable.
 func omitted(d *doc.Doc, title, reason string) {
-	d.H(2, title)
+	// An empty title means the chapter heading is already on the page and only
+	// the reason is missing. Emitting one anyway produced a bare "##" with
+	// nothing after it, which is the sort of thing that survives review.
+	if title != "" {
+		d.H(2, title)
+	}
 	d.P(doc.Emph(reason))
 }

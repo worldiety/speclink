@@ -57,6 +57,9 @@ speclink impact       [flags] <requirement|doc.md#anchor|path>...
   -out <file>         generate only: write here instead of standard output
   -author <who>       generate only: the issuer on the title page, typst only
   -date <date>        generate only: the date on the title page, typst only
+  -title <name>       generate, diagrams: the system name; defaults to the directory
+  -figures <dir>      generate only: rendered diagrams, relative to the document
+  -figure-ext <ext>   generate only: extension of those diagrams, default svg
   -profile <name>     overrides the profile from speclink.json
   -kind <kind>        inventory only: restrict to one kind, e.g. event
   -template <name>    init only: which starting point of the profile to write
@@ -272,17 +275,43 @@ comes out of here.
 
 Markdown is the default, because it renders everywhere and it diffs, and a diff
 is the form in which this document is actually reviewed. For the version that
-gets handed to an auditor there is Typst:
+gets handed to an auditor there is Typst, with the drawings in it:
 
 ```
-speclink generate -root . -format typst -author "worldiety GmbH" -date 2026-08-30 -out spec.typ
-typst compile spec.typ spec.pdf
+speclink diagrams -root . -out build/puml -title "ERP"
+plantuml -tsvg build/puml/*.puml
+
+speclink generate -root . -format typst -title "ERP" \
+  -author "worldiety GmbH" -date 2026-08-30 \
+  -figures build/puml -out build/spec.typ
+typst compile build/spec.typ build/spec.pdf
 ```
 
-That gives numbered chapters, a table of contents, a running header and a title
-page. speclink writes the source and runs nothing, the same bargain the diagram
-output makes — Typst is a prerequisite of the environment that renders the
-document, not something this tool links against.
+That gives a title page, a table of contents, numbered chapters, a running
+header, and the context, building-block and process diagrams placed in the
+chapters that discuss them, numbered and captioned.
+
+speclink writes the source and runs nothing — not PlantUML, not Typst. Both are
+prerequisites of the environment that renders the document, not dependencies of
+this tool, so a checkout with no Java and no Typst still runs every rule. It is
+also why `-figures` is a flag: without it the diagram chapters say the pictures
+were not included, rather than pointing at files that were never rendered.
+
+The emitted Typst pulls no packages. An audit build that has to reach a package
+registry is one that stops working the day the registry does.
+
+#### Who the document is for
+
+It has four readers with almost nothing in common — whoever runs the project,
+whoever audits it, whoever asked for the system, and whoever builds on it. The
+first chapter is a map that names, for each of them, which chapters answer their
+question. Serving all four at once only works if the document says plainly which
+parts are addressed to whom.
+
+*The register* is the table most of them arrive for: every requirement, its kind,
+field and status, and four marks — built, tested, run, read. A mark says what was
+measured, and is allowed to say that nothing looked. `?` is not a zero, and `–`
+means the question does not apply to that row.
 
 Both formats are rendered from one document model. Neither renderer can see the
 model that produced the tree it is handed, so a fact can be spelled differently

@@ -44,7 +44,13 @@ func TestAnEmptyChapterIsNotAnUnreadableOne(t *testing.T) {
 	if !strings.Contains(out, "## Courses of business\n\n_No course of business is declared") {
 		t.Errorf("an undeclared chapter must say it was undeclared:\n%s", chaptersOf(out))
 	}
-	if strings.Contains(out, "Not measured") {
+	// The omission sentences carry a colon — "Not measured: this frontend
+	// reads no topology declarations". The bare phrase also appears in the
+	// introduction, which teaches the reader the difference between a chapter
+	// that is empty because nothing was declared and one that is empty because
+	// nothing looked. Matching the phrase alone caught that explanation and
+	// called it a report.
+	if strings.Contains(out, "Not measured:") {
 		t.Errorf("a frontend that can read every chapter reported that it cannot:\n%s", chaptersOf(out))
 	}
 }

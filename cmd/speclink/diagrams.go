@@ -31,6 +31,7 @@ func diagrams(args []string) error {
 		cfgPath = fs.String("config", "", "layout configuration; defaults to speclink.json in the root")
 		prof    = fs.String("profile", "", "overrides the profile from speclink.json")
 		out     = fs.String("out", "build/puml", "directory to write the diagram sources into")
+		title   = fs.String("title", "", "name of the system in the drawings; defaults to the directory name")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -69,7 +70,12 @@ func diagrams(args []string) error {
 		return err
 	}
 
-	system := filepath.Base(absRoot)
+	// The same name the document uses, or the drawings label the system with a
+	// directory name while the page around them calls it something else.
+	system := *title
+	if system == "" {
+		system = filepath.Base(absRoot)
+	}
 	written := 0
 	if topo.Declared() {
 		for name, body := range map[string]string{

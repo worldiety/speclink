@@ -78,7 +78,10 @@ func TestGenerateRendersAProjectWithFindings(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("generate refused a project that does not verify: %d\n%s", code, out)
 	}
-	if !strings.Contains(out, "# Specification") {
+	// The title names the system, and defaults to the directory. It used to be
+	// the literal word Specification, which told a reader holding the document
+	// nothing about which system it described.
+	if !strings.Contains(out, "# arch") {
 		t.Errorf("nothing was rendered:\n%s", out)
 	}
 }
@@ -118,7 +121,7 @@ func TestGenerateWritesToAFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(data), "# Specification") {
+	if !strings.Contains(string(data), "## How to read this") {
 		t.Error("the file does not hold the document")
 	}
 }

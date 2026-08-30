@@ -23,6 +23,13 @@ func (r Markdown) Render(d *Doc) string {
 	for _, blk := range d.Blocks {
 		switch t := blk.(type) {
 		case *Heading:
+			// An explicit anchor, not the one a renderer derives from the
+			// heading text. Deriving it means the link silently breaks the
+			// day somebody adds a word to a title, and a broken anchor in
+			// Markdown reads exactly like a working one.
+			if t.ID != "" {
+				fmt.Fprintf(b, "<a id=%q></a>\n", anchor(t.ID))
+			}
 			fmt.Fprintf(b, "%s %s\n\n", strings.Repeat("#", t.Level), mdEscape(t.Text))
 		case *Para:
 			fmt.Fprintf(b, "%s\n\n", r.inlines(t.Text))
@@ -36,6 +43,13 @@ func (r Markdown) Render(d *Doc) string {
 				}
 			}
 			b.WriteString("\n")
+		case *Figure:
+			// Markdown has no figure numbering, so the caption carries the
+			// weight and the anchor is a heading-shaped comment nobody sees.
+			fmt.Fprintf(b, "![%s](%s)\n\n", mdEscape(t.Caption), t.Path)
+			if t.Caption != "" {
+				fmt.Fprintf(b, "*%s*\n\n", mdEscape(t.Caption))
+			}
 		case *Table:
 			r.table(b, t)
 		default:
@@ -91,6 +105,8 @@ func (r Markdown) inline(i Inline) string {
 		return "[" + mdEscape(t.Text) + "](" + t.URL + ")"
 	case Break:
 		return "<br>"
+	case Mark:
+		return mdMark(t)
 	case Ref:
 		// Markdown cannot check that this lands anywhere. It gets the anchor
 		// GitHub and pandoc both derive from a heading, and the guarantee that
@@ -98,6 +114,29 @@ func (r Markdown) inline(i Inline) string {
 		return "[" + mdEscape(t.Text) + "](#" + anchor(t.ID) + ")"
 	default:
 		panic(fmt.Sprintf("doc: markdown has no case for inline %T", i))
+	}
+}
+
+// mdMark spells a verdict.
+//
+// Plain characters rather than emoji: this file is read in a terminal, in a
+// diff and in a browser, and an emoji is a different width in each of them,
+// which turns every table into a ragged mess exactly where it is meant to be
+// scanned down a column.
+func mdMark(m Mark) string {
+	switch m {
+	case Yes:
+		return "yes"
+	case Partly:
+		return "part"
+	case No:
+		return "no"
+	case Unknown:
+		return "?"
+	case NotRequired:
+		return "n/a"
+	default:
+		panic(fmt.Sprintf("doc: markdown has no case for mark %d", int(m)))
 	}
 }
 
@@ -119,16 +158,9 @@ func mdEscape(s string) string {
 	).Replace(s)
 }
 
-// anchor derives the fragment a heading gets, the way GitHub does it.
-func anchor(s string) string {
-	b := &strings.Builder{}
-	for _, r := range strings.ToLower(s) {
-		switch {
-		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '-':
-			b.WriteRune(r)
-		case r == ' ':
-			b.WriteRune('-')
-		}
-	}
-	return b.String()
-}
+// anchor is the fragment a heading is given and a reference points at.
+//
+// It is derived from the identifier, never from the title, so the two sides
+// cannot drift. Same input as the Typst label, so a document that resolves in
+// one format resolves in the other.
+func anchor(id string) string { return label(id) }

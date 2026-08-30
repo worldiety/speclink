@@ -129,6 +129,71 @@ type Link struct{ Text, URL string }
 // Ref points inside it, at a Heading carrying the same ID.
 type Ref struct{ ID, Text string }
 
+// Mark is a verdict in a table cell.
+//
+// A specification is read across a row: is this implemented, is it tested, has
+// anybody signed it. Spelling that out in words makes the table unreadable at
+// the width it needs, and spelling it with a bare tick loses the distinction
+// that matters most here — between a no and a question that was never put.
+// Unknown is not No, and this tool exists to keep those apart.
+type Mark int
+
+const (
+	// No is a measured absence: it was looked for and is not there.
+	No Mark = iota
+	// Yes is a measured presence.
+	Yes
+	// Partly is a measured presence that does not cover everything.
+	Partly
+	// Unknown is not a verdict. Nothing looked, so nothing is claimed.
+	Unknown
+	// NotRequired is a question that does not apply to this row, such as
+	// coverage of a requirement that is explicitly out of scope.
+	NotRequired
+)
+
+func (Mark) inline() {}
+
+// Legend is the reading of each mark, so a document can print its own key
+// rather than expecting the reader to guess.
+func Legend() []struct {
+	Mark Mark
+	Text string
+} {
+	return []struct {
+		Mark Mark
+		Text string
+	}{
+		{Yes, "yes, and it was measured"},
+		{Partly, "in part"},
+		{No, "no, and it was measured"},
+		{Unknown, "not measured; nothing is claimed either way"},
+		{NotRequired, "does not apply to this entry"},
+	}
+}
+
+// Figure places a picture that some other tool rendered.
+//
+// speclink writes the drawing source and never runs the renderer, so what is
+// held here is a path, and the file at it is produced between generating this
+// document and compiling it. Typst refuses to compile a missing image, which
+// is the same bargain as a cross reference: a diagram that was never rendered
+// stops the build instead of leaving a blank in a document under review.
+type Figure struct {
+	Path    string
+	Caption string
+	// ID makes the figure referable, so a chapter can cite it by number.
+	ID string
+}
+
+func (*Figure) block() {}
+
+// Fig adds a figure.
+func (d *Doc) Fig(id, path, caption string) *Doc {
+	d.Blocks = append(d.Blocks, &Figure{Path: path, Caption: caption, ID: id})
+	return d
+}
+
 // Break ends a line without ending the block.
 //
 // Used in table cells that carry a label over its endpoints. It is a node

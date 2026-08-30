@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -166,5 +167,61 @@ func TestEmptyListAddsNothing(t *testing.T) {
 	out := doc.Markdown{}.Render(d)
 	if strings.Contains(out, "-") {
 		t.Errorf("an empty list left a mark:\n%q", out)
+	}
+}
+
+// TestEveryMarkdownReferenceHasATarget gives Markdown the guarantee Typst gets
+// from its compiler.
+//
+// A reference is rendered as a link to a fragment, and a fragment that lands
+// nowhere is invisible: the reader clicks, the page does not move, and they
+// assume they missed. Typst refuses to build that. Markdown will never refuse,
+// so the check has to live here — and it is the same tree, so if the anchors
+// agree once they agree for every document.
+func TestEveryMarkdownReferenceHasATarget(t *testing.T) {
+	t.Parallel()
+	d := doc.New("t")
+	d.HID(2, "R-1", "R-1 — a title somebody will later edit")
+	d.P(doc.T("See "), doc.Ref{ID: "R-1", Text: "R-1"})
+	out := doc.Markdown{}.Render(d)
+
+	link := regexp.MustCompile(`\]\(#([^)]+)\)`)
+	anchors := regexp.MustCompile(`<a id="([^"]+)">`)
+	have := map[string]bool{}
+	for _, m := range anchors.FindAllStringSubmatch(out, -1) {
+		have[m[1]] = true
+	}
+	found := link.FindAllStringSubmatch(out, -1)
+	if len(found) == 0 {
+		t.Fatalf("no reference was rendered at all:\n%s", out)
+	}
+	for _, m := range found {
+		if !have[m[1]] {
+			t.Errorf("reference to #%s lands nowhere; anchors are %v\n%s", m[1], have, out)
+		}
+	}
+}
+
+// TestAnchorsDoNotFollowTheTitle is the specific way this used to be wrong.
+//
+// The fragment was derived from the heading text, so a requirement titled
+// "R-1 — Ledger" answered to #r-1--ledger, and every link to it broke the day
+// the title gained a word. Deriving it from the identifier instead means a
+// title is prose and nothing depends on it.
+func TestAnchorsDoNotFollowTheTitle(t *testing.T) {
+	t.Parallel()
+	one := doc.New("t")
+	one.HID(2, "R-1", "R-1 — Ledger")
+	two := doc.New("t")
+	two.HID(2, "R-1", "R-1 — Ledger balances, reworded entirely")
+
+	a := regexp.MustCompile(`<a id="([^"]+)">`)
+	first := a.FindStringSubmatch(doc.Markdown{}.Render(one))
+	second := a.FindStringSubmatch(doc.Markdown{}.Render(two))
+	if first == nil || second == nil {
+		t.Fatal("no anchor was emitted")
+	}
+	if first[1] != second[1] {
+		t.Errorf("rewording a title moved its anchor: %q became %q", first[1], second[1])
 	}
 }
