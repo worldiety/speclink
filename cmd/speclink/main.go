@@ -268,7 +268,7 @@ func verify(args []string) error {
 	var eps check.EndpointReport
 	if er, ok := model.(lang.EndpointReader); ok {
 		eps = check.Endpoints(er.Endpoints(), findings)
-		check.EndpointEvolution(eps.Endpoints, base, findings)
+		check.EndpointEvolution(eps.Endpoints, base, scope, bindings, findings)
 	}
 
 	// K18: who wrote each declaration and who has read it. A record of what
@@ -530,9 +530,19 @@ func report(format string, findings *diag.Set, can lang.Capabilities, cov check.
 		// Both halves, always. A surface where every route is traced still
 		// prints the total, because "12 of 12" and a silent line are different
 		// claims: the first says somebody looked.
+		//
+		// The third half appears only when there is one, and it is the one
+		// that keeps the other two honest: a run narrowed to a package cannot
+		// see what the rest of the module mounts, and a figure that hid those
+		// routes among the traced ones would turn a limit of the run into a
+		// claim about the code.
 		if eps.Routes > 0 {
-			parts = append(parts, fmt.Sprintf("%s (%d traced to a use case)",
-				plural(eps.Routes, "route", "routes"), eps.Traced))
+			line := fmt.Sprintf("%s (%d traced to a use case",
+				plural(eps.Routes, "route", "routes"), eps.Traced)
+			if eps.Unmeasured > 0 {
+				line += fmt.Sprintf(", %d outside this scope", eps.Unmeasured)
+			}
+			parts = append(parts, line+")")
 		}
 		if tp.Declared {
 			parts = append(parts, fmt.Sprintf("%s (%d of %d boundaries described)",

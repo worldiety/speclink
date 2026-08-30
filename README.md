@@ -1782,6 +1782,21 @@ in the document instead. The undirected `spec.Waive` switches the whole rule
 off, which is how a project adopts the rest of speclink before its documents
 are in shape.
 
+`K20-ENDPOINT-REMOVED` is waived on the package that used to mount the route,
+with `spec.ForPackage`, because by the time the rule fires the route it was
+about no longer exists to carry an annotation. The baseline keeps the withdrawn
+address rather than dropping it, exactly as it keeps a removed persisted type:
+forgetting a promise because it is no longer kept would make the record agree
+with the code by editing the record. A deliberate withdrawal is settled by
+writing down why, not by erasing that it was ever promised.
+
+The endpoint rules stay silent about a route whose handler leads into a package
+the run did not load, and the summary counts it apart as `outside this scope`.
+Both halves are needed. A direction that was not measured may not be reported
+as clean, and it may not be reported as broken either — a finding that depends
+on which packages were typed on the command line is not a finding about the
+code.
+
 Requirement-tree findings (`V5`) are not waivable per construct, because they
 concern the requirement, not the code. The two exceptions are
 `K11-REQ-UNSOURCED` and `K11-SOURCE-UNANCHORED`, which are waivable because

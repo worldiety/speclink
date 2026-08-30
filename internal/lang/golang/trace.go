@@ -30,6 +30,14 @@ import (
 type tracer struct {
 	byPkg    map[string]*Package
 	useCases map[string]bool
+	// module is the import path prefix of this project's own code. It is what
+	// separates the two ways a trace can leave the loaded set: into the
+	// standard library or a framework, where there was never anything of ours
+	// to find, and into our own module, where a use case may be sitting in a
+	// package this run did not load. Without the distinction every trace
+	// leaves the scope on its first `http.HandlerFunc` and the flag says
+	// nothing.
+	module string
 
 	// seen guards against following a cycle through a package level variable.
 	// It is per trace rather than shared between endpoints: a constructor used
@@ -39,6 +47,7 @@ type tracer struct {
 	found map[string]bool
 
 	truncated bool
+	leftScope bool
 }
 
 func (t *tracer) names() []string {
@@ -48,6 +57,17 @@ func (t *tracer) names() []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// inModule reports whether an import path belongs to the project itself.
+//
+// A prefix match on a path boundary, so that a neighbouring module sharing the
+// first characters of the name is not mistaken for ours.
+func (t *tracer) inModule(path string) bool {
+	if t.module == "" {
+		return false
+	}
+	return path == t.module || strings.HasPrefix(path, t.module+"/")
 }
 
 // expr follows one expression.
@@ -129,8 +149,15 @@ func (t *tracer) object(p *Package, obj types.Object, depth int) {
 	}
 	owner, ok := t.byPkg[obj.Pkg().Path()]
 	if !ok {
-		// Outside the loaded set: a framework, or the standard library. There
-		// is nothing to read, and nothing to claim about it.
+		// Outside the loaded set. Which kind matters. A framework or the
+		// standard library never held one of our use cases, so there is
+		// nothing to read and nothing to claim. Our own module is the other
+		// case entirely: the use case may be right there, in a package this
+		// run was not asked to load, and reporting the route as having
+		// nothing behind it would be inventing a defect out of a scope.
+		if t.inModule(obj.Pkg().Path()) {
+			t.leftScope = true
+		}
 		return
 	}
 

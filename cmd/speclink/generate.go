@@ -485,8 +485,17 @@ func (m *specModel) writeSurface(b *strings.Builder) {
 			asked = append(asked, byConstruct[uc]...)
 			asked = append(asked, byConstruct[short]...)
 		}
+		served := orDash(strings.Join(serves, ", "))
+		if e.LeftScope {
+			// The trace walked out of what this run loaded, so the cell is not
+			// empty for want of a use case but for want of a look. The dash
+			// that means "nothing is behind this" would be a different and
+			// much worse claim, and a document that cannot tell them apart is
+			// the document this tool replaces.
+			served = "_outside this scope_"
+		}
 		fmt.Fprintf(b, "| %s | %s | %s |\n", address,
-			orDash(strings.Join(serves, ", ")), orDash(strings.Join(unique(asked), ", ")))
+			served, orDash(strings.Join(unique(asked), ", ")))
 	}
 	b.WriteString("\n")
 }

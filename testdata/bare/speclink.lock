@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "types": {
     "example.com/bare/app/sales/adapter/fs.QuoteStore": {
       "discriminator": "",
@@ -141,12 +141,14 @@
     "POST /invoices/draft": {
       "useCases": [
         "example.com/bare/app/billing.DraftInvoice"
-      ]
+      ],
+      "package": "example.com/bare/app/billing/rest"
     },
     "POST /quotes/submit": {
       "useCases": [
         "example.com/bare/app/sales.SubmitQuote"
-      ]
+      ],
+      "package": "example.com/bare/app/sales/rest"
     }
   }
 }

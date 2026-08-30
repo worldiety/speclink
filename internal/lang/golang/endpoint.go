@@ -40,18 +40,33 @@ func (m *Model) Endpoints() []ir.Endpoint {
 		}
 	}
 
+	// A failure here is not fatal to the recogniser. Without the module path
+	// the trace cannot tell our own unloaded packages from the standard
+	// library, so it reports nothing as out of scope — the behaviour this had
+	// before the distinction existed. Losing the address catalogue entirely
+	// because go.mod could not be read would be the worse trade.
+	module, _ := ModulePath(m.All)
+
 	var out []ir.Endpoint
 	for _, p := range m.Measured {
 		for _, site := range p.registrations() {
-			t := &tracer{byPkg: byPkg, useCases: useCases, seen: map[types.Object]bool{}, found: map[string]bool{}}
+			t := &tracer{
+				byPkg:    byPkg,
+				useCases: useCases,
+				module:   module,
+				seen:     map[types.Object]bool{},
+				found:    map[string]bool{},
+			}
 			t.expr(p, site.handler, traceDepth)
 
 			e := ir.Endpoint{
 				Method:    site.method,
 				Path:      site.path,
+				Package:   p.PkgPath(),
 				Handler:   render(p, site.handler),
 				UseCases:  t.names(),
 				Truncated: t.truncated,
+				LeftScope: t.leftScope,
 				Pos:       p.pos(site.pos),
 			}
 			// Request and Response stay empty here. They could be guessed from

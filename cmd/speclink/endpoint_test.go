@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -160,5 +162,90 @@ func TestSurfaceCatalogueNamesWhatItCouldNotRead(t *testing.T) {
 	out, _ := runSpeclink(t, "generate", dir, "./...")
 	if !strings.Contains(out, "_computed, not readable_") {
 		t.Errorf("an unreadable address must be named in the catalogue, not omitted:\n%s", out)
+	}
+}
+
+// TestNarrowScopeAccusesNothing is the mirror of the rule this tool is built
+// on, and it was missing.
+//
+// speclink already refuses to call an unmeasured direction clean. The other
+// half went unwritten for a while, and it is the more damaging one: a run
+// narrowed to one package could not see the rest of the module, and reported
+// everything it had not been asked to look at as broken — a withdrawn address,
+// a route with nothing behind it, and a change of meaning, all three at once,
+// against a tree where nothing whatsoever was wrong.
+//
+// A finding that depends on which packages the operator typed is not a finding
+// about the code. This runs the untouched fixture at three widths and requires
+// silence from every endpoint rule at all of them.
+func TestNarrowScopeAccusesNothing(t *testing.T) {
+	t.Parallel()
+	for _, pattern := range []string{"./...", "./app/sales/...", "./app/sales/rest/...", "./app/billing/..."} {
+		out, _ := runSpeclink(t, "verify", "../../testdata/bare", pattern)
+		for _, rule := range []string{
+			"K20-ENDPOINT-REMOVED",
+			"K20-ENDPOINT-NO-USE-CASE",
+			"K20-ENDPOINT-MEANING-CHANGED",
+			"K20-ENDPOINT-TRACE-TRUNCATED",
+		} {
+			if strings.Contains(out, rule) {
+				t.Errorf("%s fired at width %q against an untouched tree:\n%s", rule, pattern, out)
+			}
+		}
+	}
+}
+
+// TestUnmeasuredRoutesAreCountedApart is why the silence above is not itself a
+// lie.
+//
+// Saying nothing about a route whose handler was never loaded would leave it
+// indistinguishable from one that was traced, and the count would then claim a
+// completeness the run never had. The figure carries the third number instead,
+// so the reader can see the width of the run in the same line as its result.
+func TestUnmeasuredRoutesAreCountedApart(t *testing.T) {
+	t.Parallel()
+	out, _ := runSpeclink(t, "verify", "../../testdata/bare", "./app/sales/rest/...")
+	if !strings.Contains(out, "1 route (0 traced to a use case, 1 outside this scope)") {
+		t.Errorf("an unmeasured route must be counted apart from a traced one:\n%s", summary(out))
+	}
+}
+
+// TestWithdrawnRouteCanBeSettled closes the loop the removal rule opened.
+//
+// The baseline never forgets a promise, so freeze cannot resolve a deliberate
+// withdrawal — dropping the entry would make the record agree with the code by
+// editing the record. Without a waiver the finding was therefore permanent, and
+// a rule nobody can ever discharge is a rule everybody learns to ignore.
+func TestWithdrawnRouteCanBeSettled(t *testing.T) {
+	t.Parallel()
+	dir := copyFixture(t, "../../testdata/bare")
+	rewrite(t, dir, "app/billing/rest/routes.go",
+		`mux.Handle("POST /invoices/draft", rest.Log(rest.Handle(who, draft)))`, "_ = draft")
+
+	out, code := runVerify(t, dir)
+	if code == 0 {
+		t.Fatalf("a promised address was withdrawn and nothing was reported:\n%s", out)
+	}
+	// The finding has to name where the waiver belongs, because the construct
+	// it was about no longer exists to carry one.
+	if !strings.Contains(out, "waive K20-ENDPOINT-REMOVED on example.com/bare/app/billing/rest") {
+		t.Errorf("the finding must say where it can be settled:\n%s", out)
+	}
+
+	waiver := filepath.Join(dir, "app/billing/rest/routes.annotation.go")
+	if err := os.WriteFile(waiver, []byte(`package restbilling
+
+import "github.com/worldiety/speclink/spec"
+
+var _ = spec.ForPackage(
+	spec.Waive("K20-ENDPOINT-REMOVED", "Withdrawn deliberately: the only caller was the internal console, which now uses the use case directly."),
+)
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, code = runVerify(t, dir)
+	if code != 0 {
+		t.Fatalf("a waived withdrawal still failed the run:\n%s", out)
 	}
 }

@@ -16,6 +16,12 @@ type Endpoint struct {
 	// something a reader recognises.
 	Handler string
 
+	// Package is the import path of the package that mounts it. Recorded so
+	// that a later run can tell "this address is gone" from "the package that
+	// mounted it was not loaded this time", which look identical from the
+	// baseline alone and mean opposite things.
+	Package string
+
 	// UseCases are the recognised use cases the handler reaches. Empty when
 	// the trace found none, which is a finding rather than a silence: an
 	// address the system answers on and nothing accountable behind it is
@@ -32,6 +38,19 @@ type Endpoint struct {
 	// this stopped looking is a defect in the tool, and they must not report
 	// as the same thing.
 	Truncated bool
+
+	// LeftScope records that the trace reached a package of this module that
+	// this run did not load. It is kept apart from Truncated for the same
+	// reason Truncated is kept apart from an empty UseCases: truncation is a
+	// defect in speclink, and leaving the scope is a choice the operator made,
+	// and neither is a defect in the code.
+	//
+	// It exists because the alternative is a lie. Without it a run narrowed to
+	// one package reports every use case it was never asked to look at as
+	// missing — the mirror of the rule this tool is built on. A direction that
+	// was not measured may not be called clean, and it may not be called
+	// broken either.
+	LeftScope bool
 
 	Pos Position
 }

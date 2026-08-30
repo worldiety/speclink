@@ -91,3 +91,65 @@ func TestSplitPattern(t *testing.T) {
 		}
 	}
 }
+
+// TestTraceLeavingTheModuleIsNotTheSameAsLeavingTheProject pins the distinction
+// the whole scope flag rests on.
+//
+// Every trace leaves the loaded set almost immediately — the first
+// `http.HandlerFunc` is already outside it. If that counted as leaving the
+// scope, every route in every project would be unmeasured and the flag would
+// say nothing at all. Only our own module can hide a use case, so only our own
+// module sets it.
+func TestTraceLeavingTheModuleIsNotTheSameAsLeavingTheProject(t *testing.T) {
+	t.Parallel()
+	m := bareModel(t)
+	for _, e := range m.Endpoints() {
+		if e.LeftScope {
+			t.Errorf("%s reports as unmeasured in a run that loaded the whole module: %s",
+				e.Ref(), e.Handler)
+		}
+		if len(e.UseCases) == 0 {
+			t.Errorf("%s traced to nothing", e.Ref())
+		}
+	}
+}
+
+// TestTraceIntoAnUnloadedPackageIsRecorded is the case the flag exists for.
+//
+// Loading only the presentation package puts the use case out of reach without
+// putting it out of existence. The trace has to say so, because the alternative
+// — an empty set of use cases, indistinguishable from a route with nothing
+// behind it — is what turned a narrowed run into three false accusations.
+func TestTraceIntoAnUnloadedPackageIsRecorded(t *testing.T) {
+	t.Parallel()
+	root, err := filepath.Abs("../../../testdata/bare")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkgs, err := Load(root, "./app/sales/rest/...")
+	if err != nil {
+		t.Fatalf("load fixture: %v", err)
+	}
+	module, err := ModulePath(pkgs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := &Model{
+		All: pkgs, Measured: pkgs, Root: root,
+		Layout:    config.Config{},
+		Style:     Bare,
+		Framework: BareFoundation(module, ""),
+		Layered:   true,
+	}
+
+	eps := m.Endpoints()
+	if len(eps) != 1 {
+		t.Fatalf("expected the one route of the loaded package, got %d", len(eps))
+	}
+	if !eps[0].LeftScope {
+		t.Error("the trace walked into an unloaded package of this module and did not record it")
+	}
+	if eps[0].Package != "example.com/bare/app/sales/rest" {
+		t.Errorf("the mounting package was not recorded: %q", eps[0].Package)
+	}
+}

@@ -36,8 +36,14 @@ type EndpointReport struct {
 	// them reach a use case. The pair is the figure that matters: a surface
 	// with a hundred routes and sixty traced is not sixty percent documented,
 	// it is forty routes nobody can account for.
-	Routes, Traced int
-	Endpoints      []ir.Endpoint
+	//
+	// Unmeasured is the third number, and it is there so the other two cannot
+	// lie. A route whose handler leads into a package this run did not load is
+	// neither traced nor accountable-for-nothing; it is unexamined, and
+	// folding it into either of the other counts would report a choice about
+	// scope as a fact about the code.
+	Routes, Traced, Unmeasured int
+	Endpoints                  []ir.Endpoint
 }
 
 // Endpoints holds the exposed surface accountable.
@@ -90,6 +96,19 @@ func Endpoints(eps []ir.Endpoint, out *diag.Set) EndpointReport {
 		}
 
 		switch {
+		case e.LeftScope:
+			// The trace walked into a package of this module that the run did
+			// not load, so what is behind this address was not measured. It is
+			// counted and not reported: silence would break the rule that an
+			// unmeasured direction may not read as clean, and a finding would
+			// break its other half by reporting the operator's scope as a
+			// defect in the code.
+			//
+			// Counted as unmeasured even when a use case was also found. "I
+			// found one" says nothing about whether it was the only one, and
+			// treating a partial trace as complete is what would let a
+			// silently dropped second use case pass as an intended change.
+			rep.Unmeasured++
 		case e.Truncated && len(e.UseCases) == 0:
 			out.Add(diag.Finding{
 				Code: diag.Code(diag.PhaseSemantic, 152),
@@ -141,13 +160,23 @@ func SortEndpoints(eps []ir.Endpoint) {
 //
 // A route that has never been recorded is not a finding. That is what freeze is
 // for, and the same reasoning already governs an unrecorded shape.
-func EndpointEvolution(eps []ir.Endpoint, base *baseline.File, out *diag.Set) {
+//
+// # Why a promise is never forgotten
+//
+// The baseline keeps a withdrawn address rather than dropping it, exactly as it
+// keeps a removed persisted type. Forgetting a promise because it is no longer
+// kept would make the record agree with the code by editing the record, which
+// is the one thing a baseline exists to prevent. A deliberate withdrawal is
+// therefore settled the way a deliberate deletion is: by waiving the rule on
+// the package that used to mount it, with a reason somebody has to write down.
+func EndpointEvolution(eps []ir.Endpoint, base *baseline.File, scope map[string]bool, bindings []ir.Binding, out *diag.Set) {
 	if len(base.Endpoints) == 0 {
 		// Nothing has been promised yet, so nothing can have been broken. This
 		// is not the same as a clean surface and must not read as one: a run
 		// before the first freeze has measured nothing.
 		return
 	}
+	waived := ir.CollectWaivers(bindings)
 
 	live := map[string]ir.Endpoint{}
 	for _, e := range eps {
@@ -166,13 +195,31 @@ func EndpointEvolution(eps []ir.Endpoint, base *baseline.File, out *diag.Set) {
 		was := base.Endpoints[ref]
 		now, still := live[ref]
 		if !still {
+			// The package that mounted it was not loaded this run, so its
+			// absence from the surface says nothing about whether it is still
+			// there. An entry recorded before the package was written down has
+			// no such excuse and is still reported.
+			if was.Package != "" && !scope[was.Package] {
+				continue
+			}
+			if waived.Has(was.Package, RuleEndpointRemoved) {
+				continue
+			}
 			out.Add(diag.Finding{
 				Code: diag.Code(diag.PhaseSemantic, 154),
 				Rule: RuleEndpointRemoved,
 				What: "the address " + ref + " was promised and is no longer mounted.",
 				Why:  "Every client already calling it breaks, and nothing in this repository will tell them. An address is the one promise whose holders are outside the build.",
-				How:  "Restore it, or waive the rule once the callers are known to be gone. A route that merely moved reads as this finding plus a new address, which is what it is to a caller.",
+				How:  "Restore it, or waive " + RuleEndpointRemoved + " on " + orPackage(was.Package) + " with a reason once the callers are known to be gone. A route that merely moved reads as this finding plus a new address, which is what it is to a caller.",
 			})
+			continue
+		}
+		if now.LeftScope {
+			// The work behind it was not measured this run, so the set of use
+			// cases is not a set this may compare. Reporting a change here
+			// would be reporting the scope, and staying silent about a real
+			// change is the price of not inventing a false one — which is why
+			// the run counts the route as unmeasured rather than clean.
 			continue
 		}
 		if sameStrings(was.UseCases, now.UseCases) {
@@ -191,17 +238,23 @@ func EndpointEvolution(eps []ir.Endpoint, base *baseline.File, out *diag.Set) {
 
 // RecordEndpoints folds the current surface into the baseline and reports what
 // changed.
+//
+// A route whose trace left the loaded set is not recorded. Freezing it would
+// write down a half read set of use cases as the promise, and every later run
+// with a full scope would then report the difference as drift — the tool
+// manufacturing the very finding it exists to detect. A narrow run may add
+// nothing rather than add something false.
 func RecordEndpoints(base *baseline.File, eps []ir.Endpoint) (added, updated []string) {
 	for _, e := range eps {
-		if e.Path == "" {
+		if e.Path == "" || e.LeftScope {
 			continue
 		}
-		entry := baseline.Endpoint{UseCases: e.UseCases}
+		entry := baseline.Endpoint{UseCases: e.UseCases, Package: e.Package}
 		previous, existed := base.Endpoints[e.Ref()]
 		switch {
 		case !existed:
 			added = append(added, e.Ref())
-		case !sameStrings(previous.UseCases, entry.UseCases):
+		case !sameStrings(previous.UseCases, entry.UseCases), previous.Package != entry.Package:
 			updated = append(updated, e.Ref())
 		default:
 			continue
@@ -211,6 +264,15 @@ func RecordEndpoints(base *baseline.File, eps []ir.Endpoint) (added, updated []s
 	sort.Strings(added)
 	sort.Strings(updated)
 	return added, updated
+}
+
+// orPackage names the package a waiver belongs on, or says plainly that this
+// run does not know which it was.
+func orPackage(pkg string) string {
+	if pkg == "" {
+		return "the package that mounted it"
+	}
+	return pkg
 }
 
 func sameStrings(a, b []string) bool {

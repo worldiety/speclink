@@ -74,7 +74,8 @@ const FileName = "speclink.lock"
 // the file forbids.
 //
 // Version 2 added the requirement and source records, version 3 the
-// verifications, version 4 the endpoints. Upgrading leaves the new maps empty, which is exactly right:
+// verifications, version 4 the endpoints and version 5 the package each
+// endpoint was mounted in. Upgrading leaves the new maps empty, which is exactly right:
 // nothing has been recorded about them yet, so nothing can have drifted, and
 // the next freeze or evidence run reads them for the first time.
 //
@@ -84,7 +85,7 @@ const FileName = "speclink.lock"
 // would have parsed it, dropped the field it did not know, and written the
 // result back — losing evidence silently, which is the one direction this file
 // must never fail in.
-const Version = 4
+const Version = 5
 
 // File is the on disk form. Maps are used so the encoding is stable under
 // Go's sorted map marshalling, and so a diff stays readable per type.
@@ -128,6 +129,11 @@ type File struct {
 // promise nobody stated is not one worth freezing.
 type Endpoint struct {
 	UseCases []string `json:"useCases,omitempty"`
+	// Package is the import path that mounted it, so a later run can tell an
+	// address that was withdrawn from one whose package it did not load. An
+	// entry recorded before version 5 has none, and is held to the older and
+	// noisier reading: a removal it cannot rule out is a removal it reports.
+	Package string `json:"package,omitempty"`
 }
 
 // Construct records the provenance of one declaration.
