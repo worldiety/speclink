@@ -88,6 +88,18 @@ func freeze(args []string) error {
 
 	added, updated := merge(base, schema, status)
 
+	// The surface is recorded without a guard of its own, for the reason the
+	// requirement texts are: refusing here would be refusing to record that a
+	// route was deliberately withdrawn, and the withdrawal is exactly what a
+	// reader needs to see in the diff.
+	if er, ok := model.(lang.EndpointReader); ok {
+		a, u := check.RecordEndpoints(base, er.Endpoints())
+		added = append(added, a...)
+		updated = append(updated, u...)
+		sort.Strings(added)
+		sort.Strings(updated)
+	}
+
 	// The requirement texts and source segments are recorded without a guard of
 	// their own. There is nothing to refuse: unlike a shape, which can break a
 	// promise made to data already written, a rewritten requirement breaks

@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "types": {
     "example.com/bare/app/sales/adapter/fs.QuoteStore": {
       "discriminator": "",
@@ -136,5 +136,17 @@
         "text": "9a0ed169ba1ec026691cde138b3dcdba97eb74e262345d84ea81bce22c34b88d"
       }
     ]
+  },
+  "endpoints": {
+    "POST /invoices/draft": {
+      "useCases": [
+        "example.com/bare/app/billing.DraftInvoice"
+      ]
+    },
+    "POST /quotes/submit": {
+      "useCases": [
+        "example.com/bare/app/sales.SubmitQuote"
+      ]
+    }
   }
 }

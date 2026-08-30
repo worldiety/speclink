@@ -1770,6 +1770,8 @@ is refused rather than accepted.
 | `K20-ENDPOINT-DUPLICATE` | `V6-151` | two registrations claim one address |
 | `K20-ENDPOINT-TRACE-TRUNCATED` | `V6-152` | the trace from a route gave up before reaching a use case |
 | `K20-ENDPOINT-NO-USE-CASE` | `V6-153` | nothing accountable was found behind a route |
+| `K20-ENDPOINT-REMOVED` | `V6-154` | a promised address is no longer mounted |
+| `K20-ENDPOINT-MEANING-CHANGED` | `V6-155` | an address kept its name and the work behind it changed |
 | `K15-EVENT-NO-TRANSITION` | `V6-060` | an event does not say which state it leaves the aggregate in |
 | `K15-TRANSITION-UNKNOWN` | `V6-061` | a transition names something that folds nothing |
 | `K14-REQ-UNVERIFIED` | `V6-120` | no test demonstrates a normative requirement |

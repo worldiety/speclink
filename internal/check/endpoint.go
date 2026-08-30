@@ -2,6 +2,9 @@ package check
 
 import (
 	"sort"
+	"strings"
+
+	"github.com/worldiety/speclink/internal/baseline"
 
 	"github.com/worldiety/speclink/internal/diag"
 	"github.com/worldiety/speclink/internal/ir"
@@ -20,6 +23,11 @@ const (
 	RuleEndpointTraceTruncated = "K20-ENDPOINT-TRACE-TRUNCATED"
 	// RuleEndpointDuplicate fires when two registrations claim one address.
 	RuleEndpointDuplicate = "K20-ENDPOINT-DUPLICATE"
+	// RuleEndpointRemoved fires when a promised address is no longer mounted.
+	RuleEndpointRemoved = "K20-ENDPOINT-REMOVED"
+	// RuleEndpointMeaningChanged fires when an address keeps its name and the
+	// work behind it changes.
+	RuleEndpointMeaningChanged = "K20-ENDPOINT-MEANING-CHANGED"
 )
 
 // EndpointReport is what the run can say about the surface the system exposes.
@@ -115,4 +123,113 @@ func SortEndpoints(eps []ir.Endpoint) {
 		}
 		return eps[i].Method < eps[j].Method
 	})
+}
+
+// EndpointEvolution holds the exposed surface to what it has already promised.
+//
+// Two rules and deliberately not four. A route that moved reads as one removal
+// and one addition, because that is what it is to a client and because nothing
+// in a snapshot could tell a move from a coincidence — a rule claiming to
+// recognise a renamed path would be guessing, and guessing about a promise is
+// worse than not checking it.
+//
+// The second rule is the one worth having. An address is a promise about
+// behaviour, not about routing. A route that keeps its path while the work
+// behind it changes is precisely the drift this tool exists for: the far end
+// moved and the link still resolves, exactly as a rewritten requirement whose
+// identifier still compiles.
+//
+// A route that has never been recorded is not a finding. That is what freeze is
+// for, and the same reasoning already governs an unrecorded shape.
+func EndpointEvolution(eps []ir.Endpoint, base *baseline.File, out *diag.Set) {
+	if len(base.Endpoints) == 0 {
+		// Nothing has been promised yet, so nothing can have been broken. This
+		// is not the same as a clean surface and must not read as one: a run
+		// before the first freeze has measured nothing.
+		return
+	}
+
+	live := map[string]ir.Endpoint{}
+	for _, e := range eps {
+		if e.Path != "" {
+			live[e.Ref()] = e
+		}
+	}
+
+	refs := make([]string, 0, len(base.Endpoints))
+	for ref := range base.Endpoints {
+		refs = append(refs, ref)
+	}
+	sort.Strings(refs)
+
+	for _, ref := range refs {
+		was := base.Endpoints[ref]
+		now, still := live[ref]
+		if !still {
+			out.Add(diag.Finding{
+				Code: diag.Code(diag.PhaseSemantic, 154),
+				Rule: RuleEndpointRemoved,
+				What: "the address " + ref + " was promised and is no longer mounted.",
+				Why:  "Every client already calling it breaks, and nothing in this repository will tell them. An address is the one promise whose holders are outside the build.",
+				How:  "Restore it, or waive the rule once the callers are known to be gone. A route that merely moved reads as this finding plus a new address, which is what it is to a caller.",
+			})
+			continue
+		}
+		if sameStrings(was.UseCases, now.UseCases) {
+			continue
+		}
+		out.Add(diag.Finding{
+			Code: diag.Code(diag.PhaseSemantic, 155),
+			Pos:  now.Pos,
+			Rule: RuleEndpointMeaningChanged,
+			What: ref + " was recorded as serving " + join(was.UseCases) + " and now serves " + join(now.UseCases) + ".",
+			Why:  "The address did not change, so nothing a caller can see says the behaviour behind it did. This is the drift the baseline exists to catch: the far end moved and the link still resolves.",
+			How:  "If the change is intended, record it with freeze so the diff of the lock file is where somebody reviews it.",
+		})
+	}
+}
+
+// RecordEndpoints folds the current surface into the baseline and reports what
+// changed.
+func RecordEndpoints(base *baseline.File, eps []ir.Endpoint) (added, updated []string) {
+	for _, e := range eps {
+		if e.Path == "" {
+			continue
+		}
+		entry := baseline.Endpoint{UseCases: e.UseCases}
+		previous, existed := base.Endpoints[e.Ref()]
+		switch {
+		case !existed:
+			added = append(added, e.Ref())
+		case !sameStrings(previous.UseCases, entry.UseCases):
+			updated = append(updated, e.Ref())
+		default:
+			continue
+		}
+		base.Endpoints[e.Ref()] = entry
+	}
+	sort.Strings(added)
+	sort.Strings(updated)
+	return added, updated
+}
+
+func sameStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// join renders a set of use cases for a diagnostic, naming the empty set rather
+// than rendering it as a blank.
+func join(names []string) string {
+	if len(names) == 0 {
+		return "nothing this could trace"
+	}
+	return strings.Join(names, ", ")
 }

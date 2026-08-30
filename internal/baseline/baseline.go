@@ -74,7 +74,7 @@ const FileName = "speclink.lock"
 // the file forbids.
 //
 // Version 2 added the requirement and source records, version 3 the
-// verifications. Upgrading leaves the new maps empty, which is exactly right:
+// verifications, version 4 the endpoints. Upgrading leaves the new maps empty, which is exactly right:
 // nothing has been recorded about them yet, so nothing can have drifted, and
 // the next freeze or evidence run reads them for the first time.
 //
@@ -84,7 +84,7 @@ const FileName = "speclink.lock"
 // would have parsed it, dropped the field it did not know, and written the
 // result back — losing evidence silently, which is the one direction this file
 // must never fail in.
-const Version = 3
+const Version = 4
 
 // File is the on disk form. Maps are used so the encoding is stable under
 // Go's sorted map marshalling, and so a diff stays readable per type.
@@ -103,6 +103,31 @@ type File struct {
 	// Constructs records who wrote each declaration and who has read it,
 	// keyed by the qualified construct name.
 	Constructs map[string]Construct `json:"constructs,omitempty"`
+	// Endpoints are the addresses the system has promised to answer on,
+	// keyed by method and path in the form "POST /quotes/submit".
+	Endpoints map[string]Endpoint `json:"endpoints,omitempty"`
+}
+
+// Endpoint is one address that has been promised.
+//
+// The address itself is the key, which is why nothing here records the path or
+// the method: a route that moved is indistinguishable from one removed and
+// another added, and inventing a rule that claimed to tell them apart would be
+// false precision. It reads as both, which is what it is to a client.
+//
+// UseCases is what makes this more than an existence record. An address is a
+// promise about behaviour, not about routing, and a route that keeps its path
+// while the work behind it changes is the drift this whole tool exists to
+// catch — the far end moved and the link still resolves. It is the same failure
+// as a rewritten requirement whose identifier still compiles.
+//
+// Nothing here records a request or response shape. They could be guessed from
+// the use case's own signature, and for the simplest presentation layer the
+// guess would be right, but a layer that maps a DTO onto a command would make
+// it silently wrong. A wire type is recorded once a dialect states it, and a
+// promise nobody stated is not one worth freezing.
+type Endpoint struct {
+	UseCases []string `json:"useCases,omitempty"`
 }
 
 // Construct records the provenance of one declaration.
@@ -276,6 +301,9 @@ func (f *File) fill() {
 	}
 	if f.Constructs == nil {
 		f.Constructs = map[string]Construct{}
+	}
+	if f.Endpoints == nil {
+		f.Endpoints = map[string]Endpoint{}
 	}
 }
 

@@ -268,6 +268,7 @@ func verify(args []string) error {
 	var eps check.EndpointReport
 	if er, ok := model.(lang.EndpointReader); ok {
 		eps = check.Endpoints(er.Endpoints(), findings)
+		check.EndpointEvolution(eps.Endpoints, base, findings)
 	}
 
 	// K18: who wrote each declaration and who has read it. A record of what

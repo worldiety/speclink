@@ -84,6 +84,7 @@ type specModel struct {
 	topo       ir.Topology
 	processes  []*ir.Process
 	constructs []ir.Construct
+	endpoints  []ir.Endpoint
 }
 
 // readModel assembles the graph without judging it.
@@ -125,6 +126,9 @@ func readModel(absRoot, cfgPath, prof string, patterns []string) (*specModel, er
 	if tr, ok := frontend.(lang.TopologyReader); ok {
 		m.topo = tr.Topology(discard)
 	}
+	if er, ok := frontend.(lang.EndpointReader); ok {
+		m.endpoints = er.Endpoints()
+	}
 	if pr, ok := frontend.(lang.ProcessReader); ok {
 		m.processes = pr.Processes(discard)
 	}
@@ -152,6 +156,7 @@ func (m *specModel) writeMarkdown(w io.Writer) error {
 	m.writeTopics(b)
 	m.writeStandards(b)
 	m.writeBoundary(b)
+	m.writeSurface(b)
 	m.writeProcesses(b)
 	m.writeRequirements(b)
 	m.writeSources(b)
@@ -435,6 +440,81 @@ func (m *specModel) writeBoundary(b *strings.Builder) {
 			c.Label, c.From, c.To, c.Protocol, oneLine(c.Data), oneLine(c.Auth), oneLine(c.Crypto))
 	}
 	b.WriteString("\n")
+}
+
+// writeSurface renders the addresses the system answers on.
+//
+// It is a section of its own rather than a part of the boundary above, because
+// the two halves are known in different ways and a reader is entitled to know
+// which is which. A channel is declared: no code states that an object store is
+// somebody else's responsibility. An endpoint is recognised: the code that
+// mounts it says everything there is to say, and this table is read out of it
+// rather than maintained beside it.
+//
+// The last column is the reason the table is worth printing at all. An address
+// on its own is routing; an address with the requirement behind it is the
+// answer to the question every review actually asks, which is why this system
+// answers here and on whose authority.
+func (m *specModel) writeSurface(b *strings.Builder) {
+	if len(m.endpoints) == 0 {
+		return
+	}
+
+	byConstruct := map[string][]string{}
+	for req, targets := range m.cov.BySatisfier {
+		for _, t := range targets {
+			byConstruct[t.String()] = append(byConstruct[t.String()], req)
+		}
+	}
+
+	b.WriteString("## What answers from outside\n\n")
+	b.WriteString("| Address | Serves | Asked for by |\n|---|---|---|\n")
+	for _, e := range m.endpoints {
+		address := "`" + e.Ref() + "`"
+		if e.Path == "" {
+			// Not a gap in the table but the most important row in it: an
+			// address that only exists at run time is one no catalogue can
+			// name, and printing a blank would hide exactly that.
+			address = "_computed, not readable_"
+		}
+
+		var serves, asked []string
+		for _, uc := range e.UseCases {
+			short := lastSegment(uc)
+			serves = append(serves, "`"+short+"`")
+			asked = append(asked, byConstruct[uc]...)
+			asked = append(asked, byConstruct[short]...)
+		}
+		fmt.Fprintf(b, "| %s | %s | %s |\n", address,
+			orDash(strings.Join(serves, ", ")), orDash(strings.Join(unique(asked), ", ")))
+	}
+	b.WriteString("\n")
+}
+
+// orDash renders an empty cell as something a reader notices.
+//
+// A blank cell reads as nothing to say, and here it never is: a route with no
+// use case is work the architecture has no name for, and a route with no
+// requirement is an address nobody asked for.
+func orDash(s string) string {
+	if s == "" {
+		return "**nothing**"
+	}
+	return s
+}
+
+// unique keeps the first occurrence of each entry, in order.
+func unique(in []string) []string {
+	seen := map[string]bool{}
+	out := in[:0]
+	for _, s := range in {
+		if !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // writeProcesses renders each course of business as its edges.
