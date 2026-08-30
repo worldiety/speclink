@@ -50,13 +50,26 @@ func (r Typst) Render(d *Doc) string {
 		case *Note:
 			fmt.Fprintf(b, "#note[%s]\n\n", r.inlines(t.Text))
 		case *List:
+			marker := "-"
+			if t.Ordered {
+				marker = "+"
+			}
 			for _, it := range t.Items {
-				fmt.Fprintf(b, "- %s\n", r.inlines(it.Text))
+				fmt.Fprintf(b, "%s %s\n", marker, r.inlines(it.Text))
 				for _, sub := range it.Sub {
-					fmt.Fprintf(b, "  - %s\n", r.inlines(sub))
+					fmt.Fprintf(b, "  %s %s\n", marker, r.inlines(sub))
 				}
 			}
 			b.WriteString("\n")
+		case *Listing:
+			// #raw with a string argument rather than a fenced block, because
+			// the text is arbitrary and a fence can be closed by its own
+			// content. A string literal has exactly two characters to escape.
+			if t.Lang != "" {
+				fmt.Fprintf(b, "#raw(block: true, lang: %s, %s)\n\n", typString(t.Lang), typString(t.Text))
+				break
+			}
+			fmt.Fprintf(b, "#raw(block: true, %s)\n\n", typString(t.Text))
 		case *Figure:
 			// Width only. Giving a height as well makes the figure reserve
 			// that much page whether the drawing needs it or not, and a wide
@@ -331,6 +344,24 @@ func typEscape(s string) string {
 		}
 		b.WriteRune(r)
 	}
+	return b.String()
+}
+
+// typString quotes a Typst string literal.
+//
+// Content mode and string mode escape different things, and using typEscape
+// here would put backslashes into the listing that a reader would see.
+func typString(s string) string {
+	b := &strings.Builder{}
+	b.WriteByte('"')
+	for _, r := range s {
+		switch r {
+		case '\\', '"':
+			b.WriteRune('\\')
+		}
+		b.WriteRune(r)
+	}
+	b.WriteByte('"')
 	return b.String()
 }
 

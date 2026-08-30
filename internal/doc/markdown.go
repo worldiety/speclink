@@ -36,13 +36,22 @@ func (r Markdown) Render(d *Doc) string {
 		case *Note:
 			fmt.Fprintf(b, "> %s\n\n", r.inlines(t.Text))
 		case *List:
-			for _, it := range t.Items {
-				fmt.Fprintf(b, "- %s\n", r.inlines(it.Text))
-				for _, sub := range it.Sub {
-					fmt.Fprintf(b, "  - %s\n", r.inlines(sub))
+			for i, it := range t.Items {
+				fmt.Fprintf(b, "%s %s\n", mdMarker(t.Ordered, i), r.inlines(it.Text))
+				for j, sub := range it.Sub {
+					fmt.Fprintf(b, "  %s %s\n", mdMarker(t.Ordered, j), r.inlines(sub))
 				}
 			}
 			b.WriteString("\n")
+		case *Listing:
+			// The fence is grown past the longest run of backticks inside, so
+			// a listing that itself shows Markdown does not end the block
+			// early and spill its remainder into the prose.
+			f := strings.Repeat("`", maxRun(t.Text, '`')+1)
+			if len(f) < 3 {
+				f = "```"
+			}
+			fmt.Fprintf(b, "%s%s\n%s\n%s\n\n", f, t.Lang, t.Text, f)
 		case *Figure:
 			// Markdown has no figure numbering, so the caption carries the
 			// weight and the anchor is a heading-shaped comment nobody sees.
@@ -57,6 +66,28 @@ func (r Markdown) Render(d *Doc) string {
 		}
 	}
 	return b.String()
+}
+
+// mdMarker is the bullet or the number of one item.
+func mdMarker(ordered bool, i int) string {
+	if ordered {
+		return fmt.Sprintf("%d.", i+1)
+	}
+	return "-"
+}
+
+// maxRun is the longest run of c in s.
+func maxRun(s string, c byte) int {
+	best, run := 0, 0
+	for i := 0; i < len(s); i++ {
+		if s[i] == c {
+			run++
+			best = max(best, run)
+			continue
+		}
+		run = 0
+	}
+	return best
 }
 
 func (r Markdown) table(b *strings.Builder, t *Table) {

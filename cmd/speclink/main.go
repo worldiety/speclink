@@ -180,6 +180,9 @@ func verify(args []string) error {
 		tree.ResolveTopics(tr.Topics(), findings)
 		tree.CheckTopicsUsed(findings)
 	}
+	if cr, ok := model.(lang.ChapterReader); ok {
+		tree.ResolveChapters(cr.Chapters(findings), findings)
+	}
 	tree.CheckSources(docs, findings)
 
 	// V6: the specification rules, in every direction the frontend can measure.
@@ -361,6 +364,9 @@ func requirements(args []string) error {
 	if tr, ok := model.(lang.TopicReader); ok {
 		tree.ResolveTopics(tr.Topics(), findings)
 		tree.CheckTopicsUsed(findings)
+	}
+	if cr, ok := model.(lang.ChapterReader); ok {
+		tree.ResolveChapters(cr.Chapters(findings), findings)
 	}
 	tree.CheckSources(docs, findings)
 	src := check.CoverSources(tree, docs, sourceDocs, nil, findings)

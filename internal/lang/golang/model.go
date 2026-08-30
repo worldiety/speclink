@@ -73,6 +73,15 @@ func (m *Model) Topics() []*ir.Topic {
 	return topics
 }
 
+// Chapters reads the prose chapters declared in the requirement tree.
+func (m *Model) Chapters(out *diag.Set) []*ir.Chapter {
+	var chapters []*ir.Chapter
+	for _, p := range m.Measured {
+		chapters = append(chapters, p.ReadChapters(out)...)
+	}
+	return chapters
+}
+
 func (m *Model) Bindings(out *diag.Set) []ir.Binding {
 	var bindings []ir.Binding
 	for _, p := range m.Measured {

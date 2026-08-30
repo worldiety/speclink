@@ -79,7 +79,30 @@ type Note struct{ Text []Inline }
 //
 // A second level would be a design failure in the document, so a backend
 // never has to decide what one looks like.
-type List struct{ Items []Bullet }
+type List struct {
+	Items []Bullet
+	// Ordered numbers the items instead of bulleting them.
+	//
+	// The distinction is kept because it is not decoration: a numbered list
+	// says the order carries meaning and the reader may refer to "step three",
+	// and a bulleted one says it does not. A backend that rendered one as the
+	// other would change what the text claims.
+	Ordered bool
+}
+
+// Listing is a block of code, configuration or literal output.
+//
+// Separate from an inline [Code] span, and not merely a longer one. An inline
+// span names a thing inside a sentence; a listing is set apart, keeps its line
+// breaks and its indentation, and is read rather than spoken. Folding the two
+// together loses the newlines, which is the entire content of a listing.
+//
+// Lang is the language for highlighting and may be empty, which means literal
+// text nobody should try to colour.
+type Listing struct {
+	Lang string
+	Text string
+}
 
 // Bullet is one item, and whatever hangs under it.
 type Bullet struct {
@@ -107,6 +130,7 @@ func (*Para) block()    {}
 func (*Note) block()    {}
 func (*List) block()    {}
 func (*Table) block()   {}
+func (*Listing) block() {}
 
 // Inline is a run of text inside a block.
 type Inline interface{ inline() }

@@ -1031,6 +1031,54 @@ A theme nothing is filed under is a finding: an empty chapter reads as a part of
 the system that was left out. A *misspelled* theme is not, because the reference
 is a Go identifier and the compiler has already refused it.
 
+### 4.7 Prose chapters
+
+Every other chapter of the generated document is derived: it states what the
+model states, and each sentence is written in exactly one place. That property
+is the point of the whole tool, and it has a limit. Why the system is cut this
+way, what was tried before, what a reader has to understand before the diagrams
+mean anything — none of it follows from any model, and a document without it
+describes a module to somebody who already knows what the module is for.
+
+A **chapter** puts written prose at a named point of the document.
+
+```go
+var Kontext = spec.Chapter{
+	ID:  "kontext",
+	Doc: "doc/kontext.md",
+	At:  spec.BeforeArchitecture,
+}
+```
+
+The prose keeps its own headings, and the first one is the title of the
+chapter. There is no `Title` field: a title in the declaration *and* in the file
+is one fact written twice, and the copy is the one that goes stale. The anchor
+other chapters point at comes from `ID`, never from the words of the heading, so
+a cross reference survives somebody improving the title.
+
+**Why this is a declaration and not a list in a configuration file.** The one
+thing that goes wrong with an outline is that a file moves or is deleted while
+the outline still names it. Declared, that is a finding against the line that
+names it, while the specification is being checked. Configured, it is found by
+whoever next reads the document and wonders why a chapter is missing — and a
+missing chapter looks exactly like a chapter nobody ever wrote.
+
+`At` is one of `spec.Beginning`, `BeforeArchitecture`, `BeforeComposition`,
+`BeforeBoundary`, `BeforeSurface`, `BeforeProcesses`, `BeforeRequirements` or
+`spec.Appendix`. Each names the generated chapter the prose goes in front of
+rather than an ordinal, because an ordinal would have to be renumbered whenever
+a chapter is added and every outline in the project would silently mean
+something else afterwards. Several chapters may share a place; they are then set
+in the order they are declared, which needs no field to maintain by hand.
+
+The prose is Markdown, and speclink reads the part of it a specification
+actually uses: headings, paragraphs, both kinds of list, tables, fenced listings
+and block quotes. It is not a CommonMark implementation. The block model of the
+document is small on purpose, and a construct with nowhere to go would have to
+be dropped silently or approximated — which is how a document starts lying about
+its own contents. Anything unrecognised stays a paragraph and keeps its
+characters.
+
 ## 5. nago in one page
 
 nago is the application framework this project is built on. speclink knows the
@@ -1977,6 +2025,10 @@ is refused rather than accepted.
 | `K18-REVIEW-STALE` | `V6-140` | a declaration was read and then changed |
 | `K19-TOPIC-DUPLICATE` | `V6-130` | two themes claim one ID |
 | `K19-TOPIC-UNUSED` | `V6-131` | nothing is filed under a declared theme |
+| `K22-CHAPTER-INCOMPLETE` | `V5-061` | a prose chapter leaves out its name, its file or its place |
+| `K22-CHAPTER-DUPLICATE` | `V6-180` | two prose chapters claim one ID |
+| `K22-CHAPTER-DOC-MISSING` | `V6-181` | the outline names prose that cannot be read |
+| `K22-CHAPTER-UNTITLED` | `V6-182` | the prose of a chapter opens with no heading |
 | `K17-CHANNEL-ENDPOINT-UNKNOWN` | `V6-090` | an end of a channel resolves to nothing |
 | `K17-CHANNEL-INCOMPLETE` | `V6-091` | a channel leaves out what crosses, who may, or what protects it |
 | `K17-CHANNEL-UNBOUND` | `V6-092` | a channel answers to no requirement |

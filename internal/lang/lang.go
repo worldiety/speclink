@@ -82,6 +82,17 @@ type TopicReader interface {
 	Topics() []*ir.Topic
 }
 
+// ChapterReader is implemented by a frontend that can find the prose chapters
+// of the requirement tree.
+//
+// Separate from TopicReader although both shape the document, because they
+// answer different questions. A theme groups requirements that already exist;
+// a chapter carries writing that exists nowhere else in the model. A frontend
+// that cannot read one is not thereby unable to read the other.
+type ChapterReader interface {
+	Chapters(out *diag.Set) []*ir.Chapter
+}
+
 // TopologyReader is implemented by a frontend that can say what surrounds the
 // code and where it reaches out.
 type TopologyReader interface {
@@ -209,6 +220,9 @@ type Capabilities struct {
 	Processes bool
 	Topics    bool
 	Topology  bool
+	// Chapters is whether the frontend can read the prose chapters that the
+	// generated document is arranged around.
+	Chapters bool
 }
 
 // Of reports what a model can do.
@@ -224,6 +238,7 @@ func Of(m Model) Capabilities {
 	_, endpoints := m.(EndpointReader)
 	_, processes := m.(ProcessReader)
 	_, topics := m.(TopicReader)
+	_, chapters := m.(ChapterReader)
 	_, topology := m.(TopologyReader)
 	return Capabilities{
 		Constructs:    constructs,
@@ -238,6 +253,7 @@ func Of(m Model) Capabilities {
 		Processes:     processes,
 		Topics:        topics,
 		Topology:      topology,
+		Chapters:      chapters,
 	}
 }
 

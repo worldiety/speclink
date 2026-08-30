@@ -195,6 +195,9 @@ func readModel(absRoot, cfgPath, prof string, patterns []string) (*specModel, er
 	if tr, ok := frontend.(lang.TopicReader); ok {
 		m.tree.ResolveTopics(tr.Topics(), discard)
 	}
+	if cr, ok := frontend.(lang.ChapterReader); ok {
+		m.tree.ResolveChapters(cr.Chapters(discard), discard)
+	}
 	m.docs, m.segments = loadSources(absRoot, layout, discard)
 	m.src = check.CoverSources(m.tree, m.docs, m.segments, nil, discard)
 
@@ -244,6 +247,7 @@ func (m *specModel) document() *doc.Doc {
 		doc.T(". Do not edit: every sentence here is written somewhere else, and the point of this file is that there is only one such place."))
 
 	m.writeAudience(d)
+	m.prose(d, ir.PlaceBeginning)
 	m.writeSummary(d)
 	m.writeGaps(d)
 	m.writeCoverage(d)
@@ -251,16 +255,49 @@ func (m *specModel) document() *doc.Doc {
 	m.writeTopics(d)
 	m.writeStandards(d)
 	m.writePrograms(d)
+	m.prose(d, ir.PlaceBeforeArchitecture)
 	m.writeArchitecture(d)
+	m.prose(d, ir.PlaceBeforeComposition)
 	m.writeComposition(d)
+	m.prose(d, ir.PlaceBeforeBoundary)
 	m.writeBoundary(d)
+	m.prose(d, ir.PlaceBeforeSurface)
 	m.writeSurface(d)
+	m.prose(d, ir.PlaceBeforeProcesses)
 	m.writeProcesses(d)
 	m.writeRegister(d)
+	m.prose(d, ir.PlaceBeforeRequirements)
 	m.writeRequirements(d)
 	m.writeSources(d)
+	m.prose(d, ir.PlaceAppendix)
 
 	return d
+}
+
+// prose sets the written chapters standing at one place in the document.
+//
+// A chapter that cannot be read is left out here without a word, because the
+// run that checked the specification has already reported it against the line
+// that declares it. Saying it again in the document would put a defect of the
+// source into a document handed to somebody who cannot act on it.
+func (m *specModel) prose(d *doc.Doc, at ir.Place) {
+	for _, c := range m.tree.Chapters() {
+		if c.At != at {
+			continue
+		}
+		blocks, err := doc.LoadMarkdown(filepath.Join(m.root, filepath.FromSlash(c.Doc)), 2)
+		if err != nil {
+			continue
+		}
+		if h, ok := blocks[0].(*doc.Heading); ok {
+			// The anchor comes from the declared ID, never from the words of
+			// the heading, so a cross reference survives somebody improving
+			// the title.
+			h.ID = c.ID
+			m.known[c.ID] = true
+		}
+		d.Blocks = append(d.Blocks, blocks...)
+	}
 }
 
 func (m *specModel) writeSummary(d *doc.Doc) {

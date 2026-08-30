@@ -44,6 +44,9 @@ type Tree struct {
 	byGoIdent map[string]*ir.Requirement
 	// topics are the declared themes, keyed by topic ID.
 	topics map[string]*ir.Topic
+
+	// chapters are the prose chapters, ordered as they are set.
+	chapters []*ir.Chapter
 	// root is the repository root against which Source.Doc is resolved.
 	root string
 }
