@@ -335,3 +335,34 @@ func surfaceOf(doc string) string {
 	}
 	return rest
 }
+
+// TestASurfaceNobodyLookedAtIsNotAnEmptyOne closes the last silence of this
+// family.
+//
+// Three states have to be told apart and two of them used to print the same
+// thing, which was nothing at all. A frontend that cannot recognise routes says
+// so on its own line. A frontend that can and found none prints the zero,
+// because a module answering on no address is a library and that is worth
+// stating. Only a frontend that found routes prints how many were accounted
+// for.
+func TestASurfaceNobodyLookedAtIsNotAnEmptyOne(t *testing.T) {
+	t.Parallel()
+
+	// Can look, found none.
+	none, _ := runVerify(t, "../../testdata/arch")
+	if !strings.Contains(none, "0 routes") {
+		t.Errorf("a project with no routes must say so rather than stay silent:\n%s", summary(none))
+	}
+	if strings.Contains(none, "not measured: the exposed surface") {
+		t.Errorf("a frontend that looked reported that it cannot:\n%s", none)
+	}
+
+	// Cannot look at all.
+	blind, _ := runVerify(t, "../../testdata/java")
+	if !strings.Contains(blind, "not measured: the exposed surface") {
+		t.Errorf("a frontend that recognises no routes must disclose it:\n%s", blind)
+	}
+	if strings.Contains(blind, "0 routes") {
+		t.Errorf("a frontend that cannot look reported an empty surface:\n%s", summary(blind))
+	}
+}

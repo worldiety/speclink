@@ -558,13 +558,22 @@ func report(format string, findings *diag.Set, can lang.Capabilities, cov check.
 		// see what the rest of the module mounts, and a figure that hid those
 		// routes among the traced ones would turn a limit of the run into a
 		// claim about the code.
-		if eps.Routes > 0 {
-			line := fmt.Sprintf("%s (%d traced to a use case",
-				plural(eps.Routes, "route", "routes"), eps.Traced)
-			if eps.Unmeasured > 0 {
-				line += fmt.Sprintf(", %d outside this scope", eps.Unmeasured)
+		if can.Endpoints {
+			// Printed even at zero, because this is one of the few figures
+			// where nothing is a finding in itself: a module that answers on
+			// no address is a library, and saying so out loud distinguishes it
+			// from a service whose surface this failed to recognise. Where the
+			// frontend cannot look at all, the capability line above says that
+			// instead, and the two must never be confused.
+			line := plural(eps.Routes, "route", "routes")
+			if eps.Routes > 0 {
+				line += fmt.Sprintf(" (%d traced to a use case", eps.Traced)
+				if eps.Unmeasured > 0 {
+					line += fmt.Sprintf(", %d outside this scope", eps.Unmeasured)
+				}
+				line += ")"
 			}
-			parts = append(parts, line+")")
+			parts = append(parts, line)
 		}
 		if tp.Declared {
 			parts = append(parts, fmt.Sprintf("%s (%d of %d boundaries described)",

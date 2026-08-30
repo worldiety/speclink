@@ -163,6 +163,7 @@ type Capabilities struct {
 	Verifications bool
 	Syntax        bool
 	Architecture  bool
+	Endpoints     bool
 }
 
 // Of reports what a model can do.
@@ -172,12 +173,14 @@ func Of(m Model) Capabilities {
 	_, verifications := m.(VerificationReader)
 	_, syntax := m.(SyntaxChecker)
 	_, architecture := m.(ArchitectureChecker)
+	_, endpoints := m.(EndpointReader)
 	return Capabilities{
 		Constructs:    constructs,
 		Schemas:       schemas,
 		Verifications: verifications,
 		Syntax:        syntax,
 		Architecture:  architecture,
+		Endpoints:     endpoints,
 	}
 }
 
@@ -192,6 +195,13 @@ func (c Capabilities) Missing() []string {
 	}
 	if !c.Verifications {
 		out = append(out, "verification, because this frontend finds no test claims")
+	}
+	if !c.Endpoints {
+		// The most dangerous of these to leave unsaid. A framework whose
+		// routes this cannot read does not expose fewer addresses; it exposes
+		// the same ones, unlisted. Every other figure in the summary would be
+		// about a system whose whole outside edge went unmentioned.
+		out = append(out, "the exposed surface, because this frontend recognises no routes")
 	}
 	return out
 }
