@@ -85,6 +85,14 @@ type specModel struct {
 	processes  []*ir.Process
 	constructs []ir.Construct
 	endpoints  []ir.Endpoint
+
+	// can records what the frontend was able to look for at all.
+	//
+	// A chapter missing because nothing was declared and one missing because
+	// nobody could look are the same blank page, and the reader of a
+	// specification is the last person in the chain who could tell them apart.
+	// It is carried here so the document can say which it is.
+	can lang.Capabilities
 }
 
 // readModel assembles the graph without judging it.
@@ -108,7 +116,7 @@ func readModel(absRoot, cfgPath, prof string, patterns []string) (*specModel, er
 		verifications = vr.Verifications(discard)
 	}
 
-	m := &specModel{root: absRoot, skipped: skippedPackages(frontend)}
+	m := &specModel{root: absRoot, skipped: skippedPackages(frontend), can: lang.Of(frontend)}
 	if inf, ok := frontend.(lang.ConstructInferrer); ok {
 		m.constructs = inf.Constructs(discard)
 	}
@@ -415,7 +423,12 @@ func or(s, fallback string) string {
 // four descriptive columns are mandatory in the model, so a blank cell cannot
 // reach this page.
 func (m *specModel) writeBoundary(b *strings.Builder) {
+	if !m.can.Topology {
+		omitted(b, "The boundary", "Not measured: this frontend reads no topology declarations, so what this system talks to is missing from this document.")
+		return
+	}
 	if !m.topo.Declared() {
+		omitted(b, "The boundary", "No topology is declared, so what this system talks to is stated nowhere.")
 		return
 	}
 
@@ -456,7 +469,12 @@ func (m *specModel) writeBoundary(b *strings.Builder) {
 // answer to the question every review actually asks, which is why this system
 // answers here and on whose authority.
 func (m *specModel) writeSurface(b *strings.Builder) {
+	if !m.can.Endpoints {
+		omitted(b, "What answers from outside", "Not measured: this frontend recognises no routes, so any address this system answers on is missing from this document.")
+		return
+	}
 	if len(m.endpoints) == 0 {
+		omitted(b, "What answers from outside", "No route was recognised: this system answers on no address of its own.")
 		return
 	}
 
@@ -572,7 +590,12 @@ func unique(in []string) []string {
 // process branches and comes back, any numbering is a lie about which step
 // follows which.
 func (m *specModel) writeProcesses(b *strings.Builder) {
+	if !m.can.Processes {
+		omitted(b, "Courses of business", "Not measured: this frontend reads no process declarations.")
+		return
+	}
 	if len(m.processes) == 0 {
+		omitted(b, "Courses of business", "No course of business is declared, so no requirement is placed in one.")
 		return
 	}
 
@@ -651,6 +674,7 @@ func oneLine(s string) string {
 // form nobody maintains by hand for long.
 func (m *specModel) writeStandards(b *strings.Builder) {
 	if len(m.src.Standards) == 0 {
+		omitted(b, "Standards", "No standard is declared, so no external clause is answered here.")
 		return
 	}
 
@@ -720,7 +744,12 @@ func (m *specModel) writeApplicability(b *strings.Builder, doc source.Document) 
 // does not exist rather than as one nobody filed.
 func (m *specModel) writeTopics(b *strings.Builder) {
 	topics := m.tree.Topics()
+	if !m.can.Topics {
+		omitted(b, "Themes", "Not measured: this frontend reads no theme declarations.")
+		return
+	}
 	if len(topics) == 0 {
+		omitted(b, "Themes", "No theme is declared, so the requirements are not grouped.")
 		return
 	}
 
@@ -800,6 +829,7 @@ func (m *specModel) sortedRequirementIDs() []string {
 // section with four requirements and one reviewer read as accounted for.
 func (m *specModel) writeDocuments(b *strings.Builder) {
 	if len(m.segments) == 0 {
+		omitted(b, "The material", "No source document is configured, so nothing here is traced back to prose.")
 		return
 	}
 
@@ -904,4 +934,18 @@ func (m *specModel) relative(file string) string {
 		return filepath.ToSlash(rel)
 	}
 	return file
+}
+
+// omitted states that a chapter is not here, and which kind of absence it is.
+//
+// A missing chapter used to be a blank: the writer returned early and the
+// document simply had no such section. Three different facts printed as the
+// same nothing — nothing was declared, nothing exists, or this frontend cannot
+// read them at all — and an auditor seeing no boundary chapter concludes the
+// system talks to nothing.
+//
+// The heading stays so the document keeps its shape between runs and a diff of
+// two generations stays readable.
+func omitted(b *strings.Builder, title, reason string) {
+	fmt.Fprintf(b, "## %s\n\n_%s_\n\n", title, reason)
 }

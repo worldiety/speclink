@@ -203,18 +203,28 @@ func TestDocumentCarriesTheCoursesOfBusiness(t *testing.T) {
 	}
 }
 
-// A project that declares neither gets neither section, rather than an empty
-// heading to wonder about.
-func TestDocumentLeavesOutWhatIsNotDeclared(t *testing.T) {
+// TestDocumentSaysWhatIsNotDeclared reverses an earlier decision, deliberately.
+//
+// This used to require the opposite: a project declaring neither got neither
+// section, "rather than an empty heading to wonder about". The objection was
+// sound and aimed at a bare heading, which says nothing at all. It is answered
+// by not leaving one — the heading states which kind of absence this is — and
+// the old behaviour turned out to have a cost the objection did not foresee.
+//
+// A frontend that cannot read a chapter produced the same silence as a project
+// that declared none, so the JVM specification came out with no boundary, no
+// processes and no surface, reading exactly like a system that has none of
+// those. Nothing anywhere said otherwise.
+func TestDocumentSaysWhatIsNotDeclared(t *testing.T) {
 	t.Parallel()
 	out, _ := runSpeclink(t, "generate", "../../testdata/example", "./...")
-	if strings.Contains(out, "## The boundary") {
-		t.Errorf("a project without a topology was given a boundary section:\n%s", out)
+	if !strings.Contains(out, "## The boundary\n\n_No topology is declared") {
+		t.Errorf("a project without a topology must be told so:\n%s", out)
 	}
 
 	out, _ = runSpeclink(t, "generate", "../../testdata/bare", "./...")
-	if strings.Contains(out, "## Courses of business") {
-		t.Errorf("a project without processes was given a courses section:\n%s", out)
+	if !strings.Contains(out, "## Courses of business\n\n_No course of business is declared") {
+		t.Errorf("a project without processes must be told so:\n%s", out)
 	}
 }
 

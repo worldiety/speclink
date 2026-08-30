@@ -70,10 +70,10 @@ func TestDocumentCarriesTheThemes(t *testing.T) {
 	}
 }
 
-func TestNoThemesNoChapter(t *testing.T) {
+func TestNoThemesSaysSo(t *testing.T) {
 	t.Parallel()
 	out, _ := runSpeclink(t, "generate", "../../testdata/example", "./...")
-	if strings.Contains(out, "## Themes") {
-		t.Errorf("a project without themes was given a themes chapter:\n%s", out)
+	if !strings.Contains(out, "## Themes\n\n_No theme is declared") {
+		t.Errorf("a project without themes must be told so:\n%s", out)
 	}
 }

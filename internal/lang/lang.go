@@ -164,6 +164,9 @@ type Capabilities struct {
 	Syntax        bool
 	Architecture  bool
 	Endpoints     bool
+	Processes     bool
+	Topics        bool
+	Topology      bool
 }
 
 // Of reports what a model can do.
@@ -174,6 +177,9 @@ func Of(m Model) Capabilities {
 	_, syntax := m.(SyntaxChecker)
 	_, architecture := m.(ArchitectureChecker)
 	_, endpoints := m.(EndpointReader)
+	_, processes := m.(ProcessReader)
+	_, topics := m.(TopicReader)
+	_, topology := m.(TopologyReader)
 	return Capabilities{
 		Constructs:    constructs,
 		Schemas:       schemas,
@@ -181,6 +187,9 @@ func Of(m Model) Capabilities {
 		Syntax:        syntax,
 		Architecture:  architecture,
 		Endpoints:     endpoints,
+		Processes:     processes,
+		Topics:        topics,
+		Topology:      topology,
 	}
 }
 
@@ -195,6 +204,12 @@ func (c Capabilities) Missing() []string {
 	}
 	if !c.Verifications {
 		out = append(out, "verification, because this frontend finds no test claims")
+	}
+	if !c.Topology {
+		out = append(out, "the boundary, because this frontend reads no topology declarations")
+	}
+	if !c.Processes {
+		out = append(out, "courses of business, because this frontend reads no process declarations")
 	}
 	if !c.Endpoints {
 		// The most dangerous of these to leave unsaid. A framework whose

@@ -483,6 +483,11 @@ Three things follow, and all three are load-bearing:
 - **A restricted run says so.** `2 packages outside the configured scope and
   not measured` follows the summary. Without it a hundred percent would be true
   of what was looked at and silent about what was not.
+- **A chapter the document cannot fill says why.** Every section is always
+  present, and one with nothing under it states whether nothing was declared or
+  whether this frontend cannot read that kind of declaration at all. A missing
+  chapter is read by the person furthest from the code, and to them the two are
+  the same blank page.
 
 **A package pattern on the command line is a scope entry**, not an instruction
 to the loader. `speclink verify ./app/sales/...` is the same run as

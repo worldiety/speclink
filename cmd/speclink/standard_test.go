@@ -88,11 +88,15 @@ func TestDocumentCarriesTheStandardAndItsApplicability(t *testing.T) {
 	}
 }
 
-// A project with no standard gets no chapter, rather than an empty heading.
-func TestNoStandardNoChapter(t *testing.T) {
+// A project with no standard keeps the chapter and is told that it has none.
+//
+// The heading is not the noise; a heading with nothing under it is. Saying
+// "no standard is declared" is a fact about the project, and its absence used
+// to be indistinguishable from a run that could not look.
+func TestNoStandardSaysSo(t *testing.T) {
 	t.Parallel()
 	out, _ := runSpeclink(t, "generate", "../../testdata/example", "./...")
-	if strings.Contains(out, "## Standards") {
-		t.Errorf("a project without a standard was given a standards chapter:\n%s", out)
+	if !strings.Contains(out, "## Standards\n\n_No standard is declared") {
+		t.Errorf("a project without a standard must be told so:\n%s", out)
 	}
 }
