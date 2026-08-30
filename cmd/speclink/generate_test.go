@@ -208,3 +208,37 @@ func TestDocumentLeavesOutWhatIsNotDeclared(t *testing.T) {
 		t.Errorf("a project without processes was given a courses section:\n%s", out)
 	}
 }
+
+// A source document is not a backdrop: it is what somebody wrote before any of
+// this existed, and how much of it became a requirement — and how much of that
+// a person has since read — is what a specification is usually least able to
+// answer. Every column of this table has been in the lock all along.
+func TestDocumentCarriesTheMaterialItCameFrom(t *testing.T) {
+	out, _ := runSpeclink(t, "generate", "../../testdata/bare", "./...")
+
+	if !strings.Contains(out, "## The material") {
+		t.Fatalf("the material table is missing:\n%s", out)
+	}
+	// Four sections, all cited, none read: nobody is recorded as a reviewer in
+	// this fixture, and the table says so rather than leaving the column out.
+	if !strings.Contains(out, "| `requirements/_sources/sales/quoteflow.md` | markdown | 4 | 4 | 0 | 0 |") {
+		t.Errorf("the row for the Markdown source is wrong:\n%s", out)
+	}
+	if !strings.Contains(out, "| `requirements/_sources/vorgaben.standard.json` | standard | 2 | 2 | 0 | 0 |") {
+		t.Errorf("the row for the standard is wrong:\n%s", out)
+	}
+}
+
+// Recording a review moves the column, which is the whole point of reading it
+// back out of the lock.
+func TestReadingIsCountedOnceItIsRecorded(t *testing.T) {
+	dir := copyFixture(t, "../../testdata/bare")
+	if out, code := runSpeclink(t, "freeze", dir, "-reviewer", "TS", "./..."); code != 0 {
+		t.Fatalf("freeze failed with %d:\n%s", code, out)
+	}
+
+	out, _ := runSpeclink(t, "generate", dir, "./...")
+	if !strings.Contains(out, "| `requirements/_sources/sales/quoteflow.md` | markdown | 4 | 4 | 4 | 0 |") {
+		t.Errorf("a recorded review did not reach the table:\n%s", out)
+	}
+}

@@ -143,6 +143,7 @@ func (m *specModel) writeMarkdown(w io.Writer) error {
 
 	m.writeSummary(b)
 	m.writeGaps(b)
+	m.writeDocuments(b)
 	m.writeTopics(b)
 	m.writeStandards(b)
 	m.writeBoundary(b)
@@ -649,4 +650,68 @@ func (m *specModel) sortedRequirementIDs() []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// writeDocuments renders what has become of the material the requirements were
+// written from.
+//
+// Every column comes out of the lock, which has held all of it since review was
+// recorded there and has never been read back. A source document is not a
+// backdrop: it is the thing somebody wrote before any of this existed, and the
+// question of how much of it has turned into a requirement — and how much of
+// that a person has since read — is the one a specification is usually least
+// able to answer.
+//
+// Reviewed is the strict reading: a segment counts as read when every
+// requirement citing it has been. The weaker one, at least one, would let a
+// section with four requirements and one reviewer read as accounted for.
+func (m *specModel) writeDocuments(b *strings.Builder) {
+	if len(m.segments) == 0 {
+		return
+	}
+
+	b.WriteString("## The material\n\n")
+	b.WriteString("| Document | Kind | Segments | Cited | Read | Drifted |\n")
+	b.WriteString("|---|---|---:|---:|---:|---:|\n")
+
+	for _, path := range m.segments {
+		d := m.docs.Get(path)
+		if d.Err != nil {
+			fmt.Fprintf(b, "| `%s` | — | — | — | — | — |\n", path)
+			continue
+		}
+
+		var total, cited, read, drifted int
+		for _, seg := range d.Segments {
+			if seg.Informative {
+				continue
+			}
+			total++
+
+			citers := m.src.ByCiter[seg.Ref()]
+			if len(citers) == 0 {
+				continue
+			}
+			cited++
+			if m.allReviewed(citers) {
+				read++
+			}
+			if rec, ok := m.base.Sources[seg.Ref()]; ok && rec.Fingerprint != seg.Fingerprint {
+				drifted++
+			}
+		}
+		fmt.Fprintf(b, "| `%s` | %s | %d | %d | %d | %d |\n", path, d.Kind, total, cited, read, drifted)
+	}
+	b.WriteString("\n")
+}
+
+// allReviewed reports whether every requirement in the list has been read.
+func (m *specModel) allReviewed(ids []string) bool {
+	for _, id := range ids {
+		rec, ok := m.base.Requirements[id]
+		if !ok || rec.ReviewedBy == "" {
+			return false
+		}
+	}
+	return len(ids) > 0
 }
