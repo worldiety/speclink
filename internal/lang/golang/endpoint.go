@@ -62,7 +62,7 @@ func (m *Model) Endpoints() []ir.Endpoint {
 
 	var out []ir.Endpoint
 	for _, p := range m.Measured {
-		for _, site := range p.registrations() {
+		for _, site := range p.registrations(m.Framework) {
 			t := &tracer{
 				byPkg:    byPkg,
 				useCases: useCases,
@@ -70,25 +70,30 @@ func (m *Model) Endpoints() []ir.Endpoint {
 				seen:     map[types.Object]bool{},
 				found:    map[string]bool{},
 			}
-			t.expr(p, site.handler, traceDepth)
+			for _, e := range site.traced() {
+				t.expr(p, e, traceDepth)
+			}
 
 			e := ir.Endpoint{
-				Method:    site.method,
-				Path:      site.path,
-				Package:   p.PkgPath(),
-				Handler:   render(p, site.handler),
-				UseCases:  t.names(),
-				Truncated: t.truncated,
-				LeftScope: t.leftScope,
-				Pos:       p.pos(site.pos),
+				Method:       site.method,
+				Path:         site.path,
+				Package:      p.PkgPath(),
+				Handler:      render(p, site.handler),
+				UseCases:     t.names(),
+				Request:      site.request,
+				Response:     site.response,
+				ShapesStated: site.shapesStated,
+				Truncated:    t.truncated,
+				LeftScope:    t.leftScope,
+				Pos:          p.pos(site.pos),
 			}
-			// Request and Response stay empty here. They could be guessed from
-			// the use case's own signature, and for the shape this fixture
-			// happens to have the guess would even be right — but a
-			// presentation layer that maps a DTO onto a command would make it
-			// silently wrong, and these two fields are the ones that become a
-			// frozen promise. A wire type is filled in by the dialect that
-			// states it or not at all.
+			// Request and Response are whatever the dialect stated and nothing
+			// more. They could be guessed from the use case's own signature,
+			// and for a handler that takes the wire shape straight through the
+			// guess would even be right — but a presentation layer that maps a
+			// request body onto a command makes it silently wrong, and these
+			// are the two fields that become a frozen promise. A wire type is
+			// filled in by the dialect that says it, or not at all.
 			out = append(out, e)
 		}
 	}
@@ -108,18 +113,45 @@ type site struct {
 	// handler is the expression that answers on it. Empty path means the
 	// pattern could not be read, which is a finding rather than a skip.
 	handler ast.Expr
-	pos     token.Pos
+	// trace holds the expressions the work may be reached through. Usually
+	// just the handler; a fluent builder spreads it over the arguments of
+	// several calls, and they are kept apart so that each is followed on its
+	// own rather than one of them shadowing the rest.
+	trace []ast.Expr
+	// request and response are the wire shapes, filled only by a dialect that
+	// states them, and shapesStated says whether this dialect is one of those.
+	request, response string
+	shapesStated      bool
+	pos               token.Pos
 	// pattern is the unreadable expression, kept for the diagnostic.
 	pattern ast.Expr
 }
 
-// registrations finds every call that mounts a route on the standard library's
+// traced returns the expressions to follow, defaulting to the handler.
+func (s site) traced() []ast.Expr {
+	if len(s.trace) > 0 {
+		return s.trace
+	}
+	return []ast.Expr{s.handler}
+}
+
+// registrations finds every call that mounts a route.
+//
+// Both dialects are asked, always, rather than one being chosen by the profile.
+// A project on a framework is still free to mount a route on the standard
+// library's router, and that route is exactly the one worth finding: it is the
+// address that sits outside whatever the framework generates documentation for.
+func (p *Package) registrations(fw Framework) []site {
+	return append(p.muxSites(), p.hapiSites(fw)...)
+}
+
+// muxSites finds every call that mounts a route on the standard library's
 // router.
 //
 // Recognised by the receiver's type rather than by the name of the variable, so
 // that a router called `r`, `router` or `api` is found alike and a local named
 // `mux` that is something else entirely is not.
-func (p *Package) registrations() []site {
+func (p *Package) muxSites() []site {
 	var out []site
 	for _, file := range p.pkg.Syntax {
 		if p.isGeneratedByUs(file) {

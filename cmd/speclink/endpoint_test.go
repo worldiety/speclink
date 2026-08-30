@@ -260,3 +260,78 @@ var _ = spec.ForPackage(
 		t.Fatalf("a waived withdrawal still failed the run:\n%s", out)
 	}
 }
+
+// TestFluentRoutesAreRecognised pins that the surface of the reference project
+// is measured at all.
+//
+// It mounts nothing on the standard library's router, so before the builder was
+// recognised this run reported no routes — and reported it by saying nothing,
+// which reads as a system that exposes no addresses rather than as a tool that
+// cannot see the ones it has.
+func TestFluentRoutesAreRecognised(t *testing.T) {
+	t.Parallel()
+	out, code := runVerify(t, "../../testdata/example")
+	if code != 0 {
+		t.Fatalf("the reference project did not verify:\n%s", out)
+	}
+	if !strings.Contains(out, "3 routes (3 traced to a use case)") {
+		t.Errorf("the exposed surface of the reference project was not measured:\n%s", summary(out))
+	}
+}
+
+// TestSurfaceCatalogueCarriesTheWireShapes is the chain the document exists to
+// print, now complete.
+//
+// Address, what crosses it in each direction, the work behind it and the
+// requirement that asked for it — five columns, none of them maintained by
+// hand, each one derived from the code that already states it.
+func TestSurfaceCatalogueCarriesTheWireShapes(t *testing.T) {
+	t.Parallel()
+	out, _ := runSpeclink(t, "generate", "../../testdata/example", "./...")
+
+	for _, want := range []string{
+		"| Address | Takes | Returns | Serves | Asked for by |",
+		"| `POST /api/v1/quotes` | `SubmitQuoteRequest` | `SubmitQuoteResponse` | `SubmitQuote` | R-QUOTE-SUBMIT |",
+		"| `GET /api/v1/quotes` | `ListQuotesRequest` | `ListQuotesResponse` | `ListQuotes` | R-QUOTE-OVERVIEW |",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected the row %q in the catalogue", want)
+		}
+	}
+}
+
+// TestCatalogueDistinguishesNoBodyFromNotAsked is the distinction that made the
+// column worth adding.
+//
+// A route on the fluent builder that writes bytes promises no shape, and a
+// route on a bare mux has a shape nobody read. Both would print as a blank, and
+// a document that cannot tell them apart is the document this tool replaces.
+func TestCatalogueDistinguishesNoBodyFromNotAsked(t *testing.T) {
+	t.Parallel()
+
+	stated, _ := runSpeclink(t, "generate", "../../testdata/example", "./...")
+	if !strings.Contains(stated, "| `DELETE /api/v1/quotes/{quoteId}` | `WithdrawQuoteRequest` | — |") {
+		t.Errorf("a route that promises no shape must print a dash:\n%s", surfaceOf(stated))
+	}
+
+	// The frameworkless fixture states nothing, so the columns are absent
+	// altogether rather than filled with dashes that would read as answers.
+	silent, _ := runSpeclink(t, "generate", "../../testdata/bare", "./...")
+	if strings.Contains(silent, "| Address | Takes | Returns |") {
+		t.Errorf("a dialect that reports no wire types must not get the columns:\n%s", surfaceOf(silent))
+	}
+	if !strings.Contains(silent, "| Address | Serves | Asked for by |") {
+		t.Errorf("the surface table is missing:\n%s", surfaceOf(silent))
+	}
+}
+
+func surfaceOf(doc string) string {
+	_, rest, ok := strings.Cut(doc, "## What answers from outside")
+	if !ok {
+		return doc
+	}
+	if end := strings.Index(rest, "\n## "); end >= 0 {
+		return rest[:end]
+	}
+	return rest
+}

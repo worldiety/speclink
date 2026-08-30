@@ -7,6 +7,7 @@ import (
 	"go/types"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/worldiety/speclink/internal/diag"
 )
@@ -265,12 +266,32 @@ func (p *Package) assignedTo(v *types.Var) ast.Expr {
 
 // render prints an expression the way it was written, for a diagnostic that
 // points at something the reader recognises.
+//
+// Collapsed onto one line and capped. A registration written across a dozen
+// lines — which is the normal shape of a fluent builder — would otherwise put a
+// dozen lines of source inside a sentence, and a finding nobody can read is a
+// finding nobody acts on.
 func render(p *Package, e ast.Expr) string {
 	var sb strings.Builder
 	if err := printer.Fprint(&sb, p.pkg.Fset, e); err != nil {
 		return ""
 	}
-	return sb.String()
+	return shorten(strings.Join(strings.Fields(sb.String()), " "))
+}
+
+// renderLimit is how much of an expression a sentence can carry.
+const renderLimit = 96
+
+func shorten(s string) string {
+	if len(s) <= renderLimit {
+		return s
+	}
+	// Cut on a rune boundary, so a truncated identifier stays printable.
+	cut := renderLimit
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut] + "…"
 }
 
 // discard is a sink for the phases that are re run for their result rather than

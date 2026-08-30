@@ -32,6 +32,27 @@ type Endpoint struct {
 	// where the framework says what they are. Empty where it does not.
 	Request, Response string
 
+	// ShapesStated records that the dialect which mounted this route reports
+	// its wire types at all.
+	//
+	// Without it an empty Response cannot be read. On a builder that states
+	// them, empty means the route promises no shape — it writes bytes. On the
+	// standard library's router, empty means nobody asked the question. A
+	// catalogue that printed both as a blank would be answering a question it
+	// had not put, which is the one thing a catalogue must not do.
+	ShapesStated bool
+
+	// Request and Response are shown and not frozen, which is deliberate.
+	//
+	// What a caller depends on is the shape of the body, and the name of the
+	// type is not the shape. Freezing the name would report a rename that
+	// changes nothing as a break, and pass a field removed from the same type
+	// as unchanged — wrong in both directions at once, which is worse than
+	// unmeasured. The stored shapes already have the machinery for this: they
+	// are compared field by field against the baseline, not by name. Until a
+	// wire type is read that way too, this reports what crosses the boundary
+	// and claims nothing about whether it stayed the same.
+
 	// Truncated records that the trace hit its depth limit before it ran out
 	// of places to look. The distinction matters: no use case found because
 	// there is none is a defect in the code, and no use case found because

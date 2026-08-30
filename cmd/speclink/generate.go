@@ -467,8 +467,23 @@ func (m *specModel) writeSurface(b *strings.Builder) {
 		}
 	}
 
+	// The wire shapes appear only where a dialect states them. A column of
+	// dashes against a router that never reported them would look like a
+	// surface that carries no bodies, when it is a surface nobody asked.
+	shapes := false
+	for _, e := range m.endpoints {
+		if e.ShapesStated {
+			shapes = true
+			break
+		}
+	}
+
 	b.WriteString("## What answers from outside\n\n")
-	b.WriteString("| Address | Serves | Asked for by |\n|---|---|---|\n")
+	if shapes {
+		b.WriteString("| Address | Takes | Returns | Serves | Asked for by |\n|---|---|---|---|---|\n")
+	} else {
+		b.WriteString("| Address | Serves | Asked for by |\n|---|---|---|\n")
+	}
 	for _, e := range m.endpoints {
 		address := "`" + e.Ref() + "`"
 		if e.Path == "" {
@@ -494,10 +509,34 @@ func (m *specModel) writeSurface(b *strings.Builder) {
 			// the document this tool replaces.
 			served = "_outside this scope_"
 		}
+
+		if shapes {
+			fmt.Fprintf(b, "| %s | %s | %s | %s | %s |\n", address,
+				wireShape(e, e.Request), wireShape(e, e.Response),
+				served, orDash(strings.Join(unique(asked), ", ")))
+			continue
+		}
 		fmt.Fprintf(b, "| %s | %s | %s |\n", address,
 			served, orDash(strings.Join(unique(asked), ", ")))
 	}
 	b.WriteString("\n")
+}
+
+// wireShape renders what crosses the boundary, and says which kind of nothing
+// an empty cell is.
+//
+// A route mounted through a builder that reports its types and carrying none
+// promises no shape: it writes bytes, and a dash is the whole truth. A route
+// mounted on a router that reports nothing is a route whose body this never
+// asked about, and the two must not print alike.
+func wireShape(e ir.Endpoint, name string) string {
+	if name != "" {
+		return "`" + lastSegment(name) + "`"
+	}
+	if e.ShapesStated {
+		return "—"
+	}
+	return "_not stated here_"
 }
 
 // orDash renders an empty cell as something a reader notices.

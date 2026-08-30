@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 5,
   "types": {
     "example.com/erp/app/sales.CustomerEntity": {
       "discriminator": "",
@@ -174,5 +174,25 @@
         "text": "f020cd386063d66da712d2d605cb8ab2ef92ec1c6560d40e9fd047d85e8d792b"
       }
     ]
+  },
+  "endpoints": {
+    "DELETE /api/v1/quotes/{quoteId}": {
+      "useCases": [
+        "example.com/erp/app/sales.WithdrawQuote"
+      ],
+      "package": "example.com/erp/cmd/erp"
+    },
+    "GET /api/v1/quotes": {
+      "useCases": [
+        "example.com/erp/app/sales.ListQuotes"
+      ],
+      "package": "example.com/erp/cmd/erp"
+    },
+    "POST /api/v1/quotes": {
+      "useCases": [
+        "example.com/erp/app/sales.SubmitQuote"
+      ],
+      "package": "example.com/erp/cmd/erp"
+    }
   }
 }

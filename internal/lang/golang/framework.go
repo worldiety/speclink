@@ -37,6 +37,16 @@ type Framework struct {
 	// Permission holds the Declare family that binds a permission to the use
 	// case it guards.
 	Permission string
+
+	// Rest is the package whose fluent builder mounts HTTP routes, empty where
+	// the architecture has none and mounts on the standard library's router
+	// instead.
+	//
+	// Naming the package rather than matching on a spelling is the same
+	// decision as everywhere else here: a project is free to call its router
+	// api, r or mux, and a recogniser keyed on the name would find the
+	// fixture it was written against and nothing else.
+	Rest string
 }
 
 // Symbol is one named thing in one package.
@@ -52,6 +62,7 @@ var Nago = Framework{
 	},
 	Data:       nagoData,
 	Permission: nagoPermission,
+	Rest:       nagoHapi,
 }
 
 // BareFoundation returns the framework of a project that has none.

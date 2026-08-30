@@ -920,6 +920,7 @@ either.
 | `permission.Declare…[UseCase](id, …)` | **permission**, bound to that use case | no |
 | state type of `evs.NewProjection` / `evs.NewSingleton` | **projection** | yes |
 | `type X data.Repository[E, ID]` or `= data.ReadRepository[…]` | **repository** | no |
+| `hapi.Post[In](api, hapi.Operation{Path: …})` and the chain on it | **endpoint**, with its wire types | no |
 
 Aggregates, permissions and repositories are structural: they are covered
 through the use case that guards, writes or holds them. Everything else names
@@ -930,6 +931,46 @@ thing — and every architecture rule already treats a query as a use case: its
 own `uc_` file, its constructor, its permission, its place in the bundle. A
 projection likewise: it crosses aggregates and answers a question no single use
 case states, so nothing covers it transitively.
+
+### Routes are read from the builder, wire shapes included
+
+A route mounted through `hapi` states more than one mounted on the standard
+library's router, and speclink reads all of it: the method from the name of the
+call, the path from the `Operation` literal, and — this is the part a bare mux
+cannot give — the **request and response types from the type arguments**, which
+the compiler has already resolved.
+
+```go
+hapi.Post[SubmitQuoteRequest](api, hapi.Operation{Path: "/api/v1/quotes"}).
+	Request(hapi.BearerAuth[SubmitQuoteRequest](authenticate, …)).
+	Response(hapi.ToJSON[SubmitQuoteRequest, SubmitQuoteResponse](func(in SubmitQuoteRequest) (SubmitQuoteResponse, error) {
+		return …, uc.SubmitQuote(in.Subject, sales.SubmitQuoteCmd{…})
+	}))
+```
+
+The whole chain is followed, not just one call in it, and both halves count:
+authentication on `Request` and the work on `Response` are equally what the
+route does. The use case is found by **type**, so no wrapper, decorator or
+middleware has to be recognised for it to be seen.
+
+`hapi.Endpoint` states no method of its own. It is read from `Operation.Method`
+or left empty — never taken from the framework's fallback, because a default is
+the framework's business and printing it would be inventing a promise.
+
+Two things this deliberately does **not** do:
+
+- **It never guesses a wire shape.** On a bare mux the columns stay empty and
+  the catalogue says `_not stated here_`. The use case's own parameters are
+  right there and would usually be correct — but a presentation layer that maps
+  a request body onto a command makes the guess silently wrong, and this is a
+  frozen promise.
+- **It does not freeze the wire types.** What a caller depends on is the shape
+  of the body, and the name of the type is not the shape. Freezing the name
+  would report a harmless rename as a break and let a removed field pass as
+  unchanged — wrong in both directions, which is worse than unmeasured. The
+  stored shapes are compared field by field for exactly this reason; until a
+  wire type is read the same way, this reports what crosses the boundary and
+  claims nothing about whether it stayed the same.
 
 ### Two type aliases that will bite you
 

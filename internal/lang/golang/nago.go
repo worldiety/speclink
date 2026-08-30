@@ -38,6 +38,7 @@ const (
 	nagoUser       = "go.wdy.de/nago/application/user"
 	nagoPermission = "go.wdy.de/nago/application/permission"
 	nagoEvs        = "go.wdy.de/nago/application/evs"
+	nagoHapi       = "go.wdy.de/nago/application/hapi"
 	nagoData       = "go.wdy.de/nago/pkg/data"
 	nagoDataJSON   = "go.wdy.de/nago/pkg/data/json"
 	nagoNdb        = "go.wdy.de/nago/pkg/ndb"
