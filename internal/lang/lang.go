@@ -129,6 +129,28 @@ type SyntaxChecker interface {
 	CheckSyntax(out *diag.Set)
 }
 
+// EntryPointReader lists the programs a module builds.
+//
+// A module routinely produces several, and which one a statement is about
+// changes the answer to nearly every question a reader has. A frontend that
+// cannot enumerate them says so, rather than letting one program stand for
+// all of them.
+type EntryPointReader interface {
+	Model
+	EntryPoints() []ir.EntryPoint
+}
+
+// ArchitectureDescriber states the shape a project is held to.
+//
+// Separate from ArchitectureChecker because describing and enforcing are
+// different questions with different answers: a frontend can enforce rules it
+// cannot describe, and the document needs the description even — especially —
+// when nothing is being violated.
+type ArchitectureDescriber interface {
+	Model
+	DescribeArchitecture() ir.Architecture
+}
+
 // ArchitectureChecker is implemented by a frontend that enforces invariants of
 // its framework.
 //
@@ -163,10 +185,16 @@ type Capabilities struct {
 	Verifications bool
 	Syntax        bool
 	Architecture  bool
-	Endpoints     bool
-	Processes     bool
-	Topics        bool
-	Topology      bool
+	// Shape is whether the frontend can describe the architecture, which is a
+	// different question from whether it enforces it.
+	Shape bool
+	// Programs is whether the frontend can enumerate the binaries this module
+	// builds.
+	Programs  bool
+	Endpoints bool
+	Processes bool
+	Topics    bool
+	Topology  bool
 }
 
 // Of reports what a model can do.
@@ -176,6 +204,8 @@ func Of(m Model) Capabilities {
 	_, verifications := m.(VerificationReader)
 	_, syntax := m.(SyntaxChecker)
 	_, architecture := m.(ArchitectureChecker)
+	_, shape := m.(ArchitectureDescriber)
+	_, programs := m.(EntryPointReader)
 	_, endpoints := m.(EndpointReader)
 	_, processes := m.(ProcessReader)
 	_, topics := m.(TopicReader)
@@ -186,6 +216,8 @@ func Of(m Model) Capabilities {
 		Verifications: verifications,
 		Syntax:        syntax,
 		Architecture:  architecture,
+		Shape:         shape,
+		Programs:      programs,
 		Endpoints:     endpoints,
 		Processes:     processes,
 		Topics:        topics,

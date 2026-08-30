@@ -127,6 +127,8 @@ type specModel struct {
 	waived   ir.Waivers
 	skipped  int
 
+	arch       ir.Architecture
+	programs   []ir.EntryPoint
 	topo       ir.Topology
 	processes  []*ir.Process
 	constructs []ir.Construct
@@ -199,6 +201,12 @@ func readModel(absRoot, cfgPath, prof string, patterns []string) (*specModel, er
 	m.cov = check.CoverRequirements(m.tree, bindings, measured, frontend.Dialect(), discard)
 	m.ver = check.CoverVerification(m.tree, verifications, m.cov, measured, ir.CollectWaivers(bindings), frontend.Dialect(), discard)
 
+	if ep, ok := frontend.(lang.EntryPointReader); ok {
+		m.programs = ep.EntryPoints()
+	}
+	if ad, ok := frontend.(lang.ArchitectureDescriber); ok {
+		m.arch = ad.DescribeArchitecture()
+	}
 	if tr, ok := frontend.(lang.TopologyReader); ok {
 		m.topo = tr.Topology(discard)
 	}
@@ -238,6 +246,8 @@ func (m *specModel) document() *doc.Doc {
 	m.writeDocuments(d)
 	m.writeTopics(d)
 	m.writeStandards(d)
+	m.writePrograms(d)
+	m.writeArchitecture(d)
 	m.writeBoundary(d)
 	m.writeSurface(d)
 	m.writeProcesses(d)
@@ -840,6 +850,158 @@ func or(s, fallback string) string {
 // neither place as a list. Here it is one row per declared channel, and the
 // four descriptive columns are mandatory in the model, so a blank cell cannot
 // reach this page.
+
+// writeArchitecture states the shape, for a reader who is about to add to it.
+//
+// The rules that hold this project together have always been enforced and
+// never written down. Every sentence explaining one is constructed at the
+// moment it is broken and names the file that broke it, so a project in good
+// order — the normal case, and the one handed to a reviewer — described its own
+// architecture nowhere at all. A developer joining it could learn the rules
+// only by violating them.
+//
+// Only what is enforced appears here, and the paths are the project's own. A
+// description that outruns its checks is worse than none, because a clean run
+// will never contradict it.
+
+// writePrograms is the chapter that says what actually gets built.
+//
+// A module usually produces more than one program — a service, a command line
+// tool, sometimes a migration — and every other chapter here silently spoke as
+// though there were one system. Which binary a statement is about changes the
+// answer to nearly every question a reader arrives with, starting with how to
+// run the thing.
+//
+// The chapter is careful about which half of it is solid. What is built, where
+// it lives and what it assembles are read from the language and the import
+// graph. How it is invoked is inferred from the shape of the code, and is
+// labelled so rather than being set beside the facts as though it were one.
+func (m *specModel) writePrograms(d *doc.Doc) {
+	if !m.can.Programs {
+		omitted(d, "What gets built",
+			"Not measured: this frontend does not enumerate programs, so what this module builds is stated nowhere in this document.")
+		return
+	}
+	if len(m.programs) == 0 {
+		omitted(d, "What gets built",
+			"This module builds no program of its own. It is a library, and everything in this document describes code that runs inside somebody else's process.")
+		return
+	}
+
+	d.H(2, "What gets built")
+	d.Pf("This module builds %s.", plural(len(m.programs), "program", "programs"))
+
+	for _, e := range m.programs {
+		d.H(3, e.Name)
+		if e.Doc != "" {
+			d.P(doc.T(e.Doc))
+		} else {
+			d.P(doc.Emph("No package comment describes this program."))
+		}
+		d.P(doc.T("Built from "), doc.Code(e.Dir), doc.T("."))
+
+		if len(e.Contexts) > 0 {
+			var line []doc.Inline
+			line = append(line, doc.Strong("Assembles"), doc.T(" "))
+			for i, c := range e.Contexts {
+				if i > 0 {
+					line = append(line, doc.T(", "))
+				}
+				line = append(line, doc.Code(c))
+			}
+			d.P(line...)
+		}
+		if len(e.Adapters) > 0 {
+			d.P(doc.Strong("Chooses"), doc.T(" the following implementations. "),
+				doc.T("This is the only place in the module where that choice is made, which is what makes it reviewable here."))
+			var picks []doc.Bullet
+			for _, a := range e.Adapters {
+				picks = append(picks, doc.Item(doc.Code(a)))
+			}
+			d.Bullets(picks...)
+		}
+		m.writeInvocation(d, e)
+	}
+}
+
+// writeInvocation prints the guess, as a guess.
+//
+// Nothing in Go declares how a program is called. What can be seen is a string
+// tested against the argument vector and a flag registered by name, which
+// covers the common shapes and misses any program that dispatches through a
+// table. An empty result therefore means "none of the shapes this recognises",
+// never "this program takes no arguments", and the difference is the whole
+// reason the paragraph is worded the way it is.
+func (m *specModel) writeInvocation(d *doc.Doc, e ir.EntryPoint) {
+	if len(e.Verbs) == 0 && len(e.Flags) == 0 {
+		d.P(doc.Emph("How this program is invoked could not be read from the source. " +
+			"That is a limit of the reading, not a statement that it takes no arguments."))
+		return
+	}
+	d.P(doc.Strong("Appears to accept"), doc.T(" — inferred from the code rather than declared, so treat it as a starting point and not as a contract."))
+
+	if len(e.Verbs) > 0 {
+		var vs []doc.Inline
+		vs = append(vs, doc.T("Subcommands: "))
+		for i, v := range e.Verbs {
+			if i > 0 {
+				vs = append(vs, doc.T(", "))
+			}
+			vs = append(vs, doc.Code(v))
+		}
+		d.P(vs...)
+	}
+	if len(e.Flags) > 0 {
+		var fs []doc.Inline
+		fs = append(fs, doc.T("Flags: "))
+		for i, f := range e.Flags {
+			if i > 0 {
+				fs = append(fs, doc.T(", "))
+			}
+			fs = append(fs, doc.Code("-"+f))
+		}
+		d.P(fs...)
+	}
+}
+
+func (m *specModel) writeArchitecture(d *doc.Doc) {
+	if !m.can.Shape {
+		omitted(d, "How it is put together",
+			"Not measured: this frontend describes no architecture, so the rules this code is held to are stated nowhere in this document.")
+		return
+	}
+	if !m.arch.Declared() {
+		omitted(d, "How it is put together",
+			"This profile enforces no architectural rules, so there is no shape to describe.")
+		return
+	}
+
+	d.H(2, "How it is put together")
+	d.P(doc.T("Every rule below is enforced by "), doc.Code("speclink verify"),
+		doc.T(". None of it is advice: a violation is a finding with the same identifier printed here, "),
+		doc.T("so a rule a reader finds in this chapter is one the build already refuses to ignore."))
+	if m.arch.Style != "" {
+		d.P(doc.T("Convention: "), doc.Code(m.arch.Style), doc.T("."))
+	}
+
+	if len(m.arch.Layers) > 0 {
+		d.H(3, "Where code lives")
+		t := d.Table("Layer", "Path", "What belongs there")
+		for _, l := range m.arch.Layers {
+			t.Add(doc.Cell(doc.Strong(l.Name)), doc.Cell(doc.Code(l.Where)), doc.Cell(doc.T(l.Purpose)))
+		}
+	}
+
+	if len(m.arch.Rules) == 0 {
+		return
+	}
+	d.H(3, "What the code is held to")
+	for _, r := range m.arch.Rules {
+		d.P(doc.Strong(r.Statement), doc.T(" ("), doc.Code(r.ID), doc.T(")"))
+		d.P(doc.T(r.Why))
+	}
+}
+
 func (m *specModel) writeBoundary(d *doc.Doc) {
 	if !m.can.Topology {
 		omitted(d, "The boundary", "Not measured: this frontend reads no topology declarations, so what this system talks to is missing from this document.")
@@ -903,6 +1065,86 @@ func (m *specModel) writeBoundary(d *doc.Doc) {
 // on its own is routing; an address with the requirement behind it is the
 // answer to the question every review actually asks, which is why this system
 // answers here and on whose authority.
+
+// writeWireDetail is the chapter a developer integrates against.
+//
+// The table above is a catalogue: it says an address exists and names the type
+// that crosses it. That is enough to audit the surface and useless for calling
+// it, because the name of a Go struct is not a wire format — the reader cannot
+// see a single field, let alone which of them may be absent.
+//
+// The fields were always known. speclink reads them to detect a breaking change
+// and then threw them away at the document, so the one thing the tool measured
+// most precisely was the one thing a developer could not see.
+//
+// Only what the dialect stated. A router that reports no shapes gets no section
+// here rather than an empty one, because "this endpoint takes nothing" and
+// "nobody asked what this endpoint takes" are opposite claims.
+func (m *specModel) writeWireDetail(d *doc.Doc) {
+	var stated []ir.Endpoint
+	for _, e := range m.endpoints {
+		if e.ShapesStated && (e.RequestShape != nil || e.ResponseShape != nil) {
+			stated = append(stated, e)
+		}
+	}
+	if len(stated) == 0 {
+		return
+	}
+
+	d.H(3, "What crosses each address")
+	d.P(doc.T("The fields below are read from the code that mounts the route, not from a hand written schema. "),
+		doc.T("A name in the "), doc.Strong("wire"), doc.T(" column is what appears in the payload; where it differs from the field it is because the code says so."))
+
+	for _, e := range stated {
+		d.H(4, e.Ref())
+		if len(e.UseCases) > 0 {
+			var served []doc.Inline
+			served = append(served, doc.T("Reaches "))
+			for i, uc := range e.UseCases {
+				if i > 0 {
+					served = append(served, doc.T(", "))
+				}
+				served = append(served, doc.Code(lastSegment(uc)))
+			}
+			served = append(served, doc.T("."))
+			d.P(served...)
+		}
+		m.writeShapeTable(d, "Takes", e.RequestShape)
+		m.writeShapeTable(d, "Returns", e.ResponseShape)
+	}
+}
+
+// writeShapeTable prints one side of an exchange.
+func (m *specModel) writeShapeTable(d *doc.Doc, side string, w *ir.WireShape) {
+	if w == nil {
+		d.P(doc.Strong(side), doc.T(" "), doc.Emph("nothing"))
+		return
+	}
+	if len(w.Fields) == 0 {
+		// A shape with no fields is a scalar, a slice or an opaque body. The
+		// expanded shape is the only honest thing to print, and it is more
+		// use than the type name on its own.
+		d.P(doc.Strong(side), doc.T(" "), doc.Code(lastSegment(w.Type)),
+			doc.T(" — "), doc.Code(w.Shape))
+		return
+	}
+	d.P(doc.Strong(side), doc.T(" "), doc.Code(lastSegment(w.Type)))
+	t := d.Table("Field", "Wire", "Shape", "Required")
+	t.Aligned(doc.Left, doc.Left, doc.Left, doc.Right)
+	for _, f := range w.Fields {
+		required := doc.Yes
+		if f.Optional {
+			required = doc.No
+		}
+		t.Add(
+			doc.Cell(doc.Code(f.Name)),
+			doc.Cell(doc.Code(f.Wire)),
+			doc.Cell(doc.Code(f.Shape)),
+			doc.Cell(required),
+		)
+	}
+}
+
 func (m *specModel) writeSurface(d *doc.Doc) {
 	if !m.can.Endpoints {
 		omitted(d, "What answers from outside", "Not measured: this frontend recognises no routes, so any address this system answers on is missing from this document.")
@@ -978,6 +1220,8 @@ func (m *specModel) writeSurface(d *doc.Doc) {
 		}
 		t.Add(address, served, orDash(strings.Join(unique(asked), ", ")))
 	}
+
+	m.writeWireDetail(d)
 }
 
 // wireShape renders what crosses the boundary, and says which kind of nothing

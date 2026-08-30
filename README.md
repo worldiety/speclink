@@ -308,6 +308,27 @@ first chapter is a map that names, for each of them, which chapters answer their
 question. Serving all four at once only works if the document says plainly which
 parts are addressed to whom.
 
+*What gets built* comes first among the technical chapters, because a module
+usually produces several programs and every other chapter otherwise speaks as
+though there were one. What each binary assembles and which adapter it chooses
+is read from the import graph — that choice is made in exactly one place, which
+is what makes it reviewable. How a program is invoked is inferred from
+comparisons against the argument vector, and is labelled as inference: an empty
+result means "none of the shapes this recognises", never "takes no arguments".
+
+*How it is put together* states the architecture. The rules were always enforced
+and never written down: every sentence explaining one is constructed at the
+moment it is broken and names the offending file, so a project in good order
+described its own shape nowhere, and a developer joining it could learn the rules
+only by violating one. Only rules this profile actually runs are listed, with the
+identifier a finding would carry. A description that outruns its checks is worse
+than none, because a clean run will never contradict it.
+
+*What crosses each address* gives the request and response fields, their wire
+names and whether each is required. speclink already read those to detect a
+breaking change and threw them away before the document, so the thing it
+measured most precisely was the one thing a developer could not see.
+
 *The register* is the table most of them arrive for: every requirement, its kind,
 field and status, and four marks — built, tested, run, read. A mark says what was
 measured, and is allowed to say that nothing looked. `?` is not a zero, and `–`
