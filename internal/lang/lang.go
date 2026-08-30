@@ -129,6 +129,17 @@ type SyntaxChecker interface {
 	CheckSyntax(out *diag.Set)
 }
 
+// PackageGrapher reports the module's own packages and their dependencies.
+//
+// Separate from the architecture checker for the same reason describing is
+// separate from enforcing: the rules walk the imports for their own questions
+// and discard the answer, so the graph they defend has never been a value
+// anything could draw.
+type PackageGrapher interface {
+	Model
+	PackageGraph() ir.PackageGraph
+}
+
 // EntryPointReader lists the programs a module builds.
 //
 // A module routinely produces several, and which one a statement is about
@@ -190,7 +201,10 @@ type Capabilities struct {
 	Shape bool
 	// Programs is whether the frontend can enumerate the binaries this module
 	// builds.
-	Programs  bool
+	Programs bool
+	// Packages is whether the frontend can report the module's own import
+	// graph.
+	Packages  bool
 	Endpoints bool
 	Processes bool
 	Topics    bool
@@ -206,6 +220,7 @@ func Of(m Model) Capabilities {
 	_, architecture := m.(ArchitectureChecker)
 	_, shape := m.(ArchitectureDescriber)
 	_, programs := m.(EntryPointReader)
+	_, packages := m.(PackageGrapher)
 	_, endpoints := m.(EndpointReader)
 	_, processes := m.(ProcessReader)
 	_, topics := m.(TopicReader)
@@ -218,6 +233,7 @@ func Of(m Model) Capabilities {
 		Architecture:  architecture,
 		Shape:         shape,
 		Programs:      programs,
+		Packages:      packages,
 		Endpoints:     endpoints,
 		Processes:     processes,
 		Topics:        topics,

@@ -129,6 +129,7 @@ type specModel struct {
 
 	arch       ir.Architecture
 	programs   []ir.EntryPoint
+	pkgs       ir.PackageGraph
 	topo       ir.Topology
 	processes  []*ir.Process
 	constructs []ir.Construct
@@ -201,6 +202,9 @@ func readModel(absRoot, cfgPath, prof string, patterns []string) (*specModel, er
 	m.cov = check.CoverRequirements(m.tree, bindings, measured, frontend.Dialect(), discard)
 	m.ver = check.CoverVerification(m.tree, verifications, m.cov, measured, ir.CollectWaivers(bindings), frontend.Dialect(), discard)
 
+	if pg, ok := frontend.(lang.PackageGrapher); ok {
+		m.pkgs = pg.PackageGraph()
+	}
 	if ep, ok := frontend.(lang.EntryPointReader); ok {
 		m.programs = ep.EntryPoints()
 	}
@@ -248,6 +252,7 @@ func (m *specModel) document() *doc.Doc {
 	m.writeStandards(d)
 	m.writePrograms(d)
 	m.writeArchitecture(d)
+	m.writeComposition(d)
 	m.writeBoundary(d)
 	m.writeSurface(d)
 	m.writeProcesses(d)
@@ -962,6 +967,105 @@ func (m *specModel) writeInvocation(d *doc.Doc, e ir.EntryPoint) {
 		}
 		d.P(fs...)
 	}
+}
+
+// writeComposition draws the module as its packages.
+//
+// The chapter above states the rules; this shows the thing they are enforced
+// against. Every architectural rule in this tool walks the import graph for
+// its own question and throws the answer away, which is how speclink came to
+// enforce a layering it could not draw — the reader was told domain code may
+// not import an adapter, and given no way to see whether it does.
+//
+// The count of crossings is the number somebody is actually after, and it is
+// computed rather than left to be read off the picture. Asking a reviewer to
+// count arrows on a diagram is asking them to do arithmetic the document
+// should have done.
+func (m *specModel) writeComposition(d *doc.Doc) {
+	if !m.can.Packages {
+		omitted(d, "How the code is composed",
+			"Not measured: this frontend reports no import graph, so how this module hangs together is stated nowhere in this document.")
+		return
+	}
+	if !m.pkgs.Declared() {
+		omitted(d, "How the code is composed",
+			"No package of this module could be read, so there is no composition to show.")
+		return
+	}
+
+	d.H(2, "How the code is composed")
+	contexts := m.pkgs.Contexts()
+	d.Pf("%s in %s, and %s between them. Only this module's own packages: "+
+		"a dependency on the standard library or on a third party is not a fact about the shape of this system.",
+		plural(len(m.pkgs.Nodes), "package", "packages"),
+		plural(len(contexts), "bounded context", "bounded contexts"),
+		plural(len(m.pkgs.Edges), "dependency", "dependencies"))
+
+	if spec := m.specPackages(); spec > 0 {
+		d.Pf("%s declare this specification rather than the system — the requirements, "+
+			"the courses of business, the boundary. They are left out of the drawing below: "+
+			"in a project that uses this tool properly they are most of the nodes and most of "+
+			"the arrows, and the architecture disappears underneath its own documentation.",
+			plural(spec, "package", "packages"))
+	}
+
+	if !m.figure(d, "fig-packages", "packages",
+		"The system's own packages, grouped by the context each belongs to.") {
+		noFigure(d)
+	}
+
+	crossings := m.pkgs.Crossings()
+	d.H(3, "Where one context reaches into another")
+	if len(crossings) == 0 {
+		d.P(doc.T("No package of one bounded context imports a package of another. "),
+			doc.T("The contexts are separate in the only sense a compiler can hold them to."))
+	} else {
+		d.Pf("%s cross from one context into another. Each is a place the two are no longer independent, "+
+			"and each is worth a reason.", plural(len(crossings), "dependency", "dependencies"))
+		t := d.Table("From", "To")
+		byPath := map[string]ir.PackageNode{}
+		for _, n := range m.pkgs.Nodes {
+			byPath[n.Path] = n
+		}
+		for _, e := range crossings {
+			t.Add(doc.Cell(doc.Code(byPath[e.From].Dir)), doc.Cell(doc.Code(byPath[e.To].Dir)))
+		}
+	}
+
+	m.writeUnmeasuredPackages(d)
+}
+
+// specPackages counts the packages that declare the specification.
+func (m *specModel) specPackages() int {
+	n := 0
+	for _, p := range m.pkgs.Nodes {
+		if p.Layer == ir.LayerSpec {
+			n++
+		}
+	}
+	return n
+}
+
+// writeUnmeasuredPackages names the code the run did not report on.
+//
+// A package outside the scope is drawn in the picture and marked there, but a
+// picture is not a list and a reader working from the text would never learn
+// of it. Code that the rest of this document says nothing about, while other
+// code depends on it, is the most important thing on the page.
+func (m *specModel) writeUnmeasuredPackages(d *doc.Doc) {
+	var out []doc.Bullet
+	for _, n := range m.pkgs.Nodes {
+		if !n.Measured {
+			out = append(out, doc.Item(doc.Code(n.Dir)))
+		}
+	}
+	if len(out) == 0 {
+		return
+	}
+	d.H(3, "Packages this run did not report on")
+	d.P(doc.T("These are part of the module and outside the configured scope. "),
+		doc.T("Nothing else in this document is a claim about them — including the absence of findings."))
+	d.Bullets(out...)
 }
 
 func (m *specModel) writeArchitecture(d *doc.Doc) {

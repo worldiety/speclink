@@ -54,16 +54,21 @@ func diagrams(args []string) error {
 	var (
 		topo      ir.Topology
 		processes []*ir.Process
+		pkgs      ir.PackageGraph
 	)
+	if pg, ok := model.(lang.PackageGrapher); ok {
+		pkgs = pg.PackageGraph()
+	}
 	if tr, ok := model.(lang.TopologyReader); ok {
 		topo = tr.Topology(quiet)
 	}
 	if pr, ok := model.(lang.ProcessReader); ok {
 		processes = pr.Processes(quiet)
 	}
-	if !topo.Declared() && len(processes) == 0 {
-		return errors.New("nothing to draw: this project declares no topology and no process.\n" +
-			"Add a *.topology.go or a *.process.go; see the README sections on both.")
+	if !topo.Declared() && len(processes) == 0 && !pkgs.Declared() {
+		return errors.New("nothing to draw: this frontend reports no package graph, and this project\n" +
+			"declares no topology and no process. Add a *.topology.go or a *.process.go;\n" +
+			"see the README sections on both.")
 	}
 
 	if err := os.MkdirAll(*out, 0o755); err != nil {
@@ -87,6 +92,12 @@ func diagrams(args []string) error {
 			}
 			written++
 		}
+	}
+	if pkgs.Declared() {
+		if err := writeDiagram(*out, "packages.puml", render.Packages(pkgs, system)); err != nil {
+			return err
+		}
+		written++
 	}
 	for _, p := range processes {
 		if err := writeDiagram(*out, "process-"+p.ID+".puml", render.Process(p)); err != nil {

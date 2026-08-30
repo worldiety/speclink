@@ -101,16 +101,44 @@ func TestDiagramsAreReproducible(t *testing.T) {
 // empty directory to wonder about.
 func TestDiagramsRefusesWhenThereIsNothingToDraw(t *testing.T) {
 	t.Parallel()
-	dir := copyFixture(t, "../../testdata/bare")
-	if err := os.RemoveAll(filepath.Join(dir, "topology")); err != nil {
-		t.Fatal(err)
-	}
-
-	out, code := runSpeclink(t, "diagrams", dir, "-out", filepath.Join(t.TempDir(), "puml"), "./...")
+	// A frontend that reports no package graph and a project that declares
+	// neither a topology nor a process. The JVM model reads none of the three,
+	// so this is the case that is left.
+	out, code := runSpeclink(t, "diagrams", "../../testdata/java",
+		"-profile", "java_springboot_ddd1", "-out", filepath.Join(t.TempDir(), "puml"))
 	if code == 0 {
 		t.Fatalf("expected a refusal:\n%s", out)
 	}
 	if !strings.Contains(out, "nothing to draw") {
 		t.Errorf("the refusal does not say why:\n%s", out)
+	}
+}
+
+// TestDiagramsDrawsTheCompositionWithoutADeclaration is the case that used to
+// be a refusal and should never have been one.
+//
+// A module has a package structure whether or not anybody declared a topology,
+// and that structure is the thing every architectural rule is enforced
+// against. Refusing to draw it because no boundary was declared turned away
+// the one project that most needed the picture: the one whose author has not
+// written anything down yet.
+func TestDiagramsDrawsTheCompositionWithoutADeclaration(t *testing.T) {
+	t.Parallel()
+	dir := copyFixture(t, "../../testdata/bare")
+	if err := os.RemoveAll(filepath.Join(dir, "topology")); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(t.TempDir(), "puml")
+
+	msg, code := runSpeclink(t, "diagrams", dir, "-out", out, "./...")
+	if code != 0 {
+		t.Fatalf("a project with a package structure was refused a drawing:\n%s", msg)
+	}
+	if _, err := os.Stat(filepath.Join(out, "packages.puml")); err != nil {
+		t.Errorf("the composition was not drawn: %v", err)
+	}
+	// The boundary was removed, so that one must not appear.
+	if _, err := os.Stat(filepath.Join(out, "context.puml")); err == nil {
+		t.Error("a context diagram was drawn for a project that declares no topology")
 	}
 }

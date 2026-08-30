@@ -324,6 +324,15 @@ only by violating one. Only rules this profile actually runs are listed, with th
 identifier a finding would carry. A description that outruns its checks is worse
 than none, because a clean run will never contradict it.
 
+*How the code is composed* draws the module's own packages, grouped by the
+context each belongs to, and counts the dependencies that cross from one context
+into another. Every architectural rule in this tool walks the import graph for
+its own question and discards the answer, so speclink enforced a layering it
+could not draw: a reader was told domain code may not import an adapter and given
+no way to see whether it does. The packages that declare the specification itself
+are left off the drawing and counted in the prose — in a project that uses this
+tool properly they are most of the nodes and most of the arrows.
+
 *What crosses each address* gives the request and response fields, their wire
 names and whether each is required. speclink already read those to detect a
 breaking change and threw them away before the document, so the thing it

@@ -38,3 +38,9 @@ go.work.sum
 # input the class file reader is tested against, so committing them keeps those
 # tests hermetic and free of a JDK dependency. Regenerate with
 # testdata/java/build.sh; the diff is where a toolchain change becomes visible.
+
+# Browser automation artifacts. Console logs and page snapshots from an agent
+# reading the web are inputs to somebody's research, never to a build, and they
+# arrive in their hundreds. The notes written from them live in doc/ and are
+# committed; the raw scrapes are not.
+.playwright-mcp/

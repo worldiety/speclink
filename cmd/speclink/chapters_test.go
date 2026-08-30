@@ -130,3 +130,73 @@ func TestDevelopersGetTheFieldsNotJustTheTypeName(t *testing.T) {
 		}
 	}
 }
+
+// TestTheCompositionIsDrawnFromTheImportGraph closes the oldest gap of the
+// three.
+//
+// Every architectural rule in this tool walks the imports for its own question
+// and throws the answer away, so speclink enforced a layering it could not
+// draw: a reader was told domain code may not import an adapter and given no
+// way to see whether it does.
+func TestTheCompositionIsDrawnFromTheImportGraph(t *testing.T) {
+	t.Parallel()
+	out, _ := runSpeclink(t, "generate", "../../testdata/bare")
+
+	if !strings.Contains(out, "## How the code is composed") {
+		t.Fatalf("the module's own shape is stated nowhere:\n%s", chaptersOf(out))
+	}
+	if !strings.Contains(out, "bounded contexts") {
+		t.Errorf("the composition does not count the contexts:\n%s", out)
+	}
+	// The crossings are computed, not left to be counted off a picture. This
+	// fixture keeps its contexts apart, and the document has to say so rather
+	// than leaving a reader to infer it from an absence.
+	if !strings.Contains(out, "No package of one bounded context imports a package of another") {
+		t.Errorf("a clean separation was not stated as a result:\n%s", out)
+	}
+}
+
+// TestTheSpecificationPackagesAreAccountedForNotHidden is the honesty of the
+// one thing this chapter leaves out.
+//
+// The requirement, process and topology packages are part of the module and no
+// part of the system. In a project using this tool properly they are most of
+// the nodes and most of the arrows, and the architecture vanishes underneath
+// its own documentation — so they are off the drawing. Off a drawing is not
+// the same as unmentioned.
+func TestTheSpecificationPackagesAreAccountedForNotHidden(t *testing.T) {
+	t.Parallel()
+	out, _ := runSpeclink(t, "generate", "../../testdata/bare")
+
+	if !strings.Contains(out, "declare this specification rather than the system") {
+		t.Errorf("packages were dropped from the drawing without saying so:\n%s", out)
+	}
+}
+
+// TestADiagramThatWasNotRenderedIsSaidToBeMissing is the rule that keeps the
+// figures honest.
+//
+// speclink writes drawing sources and runs no renderer, so the pictures are
+// made between generating the document and compiling it. Without -figures the
+// chapters must say the drawings are not included, rather than referring to
+// files nobody made.
+func TestADiagramThatWasNotRenderedIsSaidToBeMissing(t *testing.T) {
+	t.Parallel()
+	out, _ := runSpeclink(t, "generate", "../../testdata/bare")
+
+	if !strings.Contains(out, "No diagram is included in this document") {
+		t.Errorf("a document with no figures did not say so:\n%s", out)
+	}
+	if strings.Contains(out, ".svg") {
+		t.Error("a document with no figures still pointed at picture files")
+	}
+
+	// With the flag it points at them, and says nothing about them missing.
+	out, _ = runSpeclink(t, "generate", "../../testdata/bare", "-figures", "puml")
+	if !strings.Contains(out, "puml/packages.svg") {
+		t.Errorf("the figure was not referenced:\n%s", out)
+	}
+	if strings.Contains(out, "No diagram is included") {
+		t.Error("figures were supplied and the document still claimed there were none")
+	}
+}
