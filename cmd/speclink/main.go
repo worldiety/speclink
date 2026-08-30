@@ -335,7 +335,7 @@ func requirements(args []string) error {
 	// It is the one command allowed to narrow the load, and it is allowed
 	// because it makes no claim about the module. Everything below is answered
 	// by the files it read.
-	model, layout, p, err := openNamed(absRoot, *cfgPath, *prof, fs.Args(), false)
+	model, layout, _, err := openNamed(absRoot, *cfgPath, *prof, fs.Args(), false)
 	if err != nil {
 		return err
 	}
@@ -371,11 +371,15 @@ func requirements(args []string) error {
 	}
 	check.Drift(tree, docs, sourceDocs, check.Coverage{BySatisfier: map[string][]ir.Target{}}, src, base, nil, findings)
 
+	// No capability lines here, and their absence is not an oversight. They
+	// exist to stop a summary about a system from reading as complete when a
+	// direction of it was never measured, and this command's summary is about
+	// the tree: so many requirements, so many segments accounted for. It puts
+	// no question to the code, so it has none to disclaim — and saying "this
+	// frontend infers no constructs" would be false anyway, because it does,
+	// and was simply not asked.
 	if err := reportRequirements(*format, absRoot, findings, tree, docs, sourceDocs, src, base); err != nil {
 		return err
-	}
-	if *format == "text" {
-		reportCapabilities(model, p)
 	}
 	if !findings.Empty() {
 		return errFindings

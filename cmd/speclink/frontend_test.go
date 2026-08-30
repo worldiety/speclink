@@ -32,9 +32,15 @@ func TestRequirementsRunsOnAJavaProject(t *testing.T) {
 // A direction a frontend cannot measure does not come out weak — it does not
 // come out. Staying silent would let "no answer" read as "clean", which is the
 // failure this tool spends most of its rules preventing.
+//
+// Asked of verify, which is the command that reports on a system. It used to be
+// asked of requirements, which reports on the tree: that command puts no
+// question to the code and therefore has none to disclaim, and saying "this
+// frontend infers no constructs" there would be false besides — it does, and
+// was simply not asked.
 func TestUnmeasuredDirectionsAreDisclosed(t *testing.T) {
 	t.Parallel()
-	out, _ := runSpeclink(t, "requirements", "../../testdata/java", "-profile", "java_springboot_ddd1")
+	out, _ := runVerify(t, "../../testdata/java", "-profile", "java_springboot_ddd1")
 
 	// The JVM frontend reads no persisted shapes, so schema evolution is a
 	// question it never puts.
@@ -47,7 +53,7 @@ func TestUnmeasuredDirectionsAreDisclosed(t *testing.T) {
 	}
 
 	// The Go frontend measures all of them, so it must say nothing.
-	out, _ = runSpeclink(t, "requirements", "../../testdata/example", "./requirements/...")
+	out, _ = runVerify(t, "../../testdata/example")
 	if strings.Contains(out, "not measured") {
 		t.Errorf("a frontend that measures everything claimed a gap:\n%s", out)
 	}

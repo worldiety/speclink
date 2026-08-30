@@ -220,3 +220,46 @@ func (c Capabilities) Missing() []string {
 	}
 	return out
 }
+
+// OnlyTree narrows a model to the questions a part of a project can answer.
+//
+// A model built from a subset of the packages knows what those packages say and
+// nothing about the module. That distinction was carried in a comment for a
+// long time, and the comment did not hold: three separate defects came from a
+// module-wide question being put to a partial view — an entry point reported as
+// missing because cmd/ had not been read, a use case reported as absent because
+// its package had not been, and a requirement tree reported as fully covered
+// having never been loaded.
+//
+// Making it a type is what stops the fourth. A partial model does not implement
+// the capabilities that answer for a whole module, so the question cannot be
+// asked rather than being asked and answered wrongly — and because every caller
+// already handles a missing capability by saying the direction was not
+// measured, the honest report comes out with no further work.
+//
+// The wrapper is deliberately not a struct embedding the model. Embedding would
+// promote whatever the underlying type happens to implement, which is exactly
+// the leak this exists to close: the whole point is that some methods are not
+// reachable.
+func OnlyTree(m Model) Model { return treeOnly{m} }
+
+type treeOnly struct{ m Model }
+
+func (t treeOnly) Requirements(out *diag.Set) []*ir.Requirement { return t.m.Requirements(out) }
+func (t treeOnly) Bindings(out *diag.Set) []ir.Binding          { return t.m.Bindings(out) }
+func (t treeOnly) Dialect() ir.Dialect                          { return t.m.Dialect() }
+func (t treeOnly) Name() string                                 { return t.m.Name() }
+
+// CheckSyntax is forwarded because it is the one check that is genuinely local.
+//
+// A requirement file is written in a closed subset of the language, and whether
+// this file obeys it is answered by this file. Nothing about the rest of the
+// module changes the verdict, which is what separates it from the architecture
+// rules that were also once reachable from here.
+func (t treeOnly) CheckSyntax(out *diag.Set) {
+	if c, ok := t.m.(SyntaxChecker); ok {
+		c.CheckSyntax(out)
+	}
+}
+
+var _ SyntaxChecker = treeOnly{}

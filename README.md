@@ -515,6 +515,12 @@ allowed to because it makes no claim about the module: it never asks whether an
 entry point exists, what satisfies a requirement or what the system exposes.
 Every other command does, which is why every other command loads all of it.
 
+That is enforced rather than promised. The model it gets back is narrowed to
+the capabilities a *part* of a project can answer for, so a module-wide check
+cannot be called from there at all — the method is not on the type. The
+restriction used to live in a comment, and the comment did not hold: three
+separate defects were a module-wide question put to a partial view.
+
 ---
 
 ## 3. Project layout

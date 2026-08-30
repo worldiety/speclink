@@ -76,7 +76,11 @@ func read(root, cfgPath, override string, patterns []string, withTests, named bo
 		if err != nil {
 			return nil, layout, p, err
 		}
-		return model, layout, p, nil
+		// Narrowed to the questions a part of a project can answer. The
+		// caller's discipline used to be the only thing keeping a module-wide
+		// check off a partial load, and that discipline is what failed three
+		// times over. Now the capability is simply not there.
+		return lang.OnlyTree(model), layout, p, nil
 	}
 
 	// A package pattern on the command line is a scope, and it is folded into
