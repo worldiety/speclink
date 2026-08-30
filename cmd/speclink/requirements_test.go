@@ -167,21 +167,26 @@ func TestRequirementsReportsTreeDefects(t *testing.T) {
 // compile could not be used when it is needed most.
 func TestRequirementsSurvivesBrokenImplementation(t *testing.T) {
 	t.Parallel()
-	broken := filepath.Join("..", "..", "testdata", "bad", "sales", "zz_broken_test_fixture.go")
+	// On a copy, like every other test that breaks something. Writing the
+	// broken file into the checked in fixture worked for as long as the suite
+	// ran serially and became a race the moment it did not: two other tests
+	// read testdata/bad, and for a few hundred milliseconds it does not
+	// compile. It never failed, which is the worst way for a race to behave.
+	dir := copyFixture(t, "../../testdata/bad")
+	broken := filepath.Join(dir, "sales", "zz_broken_test_fixture.go")
 	if err := os.WriteFile(broken, []byte("package sales\n\nfunc broken() int { return \"\" }\n"), 0o644); err != nil {
 		t.Fatalf("write broken file: %v", err)
 	}
-	t.Cleanup(func() { os.Remove(broken) })
 
 	// verify must refuse: without a compilable build there is nothing
 	// meaningful to say about annotations.
-	out, code := runSpeclink(t, "verify", "../../testdata/bad", "./...")
+	out, code := runSpeclink(t, "verify", dir, "./...")
 	if code == 0 || !strings.Contains(out, "the build is broken") {
 		t.Errorf("verify should refuse on a broken build, got exit %d:\n%s", code, out)
 	}
 
 	// requirements must not, as long as the tree itself compiles.
-	out, code = runSpeclink(t, "requirements", "../../testdata/bad", "./requirements/...")
+	out, code = runSpeclink(t, "requirements", dir, "./requirements/...")
 	if strings.Contains(out, "the build is broken") {
 		t.Errorf("requirements must not depend on the implementation compiling:\n%s", out)
 	}
