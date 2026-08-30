@@ -72,6 +72,16 @@ type ProcessReader interface {
 	Processes(out *diag.Set) []*ir.Process
 }
 
+// TopicReader is implemented by a frontend that can find the theme
+// declarations of the requirement tree.
+//
+// A capability rather than part of Model, because a theme is a convenience of
+// the document and a frontend that cannot read one is not thereby unable to
+// check anything. Nothing depends on it but the chapters.
+type TopicReader interface {
+	Topics() []*ir.Topic
+}
+
 // TopologyReader is implemented by a frontend that can say what surrounds the
 // code and where it reaches out.
 type TopologyReader interface {

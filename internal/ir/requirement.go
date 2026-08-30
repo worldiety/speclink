@@ -168,6 +168,19 @@ type Requirement struct {
 	Supersedes  []string
 	Sources     []Source
 	Attachments []Attachment
+	// Topics holds qualified Go identifiers until they are resolved, then
+	// topic IDs — the same two pass shape DerivedFrom uses, for the same
+	// reason: order of declaration must not matter.
+	Topics []string
+	Pos    Position
+}
+
+// Topic is a theme requirements are grouped under, and a chapter.
+type Topic struct {
+	ID          string
+	GoIdent     string
+	Title       string
+	Description string
 	Pos         Position
 }
 

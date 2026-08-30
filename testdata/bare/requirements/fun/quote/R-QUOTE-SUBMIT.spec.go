@@ -2,6 +2,7 @@
 package quote
 
 import (
+	"example.com/bare/requirements"
 	"example.com/bare/requirements/dec"
 	"github.com/worldiety/speclink/spec"
 )
@@ -16,6 +17,7 @@ var RQuoteSubmit = spec.Requirement{
 	Text:        "On submitting a quote a sequential, duplicate free quote number MUST be drawn.",
 	DerivedFrom: []spec.Requirement{dec.RDecNumbering},
 	Supersedes:  []spec.Requirement{RQuoteSubmitManual},
+	Topics:      []spec.Topic{requirements.Zugriff},
 	Sources: []spec.Source{
 		{Doc: "requirements/_sources/sales/quoteflow.md", Anchor: "8-abgabe"},
 		// The house standard is a source like any other: it is where an

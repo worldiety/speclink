@@ -780,6 +780,37 @@ per cent tells nobody that:
 BSI C5:2020: 74 of 106 applicable clauses answered, 15 not applicable
 ```
 
+### 4.6 Themes
+
+A standard imposes from outside; a **theme** orders from inside. Both head a
+chapter, and they are kept apart because folding them together makes one of the
+questions unanswerable: a theme in a list of obligations reads as an obligation
+nobody imposed, and an obligation in a list of themes loses the coverage that is
+the whole reason it is written down.
+
+```go
+var Zugriff = spec.Topic{
+	ID:          "T-ZUGRIFF",
+	Title:       "Zugriff und Berechtigung",
+	Description: "Wer eine fachliche Handlung auslösen darf und wo das geprüft wird.",
+}
+```
+
+```go
+Topics: []spec.Topic{requirements.Zugriff},
+```
+
+**Optional on purpose.** Forcing a theme on every requirement buys a complete
+table of contents at the price of a decision at every declaration, most of which
+would be made carelessly — and a carelessly assigned theme is worse than none,
+because it looks as though somebody thought about it. What carries none is
+gathered in a chapter of its own, **with the count**, because a requirement left
+out of every chapter reads as one that does not exist.
+
+A theme nothing is filed under is a finding: an empty chapter reads as a part of
+the system that was left out. A *misspelled* theme is not, because the reference
+is a Go identifier and the compiler has already refused it.
+
 ## 5. nago in one page
 
 nago is the application framework this project is built on. speclink knows the
@@ -1662,6 +1693,8 @@ is refused rather than accepted.
 | `K16-PROCESS-DUPLICATE` | `V6-081` | two processes claim one ID |
 | `K16-WORK-OUTSIDE-PROCESS` | `V6-082` | a use case belongs to no course of business |
 | `K16-EVENT-UNPLACED` | `V6-083` | no process raises or awaits an event |
+| `K19-TOPIC-DUPLICATE` | `V6-130` | two themes claim one ID |
+| `K19-TOPIC-UNUSED` | `V6-131` | nothing is filed under a declared theme |
 | `K17-CHANNEL-ENDPOINT-UNKNOWN` | `V6-090` | an end of a channel resolves to nothing |
 | `K17-CHANNEL-INCOMPLETE` | `V6-091` | a channel leaves out what crosses, who may, or what protects it |
 | `K17-CHANNEL-UNBOUND` | `V6-092` | a channel answers to no requirement |

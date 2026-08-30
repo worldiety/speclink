@@ -172,6 +172,10 @@ func verify(args []string) error {
 	tree := reqtree.Build(absRoot, reqs, findings)
 	tree.CheckLayout(model.Dialect(), findings)
 	docs, sourceDocs := loadSources(absRoot, layout, findings)
+	if tr, ok := model.(lang.TopicReader); ok {
+		tree.ResolveTopics(tr.Topics(), findings)
+		tree.CheckTopicsUsed(findings)
+	}
 	tree.CheckSources(docs, findings)
 
 	// V6: the specification rules, in every direction the frontend can measure.
@@ -324,6 +328,10 @@ func requirements(args []string) error {
 	tree := reqtree.Build(absRoot, reqs, findings)
 	tree.CheckLayout(model.Dialect(), findings)
 	docs, sourceDocs := loadSources(absRoot, layout, findings)
+	if tr, ok := model.(lang.TopicReader); ok {
+		tree.ResolveTopics(tr.Topics(), findings)
+		tree.CheckTopicsUsed(findings)
+	}
 	tree.CheckSources(docs, findings)
 	src := check.CoverSources(tree, docs, sourceDocs, nil, findings)
 	reqtree.ReportDocuments(docs, findings)

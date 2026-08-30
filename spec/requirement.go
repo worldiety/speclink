@@ -63,6 +63,10 @@ type Requirement struct {
 	Supersedes  []Requirement
 	Sources     []Source
 	Attachments []Attachment
+	// Topics are the themes this requirement belongs to, and the chapters it
+	// appears in. Optional: what carries none is gathered in a chapter of its
+	// own rather than dropped.
+	Topics []Topic
 }
 
 // Glossary declares a domain term. Like [Requirement] it is a declaration and

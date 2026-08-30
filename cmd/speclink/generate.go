@@ -107,6 +107,9 @@ func readModel(absRoot, cfgPath, prof string, patterns []string) (*specModel, er
 
 	m := &specModel{root: absRoot, skipped: skippedPackages(frontend)}
 	m.tree = reqtree.Build(absRoot, reqs, discard)
+	if tr, ok := frontend.(lang.TopicReader); ok {
+		m.tree.ResolveTopics(tr.Topics(), discard)
+	}
 	m.docs, m.segments = loadSources(absRoot, layout, discard)
 	m.src = check.CoverSources(m.tree, m.docs, m.segments, nil, discard)
 
@@ -140,6 +143,7 @@ func (m *specModel) writeMarkdown(w io.Writer) error {
 
 	m.writeSummary(b)
 	m.writeGaps(b)
+	m.writeTopics(b)
 	m.writeStandards(b)
 	m.writeBoundary(b)
 	m.writeProcesses(b)
@@ -567,4 +571,82 @@ func (m *specModel) writeApplicability(b *strings.Builder, doc source.Document) 
 		fmt.Fprintf(b, "| `%s` | %s | %s |\n", seg.ID, oneLine(seg.Title), oneLine(seg.Because))
 	}
 	b.WriteString("\n")
+}
+
+// writeTopics renders one chapter per theme, and one for what carries none.
+//
+// An index rather than a repetition: every requirement appears in full further
+// down, and printing it twice would make the document longer without making it
+// say more. What a chapter answers is which requirements belong together, and
+// an ID with its title answers that.
+//
+// The last chapter is the one that matters. A requirement filed under no theme
+// is not a defect — themes are optional on purpose — but leaving it out of the
+// document silently would be, because an absent requirement reads as one that
+// does not exist rather than as one nobody filed.
+func (m *specModel) writeTopics(b *strings.Builder) {
+	topics := m.tree.Topics()
+	if len(topics) == 0 {
+		return
+	}
+
+	filed := map[string]bool{}
+	b.WriteString("## Themes\n\n")
+
+	for _, top := range topics {
+		fmt.Fprintf(b, "### %s\n\n", or(top.Title, top.ID))
+		if top.Description != "" {
+			fmt.Fprintf(b, "%s\n\n", oneLine(top.Description))
+		}
+
+		b.WriteString("| ID | Requirement |\n|---|---|\n")
+		for _, id := range m.sortedRequirementIDs() {
+			r := m.tree.ByID[id]
+			if !hasTopic(r, top.ID) {
+				continue
+			}
+			filed[id] = true
+			fmt.Fprintf(b, "| `%s` | %s |\n", r.ID, oneLine(or(r.Title, r.Text)))
+		}
+		b.WriteString("\n")
+	}
+
+	var loose []string
+	for _, id := range m.sortedRequirementIDs() {
+		if !filed[id] {
+			loose = append(loose, id)
+		}
+	}
+	if len(loose) == 0 {
+		return
+	}
+
+	b.WriteString("### Under no theme\n\n")
+	fmt.Fprintf(b, "%s filed under no theme. Themes are optional, so this is not a\ndefect — but the count belongs here, because a requirement left out of every\nchapter reads as one that does not exist.\n\n",
+		plural(len(loose), "requirement is", "requirements are"))
+	b.WriteString("| ID | Requirement |\n|---|---|\n")
+	for _, id := range loose {
+		r := m.tree.ByID[id]
+		fmt.Fprintf(b, "| `%s` | %s |\n", r.ID, oneLine(or(r.Title, r.Text)))
+	}
+	b.WriteString("\n")
+}
+
+func hasTopic(r *ir.Requirement, id string) bool {
+	for _, t := range r.Topics {
+		if t == id {
+			return true
+		}
+	}
+	return false
+}
+
+// sortedRequirementIDs is the reading order of the tree.
+func (m *specModel) sortedRequirementIDs() []string {
+	out := make([]string, 0, len(m.tree.ByID))
+	for id := range m.tree.ByID {
+		out = append(out, id)
+	}
+	sort.Strings(out)
+	return out
 }

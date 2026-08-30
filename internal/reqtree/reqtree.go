@@ -42,6 +42,8 @@ type Tree struct {
 	// byGoIdent maps the qualified Go identifier to the requirement, used to
 	// resolve DerivedFrom and Supersedes in the second pass.
 	byGoIdent map[string]*ir.Requirement
+	// topics are the declared themes, keyed by topic ID.
+	topics map[string]*ir.Topic
 	// root is the repository root against which Source.Doc is resolved.
 	root string
 }

@@ -43,6 +43,7 @@ var (
 	_ lang.Model               = (*Model)(nil)
 	_ lang.ConstructInferrer   = (*Model)(nil)
 	_ lang.ProcessReader       = (*Model)(nil)
+	_ lang.TopicReader         = (*Model)(nil)
 	_ lang.TopologyReader      = (*Model)(nil)
 	_ lang.SchemaReader        = (*Model)(nil)
 	_ lang.VerificationReader  = (*Model)(nil)
@@ -60,6 +61,15 @@ func (m *Model) Requirements(out *diag.Set) []*ir.Requirement {
 		reqs = append(reqs, p.ReadRequirements(out)...)
 	}
 	return reqs
+}
+
+// Topics reads the themes declared in the requirement tree.
+func (m *Model) Topics() []*ir.Topic {
+	var topics []*ir.Topic
+	for _, p := range m.Measured {
+		topics = append(topics, p.ReadTopics()...)
+	}
+	return topics
 }
 
 func (m *Model) Bindings(out *diag.Set) []ir.Binding {

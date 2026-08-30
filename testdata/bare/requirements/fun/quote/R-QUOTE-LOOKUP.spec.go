@@ -1,6 +1,10 @@
 package quote
 
-import "github.com/worldiety/speclink/spec"
+import (
+	"example.com/bare/requirements"
+
+	"github.com/worldiety/speclink/spec"
+)
 
 // RQuoteLookup is the reason the read use case exists.
 var RQuoteLookup = spec.Requirement{
@@ -10,6 +14,7 @@ var RQuoteLookup = spec.Requirement{
 	Status:     spec.Normative,
 	Title:      "Look up a quote",
 	Text:       "Sales MUST be able to look up a single quote together with its number.",
+	Topics:     []spec.Topic{requirements.Zugriff},
 	Sources: []spec.Source{
 		{Doc: "requirements/_sources/sales/quoteflow.md", Anchor: "12-auskunft"},
 	},

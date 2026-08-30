@@ -1,6 +1,10 @@
 package dec
 
-import "github.com/worldiety/speclink/spec"
+import (
+	"example.com/bare/requirements"
+
+	"github.com/worldiety/speclink/spec"
+)
 
 // RDecInvoiceState fixes the persistence pattern of the invoicing context.
 var RDecInvoiceState = spec.Requirement{
@@ -11,6 +15,7 @@ var RDecInvoiceState = spec.Requirement{
 	Title:      "Invoices are kept as current state",
 	Text:       "An invoice MUST be stored as its current state, not as a log of changes.",
 	Rationale:  "The context answers questions about how an invoice stands now, and the shape is still being worked out; a history would fix a second model before the first one is settled.",
+	Topics:     []spec.Topic{requirements.Ablage},
 	Sources: []spec.Source{
 		{Doc: "requirements/_sources/sales/quoteflow.md", Anchor: "14-rechnung"},
 	},

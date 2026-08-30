@@ -44,6 +44,58 @@ func (p *Package) ReadRequirements(out *diag.Set) []*ir.Requirement {
 	return reqs
 }
 
+// ReadTopics extracts the theme declarations of the same files.
+//
+// They live beside the requirements rather than in a file kind of their own,
+// because a theme is part of the requirement tree and nothing else refers to
+// it. A second suffix would be a second convention to learn for four lines of
+// declaration.
+func (p *Package) ReadTopics() []*ir.Topic {
+	var topics []*ir.Topic
+	for _, f := range p.requirementFiles {
+		for _, decl := range f.Decls {
+			gd, ok := decl.(*ast.GenDecl)
+			if !ok || gd.Tok != token.VAR {
+				continue
+			}
+			for _, s := range gd.Specs {
+				vs, ok := s.(*ast.ValueSpec)
+				if !ok || len(vs.Names) != 1 || len(vs.Values) != 1 {
+					continue
+				}
+				lit, ok := vs.Values[0].(*ast.CompositeLit)
+				if !ok || !p.isSpecType(lit, "Topic") {
+					continue
+				}
+				t := &ir.Topic{
+					GoIdent: p.PkgPath() + "." + vs.Names[0].Name,
+					Pos:     p.pos(vs.Pos()),
+				}
+				for _, el := range lit.Elts {
+					kv, ok := el.(*ast.KeyValueExpr)
+					if !ok {
+						continue
+					}
+					key, ok := kv.Key.(*ast.Ident)
+					if !ok {
+						continue
+					}
+					switch key.Name {
+					case "ID":
+						t.ID, _ = p.stringArg(kv.Value)
+					case "Title":
+						t.Title, _ = p.stringArg(kv.Value)
+					case "Description":
+						t.Description, _ = p.stringArg(kv.Value)
+					}
+				}
+				topics = append(topics, t)
+			}
+		}
+	}
+	return topics
+}
+
 // isSpecType reports whether a composite literal constructs speclink/spec.<name>.
 func (p *Package) isSpecType(lit *ast.CompositeLit, name string) bool {
 	tv, ok := p.pkg.TypesInfo.Types[lit]
@@ -94,6 +146,8 @@ func (p *Package) readRequirement(vs *ast.ValueSpec, lit *ast.CompositeLit, out 
 			r.DerivedFrom = p.identList(kv.Value)
 		case "Supersedes":
 			r.Supersedes = p.identList(kv.Value)
+		case "Topics":
+			r.Topics = p.identList(kv.Value)
 		case "Sources":
 			r.Sources = p.readSources(kv.Value)
 		case "Attachments":
