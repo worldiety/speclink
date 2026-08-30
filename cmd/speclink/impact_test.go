@@ -13,6 +13,7 @@ import (
 
 // Somebody edits a paragraph. Which code does that reach?
 func TestImpactFromASourceSegment(t *testing.T) {
+	t.Parallel()
 	out, code := runSpeclink(t, "impact", "../../testdata/example",
 		"requirements/_sources/sales/quoteflow.md#8-abgabe")
 	if code != 0 {
@@ -34,6 +35,7 @@ func TestImpactFromASourceSegment(t *testing.T) {
 // convention: the annotation file beside a changed file names precisely the
 // constructs declared in it.
 func TestImpactFromAFileIsPerFileNotPerPackage(t *testing.T) {
+	t.Parallel()
 	out, code := runSpeclink(t, "impact", "../../testdata/example",
 		"-format", "json", "app/sales/uc_submit_quote.go")
 	if code != 0 {
@@ -54,6 +56,7 @@ func TestImpactFromAFileIsPerFileNotPerPackage(t *testing.T) {
 // the change nobody traces by hand. The derivation graph was built and cycle
 // checked from the beginning and never once walked.
 func TestImpactWalksTheDerivationGraph(t *testing.T) {
+	t.Parallel()
 	out, code := runSpeclink(t, "impact", "../../testdata/example", "-format", "json", "R-DEC-NUMBERING")
 	if code != 0 {
 		t.Fatalf("impact failed with %d:\n%s", code, out)
@@ -81,6 +84,7 @@ func TestImpactWalksTheDerivationGraph(t *testing.T) {
 // answer "nothing". It is not an error, and reporting it as one would make the
 // command unusable in a script that walks a diff.
 func TestImpactOfSomethingUnrelated(t *testing.T) {
+	t.Parallel()
 	// perm.go carries permission declarations, which are recognised but need no
 	// requirement of their own, so it has no annotation sidecar.
 	out, code := runSpeclink(t, "impact", "../../testdata/example", "app/sales/perm.go")

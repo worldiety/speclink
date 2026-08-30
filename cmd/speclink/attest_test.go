@@ -16,6 +16,7 @@ import (
 // run as read because somebody looked at one use case is the fastest way to
 // make the figure meaningless.
 func TestAttestWorksOnASingleDeclaration(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/bare")
 
 	if out, code := runSpeclink(t, "attest", dir, "-origin", "llm", "./..."); code != 0 {
@@ -46,6 +47,7 @@ func TestAttestWorksOnASingleDeclaration(t *testing.T) {
 // A review that outlived its subject is worse than no review: it is somebody's
 // name attached to text they never saw.
 func TestReviewDoesNotSurviveAChange(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/bare")
 	if out, code := runSpeclink(t, "attest", dir, "-reviewer", "TS", "SubmitQuote"); code != 0 {
 		t.Fatalf("attest failed with %d:\n%s", code, out)
@@ -68,6 +70,7 @@ func TestReviewDoesNotSurviveAChange(t *testing.T) {
 // Silence must not be able to pass for handwork. A declaration nothing has said
 // anything about is neither machine written nor read.
 func TestUnattestedIsNotHumanWritten(t *testing.T) {
+	t.Parallel()
 	out, code := runVerify(t, "../../testdata/bare")
 	if code != 0 {
 		t.Fatalf("the bare fixture did not verify:\n%s", out)
@@ -81,6 +84,7 @@ func TestUnattestedIsNotHumanWritten(t *testing.T) {
 // machine writes and a person samples, a build that stays red until everything
 // has been read is a build that is never green.
 func TestUnreadCodeIsAFigureAndNotAFinding(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/bare")
 	if out, code := runSpeclink(t, "attest", dir, "-origin", "llm", "./..."); code != 0 {
 		t.Fatalf("attest failed with %d:\n%s", code, out)
@@ -98,6 +102,7 @@ func TestUnreadCodeIsAFigureAndNotAFinding(t *testing.T) {
 // Recording an origin for text that has since changed would create exactly the
 // state K18 exists to catch, so it must not be possible to create it here.
 func TestAttestRecordsTheTextAsItStands(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/bare")
 	if out, code := runSpeclink(t, "attest", dir, "-reviewer", "TS", "SubmitQuote"); code != 0 {
 		t.Fatalf("attest failed with %d:\n%s", code, out)
@@ -116,6 +121,7 @@ func TestAttestRecordsTheTextAsItStands(t *testing.T) {
 }
 
 func TestAttestRefusesWhatItCannotRecord(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/bare")
 
 	if out, code := runSpeclink(t, "attest", dir); code == 0 {
@@ -135,6 +141,7 @@ func TestAttestRefusesWhatItCannotRecord(t *testing.T) {
 // lines that implement it, how much of them a run reached, and the test that
 // demonstrated it. Every link was knowable and the last two were never shown.
 func TestDocumentCarriesTheLineLevelChain(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/bare")
 
 	profile := filepath.Join(t.TempDir(), "cover.out")
@@ -161,6 +168,7 @@ func TestDocumentCarriesTheLineLevelChain(t *testing.T) {
 
 // A figure measured before a rewrite is not a figure about what is there now.
 func TestCoverageDoesNotSurviveARewrite(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/bare")
 
 	profile := filepath.Join(t.TempDir(), "cover.out")

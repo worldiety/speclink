@@ -13,6 +13,7 @@ import (
 // what those produce comes out of here.
 
 func TestGeneratedDocumentCarriesTheWholeChain(t *testing.T) {
+	t.Parallel()
 	out, code := runSpeclink(t, "generate", "../../testdata/example", "./...")
 	if code != 0 {
 		t.Fatalf("generate failed with %d:\n%s", code, out)
@@ -38,6 +39,7 @@ func TestGeneratedDocumentCarriesTheWholeChain(t *testing.T) {
 // oversight, and the sentence somebody was made to write disappears. The reason
 // is mandatory precisely so it can be read here.
 func TestGapsCarryTheReasonTheyWereAccepted(t *testing.T) {
+	t.Parallel()
 	out, _ := runSpeclink(t, "generate", "../../testdata/example", "./...")
 
 	gaps := between(out, "## Gaps", "## Requirements")
@@ -52,6 +54,7 @@ func TestGapsCarryTheReasonTheyWereAccepted(t *testing.T) {
 // A section of a document that became nothing has to be visible as such. It is
 // the defect no other view can show, and the table is where a person sees it.
 func TestSourceTableShowsWhatBecameNothing(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 	appendTo(t, dir, "requirements/_sources/sales/quoteflow.md",
 		"\n## 11. Rabatt\n\nAb 10 Stueck wird ein Rabatt gewaehrt.\n")
@@ -70,6 +73,7 @@ func TestSourceTableShowsWhatBecameNothing(t *testing.T) {
 // Refusing to render until everything is green would make it useless in the
 // only situation that needs it.
 func TestGenerateRendersAProjectWithFindings(t *testing.T) {
+	t.Parallel()
 	out, code := runSpeclink(t, "generate", "../../testdata/arch", "./...")
 	if code != 0 {
 		t.Fatalf("generate refused a project that does not verify: %d\n%s", code, out)
@@ -81,6 +85,7 @@ func TestGenerateRendersAProjectWithFindings(t *testing.T) {
 
 // The review is an act, and the document is where it shows.
 func TestReviewShowsInTheDocument(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 
 	before, _ := runSpeclink(t, "generate", dir, "./...")
@@ -102,6 +107,7 @@ func TestReviewShowsInTheDocument(t *testing.T) {
 }
 
 func TestGenerateWritesToAFile(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "spec.md")
 
@@ -154,6 +160,7 @@ func appendTo(t *testing.T, root, rel, body string) {
 // review and gets wrong, because the information lives at both ends of each
 // channel and in neither place as a list.
 func TestDocumentCarriesTheInterfaceCatalogue(t *testing.T) {
+	t.Parallel()
 	out, _ := runSpeclink(t, "generate", "../../testdata/bare", "./...")
 
 	for _, want := range []string{
@@ -175,6 +182,7 @@ func TestDocumentCarriesTheInterfaceCatalogue(t *testing.T) {
 // sequence. Where a process branches and comes back, any numbering is a lie
 // about which step follows which.
 func TestDocumentCarriesTheCoursesOfBusiness(t *testing.T) {
+	t.Parallel()
 	out, _ := runSpeclink(t, "generate", "../../testdata/example", "./...")
 
 	for _, want := range []string{
@@ -198,6 +206,7 @@ func TestDocumentCarriesTheCoursesOfBusiness(t *testing.T) {
 // A project that declares neither gets neither section, rather than an empty
 // heading to wonder about.
 func TestDocumentLeavesOutWhatIsNotDeclared(t *testing.T) {
+	t.Parallel()
 	out, _ := runSpeclink(t, "generate", "../../testdata/example", "./...")
 	if strings.Contains(out, "## The boundary") {
 		t.Errorf("a project without a topology was given a boundary section:\n%s", out)
@@ -214,6 +223,7 @@ func TestDocumentLeavesOutWhatIsNotDeclared(t *testing.T) {
 // a person has since read — is what a specification is usually least able to
 // answer. Every column of this table has been in the lock all along.
 func TestDocumentCarriesTheMaterialItCameFrom(t *testing.T) {
+	t.Parallel()
 	out, _ := runSpeclink(t, "generate", "../../testdata/bare", "./...")
 
 	if !strings.Contains(out, "## The material") {
@@ -232,6 +242,7 @@ func TestDocumentCarriesTheMaterialItCameFrom(t *testing.T) {
 // Recording a review moves the column, which is the whole point of reading it
 // back out of the lock.
 func TestReadingIsCountedOnceItIsRecorded(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/bare")
 	if out, code := runSpeclink(t, "freeze", dir, "-reviewer", "TS", "./..."); code != 0 {
 		t.Fatalf("freeze failed with %d:\n%s", code, out)

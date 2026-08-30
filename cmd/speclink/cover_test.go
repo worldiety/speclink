@@ -8,6 +8,7 @@ import (
 )
 
 func TestCoverProfileIsParsed(t *testing.T) {
+	t.Parallel()
 	blocks := readCoverProfile(strings.NewReader(`mode: set
 example.com/m/app/sales/uc_submit_quote.go:11.63,13.35 2 1
 example.com/m/app/sales/uc_submit_quote.go:14.2,14.20 1 0
@@ -30,6 +31,7 @@ example.com/m/app/sales/model.go:5.1,5.2 1 3
 // the end belongs to whatever follows, and splitting the difference would
 // produce a figure that is precise about something untrue.
 func TestCoverageIsAttributedByExtent(t *testing.T) {
+	t.Parallel()
 	c := ir.Construct{
 		Name:    "example.com/m/app/sales.SubmitQuote",
 		Package: "example.com/m/app/sales",
@@ -56,6 +58,7 @@ func TestCoverageIsAttributedByExtent(t *testing.T) {
 // A declaration with no recorded extent is not measured, and must not come out
 // as fully covered or fully uncovered.
 func TestUnmeasuredDeclarationYieldsNothing(t *testing.T) {
+	t.Parallel()
 	c := ir.Construct{Name: "x", Package: "p", Pos: ir.Position{File: "/a/b.go", Line: 1}}
 	if statements, covered := coverageOf(c, []coverBlock{{file: "p/b.go", start: 1, end: 2, statements: 3}}); statements != 0 || covered != 0 {
 		t.Errorf("got %d of %d, want nothing", covered, statements)

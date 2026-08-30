@@ -13,6 +13,7 @@ import (
 // produces no output at all. Comparing the recognisers against an independent
 // model is impossible from that; this command exists to make it possible.
 func TestInventoryLists(t *testing.T) {
+	t.Parallel()
 	out, code := runSpeclink(t, "inventory", "../../testdata/example", "./...")
 	if code != 0 {
 		t.Fatalf("expected a clean run, got exit %d:\n%s", code, out)
@@ -33,6 +34,7 @@ func TestInventoryLists(t *testing.T) {
 // TestInventoryJSON guards the machine readable form, which is what an
 // acceptance script consumes.
 func TestInventoryJSON(t *testing.T) {
+	t.Parallel()
 	out, code := runSpeclink(t, "inventory", "../../testdata/example", "-format", "json", "./...")
 	if code != 0 {
 		t.Fatalf("expected a clean run, got exit %d:\n%s", code, out)
@@ -84,6 +86,7 @@ func TestInventoryJSON(t *testing.T) {
 // TestInventoryKindFilter guards the flag the acceptance uses to compare one
 // kind at a time against the reference model.
 func TestInventoryKindFilter(t *testing.T) {
+	t.Parallel()
 	out, code := runSpeclink(t, "inventory", "../../testdata/example", "-kind", "event", "./...")
 	if code != 0 {
 		t.Fatalf("expected a clean run, got exit %d:\n%s", code, out)

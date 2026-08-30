@@ -18,6 +18,7 @@ import (
 // can be rewritten afterwards so that the evidence was for other words.
 
 func TestClaimWithoutARunIsReported(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name   string
 		break_ func(t *testing.T, dir string)
@@ -58,6 +59,7 @@ func TestClaimWithoutARunIsReported(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			dir := copyFixture(t, "../../testdata/example")
 			tc.break_(t, dir)
 			if tc.rerun {
@@ -85,6 +87,7 @@ func TestClaimWithoutARunIsReported(t *testing.T) {
 // early and never wrote the file, so evidence for a test that had just stopped
 // passing stayed in the baseline and the run went green.
 func TestEvidenceWithdrawsWhatNoLongerPasses(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 	rewrite(t, dir, "app/sales/sales_test.go",
 		"\tspec.Verified(t, quote.RQuoteChannel)",
@@ -108,6 +111,7 @@ func TestEvidenceWithdrawsWhatNoLongerPasses(t *testing.T) {
 // command. Recording nothing would look exactly like a test that was never
 // written, which is the failure this whole mechanism exists to make impossible.
 func TestEvidenceRefusesAnUnknownVersion(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 
 	stream := filepath.Join(dir, "tests.json")
@@ -128,6 +132,7 @@ func TestEvidenceRefusesAnUnknownVersion(t *testing.T) {
 // Piping something that is not a test stream is a mistake worth naming, not an
 // empty run that silently withdraws every demonstration in the project.
 func TestEvidenceRefusesAnEmptyStream(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 
 	stream := filepath.Join(dir, "tests.json")

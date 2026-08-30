@@ -13,6 +13,7 @@ import (
 // every rule that then runs over it — identity, the derivation graph, the
 // layout, the source layer — is the same code that runs over Go.
 func TestRequirementsRunsOnAJavaProject(t *testing.T) {
+	t.Parallel()
 	out, code := runSpeclink(t, "requirements", "../../testdata/java", "-profile", "java_springboot_ddd1")
 	if code != 0 {
 		t.Fatalf("a clean Java fixture did not verify:\n%s", out)
@@ -32,6 +33,7 @@ func TestRequirementsRunsOnAJavaProject(t *testing.T) {
 // come out. Staying silent would let "no answer" read as "clean", which is the
 // failure this tool spends most of its rules preventing.
 func TestUnmeasuredDirectionsAreDisclosed(t *testing.T) {
+	t.Parallel()
 	out, _ := runSpeclink(t, "requirements", "../../testdata/java", "-profile", "java_springboot_ddd1")
 
 	// The JVM frontend reads no persisted shapes, so schema evolution is a
@@ -55,6 +57,7 @@ func TestUnmeasuredDirectionsAreDisclosed(t *testing.T) {
 // faithfully as a Go one — a reviewer working in a browser cannot tell which
 // language produced the tree and should not have to.
 func TestExportWorksAcrossFrontends(t *testing.T) {
+	t.Parallel()
 	out, code := runSpeclink(t, "requirements", "../../testdata/java", "-profile", "java_springboot_ddd1", "-format", "json")
 	if code != 0 {
 		t.Fatalf("export failed:\n%s", out)
@@ -102,6 +105,7 @@ func TestExportWorksAcrossFrontends(t *testing.T) {
 // to follow, which teaches the reader that the tool is wrong rather than that
 // the project is.
 func TestMissingProfileIsRefusedWithAMenu(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 
 	out, code := runSpeclink(t, "requirements", dir)
@@ -125,6 +129,7 @@ func TestMissingProfileIsRefusedWithAMenu(t *testing.T) {
 // Ignoring it is the ordinary thing to do and the wrong one: the symptom is a
 // setting that quietly does nothing.
 func TestForeignConfigurationIsRefused(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 	writeConfig(t, dir, `{"profile":"go_nago_ddd1","classRoots":["build/classes"]}`)
 
@@ -146,6 +151,7 @@ func TestForeignConfigurationIsRefused(t *testing.T) {
 // Before profiles those conventions lived in a Default() that read as what
 // speclink believed about every project rather than as one style's layout.
 func TestProfileCarriesTheConventions(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 
 	// The fixture follows the style, so stating nothing must be clean.
@@ -165,6 +171,7 @@ func TestProfileCarriesTheConventions(t *testing.T) {
 // capability lines: a rule family that never ran must not read as one that came
 // out clean.
 func TestEmptyStyleIsDisclosed(t *testing.T) {
+	t.Parallel()
 	out, _ := runSpeclink(t, "verify", "../../testdata/java")
 	if !strings.Contains(out, "prescribes no rules yet") {
 		t.Errorf("an unwritten style passed quietly:\n%s", out)
@@ -186,6 +193,7 @@ func TestEmptyStyleIsDisclosed(t *testing.T) {
 // sees. Inference is a property of a framework that says what it is, not of the
 // framework it was first written for.
 func TestVerifyMeasuresForwardCoverageOnSpring(t *testing.T) {
+	t.Parallel()
 	out, code := runSpeclink(t, "verify", "../../testdata/java", "-profile", "java_springboot_ddd1")
 	if code != 0 {
 		t.Fatalf("the Java fixture did not verify:\n%s", out)
@@ -211,6 +219,7 @@ func TestVerifyMeasuresForwardCoverageOnSpring(t *testing.T) {
 // never looked for. The figures behave the same way — an unmeasured direction
 // is absent from the summary rather than shown as zero.
 func TestUnmeasuredDirectionsAreNotReportedAsFailing(t *testing.T) {
+	t.Parallel()
 	out, _ := runSpeclink(t, "verify", "../../testdata/java", "-profile", "java_springboot_ddd1")
 
 	// The JVM frontend reads no persisted shapes, so no promise can have been

@@ -14,6 +14,7 @@ import (
 // source says, every rule reading the baseline would be one command away from
 // being worthless.
 func TestFreezeRefusesToLaunderABreak(t *testing.T) {
+	t.Parallel()
 	out, code := runSpeclink(t, "freeze", "../../testdata/bad", "./...")
 	if code == 0 {
 		t.Fatalf("freeze must refuse while a promise is broken:\n%s", out)
@@ -48,6 +49,7 @@ func TestFreezeRefusesToLaunderABreak(t *testing.T) {
 // TestFreezeIsIdempotent guards the everyday case: once recorded, running it
 // again must be a no-op rather than a churning diff.
 func TestFreezeIsIdempotent(t *testing.T) {
+	t.Parallel()
 	out, code := runSpeclink(t, "freeze", "../../testdata/example", "./...")
 	if code != 0 {
 		t.Fatalf("freeze over a clean fixture must succeed, got exit %d:\n%s", code, out)
@@ -60,6 +62,7 @@ func TestFreezeIsIdempotent(t *testing.T) {
 // TestFreezeSkipsDrafts pins the point of the marker: an unpromised shape
 // stays out of the record until somebody decides otherwise.
 func TestFreezeSkipsDrafts(t *testing.T) {
+	t.Parallel()
 	lock, err := os.ReadFile(filepath.Join("..", "..", "testdata", "example", "speclink.lock"))
 	if err != nil {
 		t.Fatal(err)
@@ -82,6 +85,7 @@ func TestFreezeSkipsDrafts(t *testing.T) {
 // TestVerifyExampleWithBaseline guards that the conformant fixture stays clean
 // with the baseline in place, which is the state a project lives in.
 func TestVerifyExampleWithBaseline(t *testing.T) {
+	t.Parallel()
 	out, code := runVerify(t, "../../testdata/example")
 	if code != 0 {
 		t.Fatalf("expected a clean run, got exit %d:\n%s", code, out)

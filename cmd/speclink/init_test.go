@@ -20,6 +20,7 @@ import (
 // record what the tests demonstrated, record the shapes, then verify. The last
 // step must come out clean in every measured direction.
 func TestInitTemplateVerifiesClean(t *testing.T) {
+	t.Parallel()
 	dir := renderTemplate(t, "go_bare_ddd1", "full", "example.com/erp", "sales")
 
 	if out, err := exec.Command("gofmt", "-l", dir).CombinedOutput(); err != nil {
@@ -78,6 +79,7 @@ func TestInitTemplateVerifiesClean(t *testing.T) {
 // permission prefix. Rendering with a second one is what catches a placeholder
 // that was hard coded in one of them.
 func TestInitTemplateFollowsTheContextName(t *testing.T) {
+	t.Parallel()
 	dir := renderTemplate(t, "go_bare_ddd1", "full", "example.com/other", "billing")
 
 	build := exec.Command("go", "build", "./...")
@@ -109,6 +111,7 @@ func TestInitTemplateFollowsTheContextName(t *testing.T) {
 // because of .git would impose an order that has no reason to be that way
 // round.
 func TestInitRefusesANonEmptyDirectory(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("mine"), 0o644); err != nil {
 		t.Fatal(err)
@@ -129,6 +132,7 @@ func TestInitRefusesANonEmptyDirectory(t *testing.T) {
 }
 
 func TestInitToleratesHiddenEntries(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o755); err != nil {
 		t.Fatal(err)
@@ -143,6 +147,7 @@ func TestInitToleratesHiddenEntries(t *testing.T) {
 // Every refusal names the alternatives, because the caller is usually an agent
 // and a prompt is the one interface it cannot use.
 func TestInitRefusalsAreMenus(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		args []string
@@ -167,6 +172,7 @@ func TestInitRefusalsAreMenus(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			out, code := runInit(t, t.TempDir(), tc.args...)
 			if code == 0 {
 				t.Fatalf("expected a refusal:\n%s", out)
@@ -181,6 +187,7 @@ func TestInitRefusalsAreMenus(t *testing.T) {
 // -describe is the same catalogue for a caller that would rather plan than fail
 // first. It is machine readable because the caller is a machine.
 func TestInitDescribeIsMachineReadable(t *testing.T) {
+	t.Parallel()
 	out, code := runInit(t, t.TempDir(), "-describe", "-format", "json")
 	if code != 0 {
 		t.Fatalf("describe failed with %d:\n%s", code, out)
@@ -232,6 +239,7 @@ func TestInitDescribeIsMachineReadable(t *testing.T) {
 // able to start one are separate capabilities, and a profile that quietly
 // produced nothing would look like a broken template rather than an absent one.
 func TestEveryProfileIsDescribed(t *testing.T) {
+	t.Parallel()
 	out, code := runInit(t, t.TempDir(), "-describe")
 	if code != 0 {
 		t.Fatalf("describe failed with %d:\n%s", code, out)

@@ -14,6 +14,7 @@ import (
 // number a migration is steered by: everything else is an explicit, justified
 // exemption from coverage.
 func TestRequirementsCommand(t *testing.T) {
+	t.Parallel()
 	out, code := runSpeclink(t, "requirements", "../../testdata/example", "./requirements/...")
 	if code != 0 {
 		t.Fatalf("expected a clean tree, got exit %d:\n%s", code, out)
@@ -33,6 +34,7 @@ func TestRequirementsCommand(t *testing.T) {
 // the wording it was given for. Rewrite the text and the review is gone,
 // because what was read is not what is there.
 func TestReviewIsBoundToTheWording(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 
 	out, code := runSpeclink(t, "freeze", dir, "-reviewer", "Frau Meier", "./...")
@@ -59,6 +61,7 @@ func TestReviewIsBoundToTheWording(t *testing.T) {
 // because judging whether an extraction is faithful means reading it next to
 // its origin.
 func TestExportCarriesWhatAReviewerNeeds(t *testing.T) {
+	t.Parallel()
 	out, code := runSpeclink(t, "requirements", "../../testdata/example", "-format", "json", "./requirements/...")
 	if code != 0 {
 		t.Fatalf("export failed with %d:\n%s", code, out)
@@ -128,6 +131,7 @@ func TestExportCarriesWhatAReviewerNeeds(t *testing.T) {
 // too; in this mode they must stay silent, because they are questions about
 // code and this command asks about the tree.
 func TestRequirementsReportsTreeDefects(t *testing.T) {
+	t.Parallel()
 	out, code := runSpeclink(t, "requirements", "../../testdata/bad", "./requirements/...")
 	if code == 0 {
 		t.Fatalf("expected findings, got a clean run:\n%s", out)
@@ -162,6 +166,7 @@ func TestRequirementsReportsTreeDefects(t *testing.T) {
 // around it is regularly in pieces, and a mode that needs the whole module to
 // compile could not be used when it is needed most.
 func TestRequirementsSurvivesBrokenImplementation(t *testing.T) {
+	t.Parallel()
 	broken := filepath.Join("..", "..", "testdata", "bad", "sales", "zz_broken_test_fixture.go")
 	if err := os.WriteFile(broken, []byte("package sales\n\nfunc broken() int { return \"\" }\n"), 0o644); err != nil {
 		t.Fatalf("write broken file: %v", err)
@@ -188,6 +193,7 @@ func TestRequirementsSurvivesBrokenImplementation(t *testing.T) {
 // TestRequirementsJSON guards the machine readable contract of the mode, which
 // is what a migration script consumes.
 func TestRequirementsJSON(t *testing.T) {
+	t.Parallel()
 	out, _ := runSpeclink(t, "requirements", "../../testdata/bad", "-format", "json", "./requirements/...")
 	for _, want := range []string{`"version": 1`, `"code":`, `"what":`, `"why":`, `"how":`} {
 		if !strings.Contains(out, want) {

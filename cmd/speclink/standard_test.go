@@ -12,6 +12,7 @@ import (
 // A clause nothing answers is not covered and not excluded either. It is
 // unaccounted for, which is the state an audit exists to find.
 func TestUnansweredClauseIsReported(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/bare")
 	rewrite(t, dir, "requirements/fun/quote/R-QUOTE-SUBMIT.spec.go",
 		"\t\t{Doc: \"requirements/_sources/vorgaben.standard.json\", Anchor: \"IAM-01\"},\n", "")
@@ -32,6 +33,7 @@ func TestUnansweredClauseIsReported(t *testing.T) {
 // A standard is reissued and the wording of a clause moves. Everything derived
 // from it has to be read again, and this is the only mechanism that says which.
 func TestRewordedClauseNamesWhatDependsOnIt(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/bare")
 	rewrite(t, dir, "requirements/_sources/vorgaben.standard.json",
 		"Die Prüfung erfolgt vor jeder Wirkung.", "Die Prüfung erfolgt nach der Wirkung.")
@@ -51,6 +53,7 @@ func TestRewordedClauseNamesWhatDependsOnIt(t *testing.T) {
 // The two figures answer different questions and a project is routinely in a
 // different place on each. A mean of them tells nobody either.
 func TestStandardsAreCountedApartFromOwnMaterial(t *testing.T) {
+	t.Parallel()
 	out, code := runVerify(t, "../../testdata/bare")
 	if code != 0 {
 		t.Fatalf("the bare fixture did not verify:\n%s", out)
@@ -69,6 +72,7 @@ func TestStandardsAreCountedApartFromOwnMaterial(t *testing.T) {
 // The audit chapter and the statement of applicability, which ISO 27001
 // requires as a document in its own right and nobody maintains by hand for long.
 func TestDocumentCarriesTheStandardAndItsApplicability(t *testing.T) {
+	t.Parallel()
 	out, _ := runSpeclink(t, "generate", "../../testdata/bare", "./...")
 
 	for _, want := range []string{
@@ -86,6 +90,7 @@ func TestDocumentCarriesTheStandardAndItsApplicability(t *testing.T) {
 
 // A project with no standard gets no chapter, rather than an empty heading.
 func TestNoStandardNoChapter(t *testing.T) {
+	t.Parallel()
 	out, _ := runSpeclink(t, "generate", "../../testdata/example", "./...")
 	if strings.Contains(out, "## Standards") {
 		t.Errorf("a project without a standard was given a standards chapter:\n%s", out)

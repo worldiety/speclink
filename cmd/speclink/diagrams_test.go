@@ -13,6 +13,7 @@ import (
 // one included.
 
 func TestDiagramsWritesSourcesAndRunsNothing(t *testing.T) {
+	t.Parallel()
 	out := filepath.Join(t.TempDir(), "puml")
 	if got, code := runSpeclink(t, "diagrams", "../../testdata/bare", "-out", out, "./..."); code != 0 {
 		t.Fatalf("diagrams failed with %d:\n%s", code, got)
@@ -43,6 +44,7 @@ func TestDiagramsWritesSourcesAndRunsNothing(t *testing.T) {
 
 // One process, one diagram, named after it.
 func TestDiagramsWritesOnePerProcess(t *testing.T) {
+	t.Parallel()
 	out := filepath.Join(t.TempDir(), "puml")
 	if got, code := runSpeclink(t, "diagrams", "../../testdata/example", "-out", out, "./..."); code != 0 {
 		t.Fatalf("diagrams failed with %d:\n%s", code, got)
@@ -72,6 +74,7 @@ func TestDiagramsWritesOnePerProcess(t *testing.T) {
 // diagram in a review diff readable at all, and it has to hold whatever the
 // renderer does with them afterwards.
 func TestDiagramsAreReproducible(t *testing.T) {
+	t.Parallel()
 	first, second := filepath.Join(t.TempDir(), "a"), filepath.Join(t.TempDir(), "b")
 	for _, dir := range []string{first, second} {
 		if got, code := runSpeclink(t, "diagrams", "../../testdata/bare", "-out", dir, "./..."); code != 0 {
@@ -97,6 +100,7 @@ func TestDiagramsAreReproducible(t *testing.T) {
 // A project that has declared neither is told so, rather than being handed an
 // empty directory to wonder about.
 func TestDiagramsRefusesWhenThereIsNothingToDraw(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/bare")
 	if err := os.RemoveAll(filepath.Join(dir, "topology")); err != nil {
 		t.Fatal(err)

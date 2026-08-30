@@ -13,6 +13,7 @@ import (
 // statement; "this rule half applies here" is not one.
 
 func TestScopeSilencesWhatItDoesNotMeasure(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/arch")
 
 	before, code := runVerify(t, dir)
@@ -45,6 +46,7 @@ func TestScopeSilencesWhatItDoesNotMeasure(t *testing.T) {
 // longer there to resolve. A rule that changes its verdict on untouched code
 // because of a configuration setting is worse than a rule that is switched off.
 func TestScopeDoesNotBreakCrossPackageResolution(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 	writeConfig(t, dir, `{"profile":"go_nago_ddd1","scope":["app/sales","requirements/fun/quote","requirements/dec"]}`)
 
@@ -60,6 +62,7 @@ func TestScopeDoesNotBreakCrossPackageResolution(t *testing.T) {
 // Whether the module has an entry point is a question about the module. A scope
 // that happens to exclude cmd/ must not answer it with "no".
 func TestScopeDoesNotInventAMissingMain(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 	writeConfig(t, dir, `{"profile":"go_nago_ddd1","scope":["app/sales","requirements/fun/quote","requirements/dec"]}`)
 
@@ -73,6 +76,7 @@ func TestScopeDoesNotInventAMissingMain(t *testing.T) {
 // the thing it exists for: the requirements of packages still outside would be
 // satisfied by nothing in scope, which is true and would bury the run.
 func TestScopeReachesTheRequirementTree(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 	writeConfig(t, dir, `{"profile":"go_nago_ddd1","scope":["cmd/erp"]}`)
 
@@ -90,6 +94,7 @@ func TestScopeReachesTheRequirementTree(t *testing.T) {
 // construct read as unbound — the scope decides what is asked of a requirement,
 // not whether it exists.
 func TestScopeNeverHidesARequirementFromABinding(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 	writeConfig(t, dir, `{"profile":"go_nago_ddd1","scope":["app/sales"]}`)
 
@@ -104,6 +109,7 @@ func TestScopeNeverHidesARequirementFromABinding(t *testing.T) {
 
 // An empty scope is the normal case and must change nothing.
 func TestNoScopeMeasuresEverything(t *testing.T) {
+	t.Parallel()
 	plain, code := runVerify(t, "../../testdata/example")
 	if code != 0 {
 		t.Fatalf("the reference project is not clean:\n%s", plain)

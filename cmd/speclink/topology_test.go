@@ -11,6 +11,7 @@ import (
 // what the code does show, which is where the adapters are.
 
 func TestTopologyIsChecked(t *testing.T) {
+	t.Parallel()
 	const topo = "topology/boundary.topology.go"
 
 	for _, tc := range []struct {
@@ -67,6 +68,7 @@ func TestTopologyIsChecked(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			dir := copyFixture(t, "../../testdata/bare")
 			tc.break_(t, dir)
 
@@ -88,6 +90,7 @@ func TestTopologyIsChecked(t *testing.T) {
 // way every other waiver does, and stops being true the moment somebody puts a
 // database behind the port.
 func TestInMemoryAdapterIsWaivedRatherThanExempted(t *testing.T) {
+	t.Parallel()
 	out, code := runVerify(t, "../../testdata/bare")
 	if code != 0 {
 		t.Fatalf("the bare fixture did not verify:\n%s", out)
@@ -113,6 +116,7 @@ func TestInMemoryAdapterIsWaivedRatherThanExempted(t *testing.T) {
 // same ramp processes are on, for the same reason: before the first
 // declaration there is nothing to be incomplete against.
 func TestTopologyFigureAppearsOnlyWhereDeclared(t *testing.T) {
+	t.Parallel()
 	out, code := runVerify(t, "../../testdata/example")
 	if code != 0 {
 		t.Fatalf("the nago fixture did not verify:\n%s", out)
@@ -124,6 +128,7 @@ func TestTopologyFigureAppearsOnlyWhereDeclared(t *testing.T) {
 
 // A channel satisfies requirements through the same machinery a construct does.
 func TestChannelCountsTowardsCoverage(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/bare")
 	// The persistence ruling loses its construct bindings and keeps only the
 	// channel. It must still read as covered.

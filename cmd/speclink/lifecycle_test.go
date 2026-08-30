@@ -12,6 +12,7 @@ import (
 // nothing at all.
 
 func TestEventMustNameTheStateItLeadsTo(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 	rewrite(t, dir, "app/sales/model.annotation.go",
 		"\tspec.Transition[QuoteWithdrawn](\"withdrawn\"),\n", "")
@@ -35,6 +36,7 @@ func TestEventMustNameTheStateItLeadsTo(t *testing.T) {
 // any type at all, so a transition naming a deleted or renamed event keeps
 // compiling and keeps describing a lifecycle nobody can reach.
 func TestTransitionMustNameAnEvent(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 	rewrite(t, dir, "app/sales/model.annotation.go",
 		`spec.Transition[QuoteWithdrawn]("withdrawn")`,
@@ -57,6 +59,7 @@ func TestTransitionMustNameAnEvent(t *testing.T) {
 // lifecycles that were checked. Reporting the family as unmeasured here would
 // be noise on every run of every project that never wanted events.
 func TestLifecycleIsSilentWhereThereAreNoEvents(t *testing.T) {
+	t.Parallel()
 	out, code := runVerify(t, "../../testdata/bare")
 	if code != 0 {
 		t.Fatalf("the bare fixture did not verify:\n%s", out)

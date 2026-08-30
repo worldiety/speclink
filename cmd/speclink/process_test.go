@@ -15,6 +15,7 @@ import (
 // has tested.
 
 func TestProcessGraphIsChecked(t *testing.T) {
+	t.Parallel()
 	const proc = "processes/quote.process.go"
 
 	for _, tc := range []struct {
@@ -112,6 +113,7 @@ func TestProcessGraphIsChecked(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			dir := copyFixture(t, "../../testdata/example")
 			tc.break_(t, dir)
 
@@ -130,9 +132,11 @@ func TestProcessGraphIsChecked(t *testing.T) {
 // something leading out of it is not an end. Both are removals rather than
 // rewrites, so they get their own cases.
 func TestProcessNeedsABeginningAndAnEnd(t *testing.T) {
+	t.Parallel()
 	const proc = "processes/quote.process.go"
 
 	t.Run("no start", func(t *testing.T) {
+		t.Parallel()
 		dir := copyFixture(t, "../../testdata/example")
 		rewrite(t, dir, proc, `spec.Start("entwurf", "Angebot ist entworfen"),`, "")
 		rewrite(t, dir, proc, `{From: "entwurf", To: "abgeben"},`, "")
@@ -147,6 +151,7 @@ func TestProcessNeedsABeginningAndAnEnd(t *testing.T) {
 	})
 
 	t.Run("a start is led into", func(t *testing.T) {
+		t.Parallel()
 		dir := copyFixture(t, "../../testdata/example")
 		rewrite(t, dir, proc, `{From: "freigeben", To: "freigegeben"},`, `{From: "freigeben", To: "entwurf"},`)
 
@@ -166,6 +171,7 @@ func TestProcessNeedsABeginningAndAnEnd(t *testing.T) {
 // would make every activity read as naming something that does not exist, and
 // the run would fail a project for a setting it chose on purpose.
 func TestProcessRefsAreNotJudgedOutOfScope(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 	writeConfig(t, dir, `{"profile":"go_nago_ddd1","scope":["processes","requirements/fun/quote","requirements/dec"]}`)
 
@@ -178,6 +184,7 @@ func TestProcessRefsAreNotJudgedOutOfScope(t *testing.T) {
 // A project that has not adopted processes gets no figure about them. A share
 // of nothing is not a hundred percent, it is no claim at all.
 func TestProcessFigureAppearsOnlyWhereThereAreProcesses(t *testing.T) {
+	t.Parallel()
 	out, code := runVerify(t, "../../testdata/bare")
 	if code != 0 {
 		t.Fatalf("the bare fixture did not verify:\n%s", out)
@@ -199,6 +206,7 @@ func TestProcessFigureAppearsOnlyWhereThereAreProcesses(t *testing.T) {
 // drawing: a use case says what one action promises and never where that action
 // sits in the business.
 func TestWorkOutsideEveryProcessIsReported(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 	rewrite(t, dir, "processes/quote.process.go", "\t\tspec.Do[sales.ListQuotes](\"liste\"),\n", "")
 	rewrite(t, dir, "processes/quote.process.go", "\t\t{From: \"aufteilen\", To: \"liste\"},\n", "")
@@ -221,6 +229,7 @@ func TestWorkOutsideEveryProcessIsReported(t *testing.T) {
 // A fact that outlives the code is recorded at some moment in the business.
 // An event no course mentions is a moment nobody wrote down.
 func TestEventNoProcessMentionsIsReported(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 	rewrite(t, dir, "processes/quote.process.go", "\t\tspec.Emit[sales.QuoteWithdrawn](\"zurueckgezogen\"),\n", "")
 	rewrite(t, dir, "processes/quote.process.go",
@@ -242,6 +251,7 @@ func TestEventNoProcessMentionsIsReported(t *testing.T) {
 // documentation named a check that never was. This is the rule it was written
 // for: nothing here produces the fact, so no process can be expected to.
 func TestExternalExemptsAnEventFromEveryProcess(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 	rewrite(t, dir, "processes/quote.process.go", "\t\tspec.Emit[sales.QuoteWithdrawn](\"zurueckgezogen\"),\n", "")
 	rewrite(t, dir, "processes/quote.process.go",
@@ -261,6 +271,7 @@ func TestExternalExemptsAnEventFromEveryProcess(t *testing.T) {
 // machinery rather than a second path — because a second path is where two
 // answers to one question come from.
 func TestProcessCountsTowardsCoverage(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 	// The approval requirement loses its construct binding and keeps only the
 	// process. It must still read as covered.

@@ -13,6 +13,7 @@ import (
 // A chapter heading with nothing under it reads as a part of the system that
 // was left out, rather than as a heading somebody stopped using.
 func TestEmptyThemeIsReported(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/bare")
 	rewrite(t, dir, "requirements/dec/R-DEC-QUOTE-STATE.spec.go",
 		"\tTopics:     []spec.Topic{requirements.Ablage},\n", "")
@@ -36,6 +37,7 @@ func TestEmptyThemeIsReported(t *testing.T) {
 // ambiguous. Unlike a misspelled reference, the compiler has nothing to say
 // about this one.
 func TestDuplicateThemeIsReported(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/bare")
 	rewrite(t, dir, "requirements/topics.spec.go", `ID:          "T-ABLAGE",`, `ID:          "T-ZUGRIFF",`)
 
@@ -52,6 +54,7 @@ func TestDuplicateThemeIsReported(t *testing.T) {
 // rather than dropped, because a requirement left out of every chapter reads
 // as one that does not exist.
 func TestDocumentCarriesTheThemes(t *testing.T) {
+	t.Parallel()
 	out, _ := runSpeclink(t, "generate", "../../testdata/bare", "./...")
 
 	for _, want := range []string{
@@ -68,6 +71,7 @@ func TestDocumentCarriesTheThemes(t *testing.T) {
 }
 
 func TestNoThemesNoChapter(t *testing.T) {
+	t.Parallel()
 	out, _ := runSpeclink(t, "generate", "../../testdata/example", "./...")
 	if strings.Contains(out, "## Themes") {
 		t.Errorf("a project without themes was given a themes chapter:\n%s", out)

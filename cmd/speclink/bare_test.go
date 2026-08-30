@@ -13,6 +13,7 @@ import (
 // sourcing, layers in their own directories, and one term the other forbids.
 
 func TestBareProjectVerifies(t *testing.T) {
+	t.Parallel()
 	out, code := runVerify(t, "../../testdata/bare")
 	if code != 0 {
 		t.Fatalf("the bare fixture did not verify:\n%s", out)
@@ -36,6 +37,7 @@ func TestBareProjectVerifies(t *testing.T) {
 // repository port, and an adapter that keeps a shape of its own says so with
 // StoredAs, which moves the promise onto the shape that is actually written.
 func TestBareGuardsStoredShapes(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/bare")
 	rewrite(t, dir, "app/sales/adapter/fs/quotes.go",
 		"\tStatus string `json:\"status\"`",
@@ -61,6 +63,7 @@ func TestBareGuardsStoredShapes(t *testing.T) {
 // disk; without it the promise stays on the domain type, which is stricter and
 // therefore the safe default.
 func TestBareFreezesTheStoredShapeNotTheDomainModel(t *testing.T) {
+	t.Parallel()
 	lock, err := os.ReadFile(filepath.Join("..", "..", "testdata", "bare", "speclink.lock"))
 	if err != nil {
 		t.Fatal(err)
@@ -77,6 +80,7 @@ func TestBareFreezesTheStoredShapeNotTheDomainModel(t *testing.T) {
 // a profile must not be told off twice for one gap. The JVM frontend reads no
 // schemas at all, so its own line is the accurate one.
 func TestUnmeasuredSchemasAreReportedOnce(t *testing.T) {
+	t.Parallel()
 	out, _ := runVerify(t, "../../testdata/java")
 
 	count := strings.Count(out, "not measured: schema evolution")
@@ -91,6 +95,7 @@ func TestUnmeasuredSchemasAreReportedOnce(t *testing.T) {
 // Four roles rather than nago's eight, and the four that are missing are
 // missing because the architecture has nothing for those words to name.
 func TestBareRecognisesFewerRoles(t *testing.T) {
+	t.Parallel()
 	out, code := runSpeclink(t, "inventory", "../../testdata/bare", "./...")
 	if code != 0 {
 		t.Fatalf("inventory failed:\n%s", out)
@@ -112,6 +117,7 @@ func TestBareRecognisesFewerRoles(t *testing.T) {
 // A hand written interface states nothing, so it is marked — and the mark is
 // the one fact this architecture annotates rather than infers.
 func TestPersistenceMarkIsRecognised(t *testing.T) {
+	t.Parallel()
 	out, _ := runSpeclink(t, "inventory", "../../testdata/bare", "./...")
 	if !strings.Contains(out, "NumberRegistry") {
 		t.Errorf("a marked port was not recognised as storage:\n%s", out)
@@ -121,6 +127,7 @@ func TestPersistenceMarkIsRecognised(t *testing.T) {
 // The same term in the architecture that can infer it is a second source for a
 // fact that already has one.
 func TestPersistenceMarkIsRefusedWhereItIsInferable(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 	appendTo(t, dir, "app/sales/customer.annotation.go",
 		"\nvar _ = spec.For[CustomerEntity](spec.Persistence())\n")
@@ -142,6 +149,7 @@ func TestPersistenceMarkIsRefusedWhereItIsInferable(t *testing.T) {
 // The layering rules are what the second style adds, and each has to fail on
 // its own case rather than on a compile error.
 func TestLayeringRules(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, file, from, to, want string
 	}{
@@ -182,6 +190,7 @@ func TestLayeringRules(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			dir := copyFixture(t, "../../testdata/bare")
 			rewrite(t, dir, tc.file, tc.from, tc.to)
 
@@ -195,6 +204,7 @@ func TestLayeringRules(t *testing.T) {
 
 // Two styles over one language, and the seam between them is the profile.
 func TestTwoGoStylesCoexist(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ dir, profile string }{
 		{"../../testdata/example", "go_nago_ddd1"},
 		{"../../testdata/bare", "go_bare_ddd1"},
@@ -220,6 +230,7 @@ func TestTwoGoStylesCoexist(t *testing.T) {
 // promise, that a rule is knowingly suspended, and that a requirement was
 // replaced rather than deleted.
 func TestBareCarriesTheAwkwardCases(t *testing.T) {
+	t.Parallel()
 	out, code := runVerify(t, "../../testdata/bare")
 	if code != 0 {
 		t.Fatalf("the fixture did not verify:\n%s", out)
@@ -264,6 +275,7 @@ func TestBareCarriesTheAwkwardCases(t *testing.T) {
 // but never written down would pass today and fail the moment somebody froze
 // the shape for an unrelated reason.
 func TestBareRecordsOptionality(t *testing.T) {
+	t.Parallel()
 	lock, err := os.ReadFile(filepath.Join("..", "..", "testdata", "bare", "speclink.lock"))
 	if err != nil {
 		t.Fatal(err)

@@ -13,6 +13,7 @@ import (
 // verify clean. It is the regression guard for the whole pipeline — loading,
 // whitelist, reading, resolving and coverage.
 func TestVerifyExample(t *testing.T) {
+	t.Parallel()
 	out, code := runVerify(t, "../../testdata/example")
 	if code != 0 {
 		t.Fatalf("expected a clean run, got exit %d:\n%s", code, out)
@@ -28,6 +29,7 @@ func TestVerifyExample(t *testing.T) {
 // speclink cannot tell which constructs carry business meaning, and forward
 // coverage would measure nothing.
 func TestInference(t *testing.T) {
+	t.Parallel()
 	out, code := runVerify(t, "../../testdata/example")
 	if code != 0 {
 		t.Fatalf("expected a clean run, got exit %d:\n%s", code, out)
@@ -43,6 +45,7 @@ func TestInference(t *testing.T) {
 // the address of a constant is a compile error, so a constant such as a ReBAC
 // namespace was unbindable while the documentation claimed otherwise.
 func TestBindConstant(t *testing.T) {
+	t.Parallel()
 	out, code := runVerify(t, "../../testdata/example")
 	if code != 0 {
 		t.Fatalf("binding a constant must verify clean, got exit %d:\n%s", code, out)
@@ -53,6 +56,7 @@ func TestBindConstant(t *testing.T) {
 // they are consumed by an LLM, and their quality decides how fast the loop
 // converges. A silent change of wording is a change of interface.
 func TestVerifyBad(t *testing.T) {
+	t.Parallel()
 	out, code := runVerify(t, "../../testdata/bad")
 	if code == 0 {
 		t.Fatalf("expected findings, got a clean run:\n%s", out)
@@ -127,6 +131,7 @@ func TestVerifyBad(t *testing.T) {
 
 // TestVerifyJSON guards the machine readable contract consumed by the loop.
 func TestVerifyJSON(t *testing.T) {
+	t.Parallel()
 	out, _ := runVerify(t, "../../testdata/bad", "-format", "json")
 	for _, want := range []string{`"version": 1`, `"code":`, `"what":`, `"why":`, `"how":`, `"phase":`} {
 		if !strings.Contains(out, want) {
@@ -197,6 +202,7 @@ func asExitError(err error, target **exec.ExitError) bool {
 // TestArchitectureRules pins the five layout linters. The fixture violates each
 // rule exactly once, so a missing or duplicated finding shows up immediately.
 func TestArchitectureRules(t *testing.T) {
+	t.Parallel()
 	out, code := runVerify(t, "../../testdata/arch")
 	if code == 0 {
 		t.Fatalf("expected findings, got a clean run:\n%s", out)
@@ -252,6 +258,7 @@ func TestArchitectureRules(t *testing.T) {
 // verifies clean. Without it the linters could drift into rules nothing can
 // satisfy.
 func TestConformantProject(t *testing.T) {
+	t.Parallel()
 	out, code := runVerify(t, "../../testdata/example")
 	if code != 0 {
 		t.Fatalf("the conformant fixture must verify clean, got exit %d:\n%s", code, out)
@@ -272,6 +279,7 @@ func TestConformantProject(t *testing.T) {
 // lookup that resolved identifiers through the calling package's type
 // information would find nothing there and answer no, silently.
 func TestPermissionTextsThroughAHelper(t *testing.T) {
+	t.Parallel()
 	out, code := runVerify(t, "../../testdata/example")
 	if code != 0 {
 		t.Fatalf("a helper that goes through the catalogue must satisfy the rule, got exit %d:\n%s", code, out)
@@ -294,6 +302,7 @@ func TestPermissionTextsThroughAHelper(t *testing.T) {
 // The fixture builds one use case exactly that way. Both checks that read the
 // body have to see through it.
 func TestUseCaseBuiltFromCombinators(t *testing.T) {
+	t.Parallel()
 	out, code := runVerify(t, "../../testdata/example")
 	if code != 0 {
 		t.Fatalf("a use case assembled from combinators must pass, got exit %d:\n%s", code, out)
@@ -322,6 +331,7 @@ func TestUseCaseBuiltFromCombinators(t *testing.T) {
 // corrected typo in a name is not a business event. That mixture is why the
 // rule asks per aggregate and not per package.
 func TestPersistenceDecisionAcceptsEveryReasonableForm(t *testing.T) {
+	t.Parallel()
 	out, code := runVerify(t, "../../testdata/example")
 	if code != 0 {
 		t.Fatalf("a project that records its persistence choice must pass, got exit %d:\n%s", code, out)
@@ -348,6 +358,7 @@ func TestPersistenceDecisionAcceptsEveryReasonableForm(t *testing.T) {
 // question on its own — it is what makes the sequence of events on a quote
 // reconstructable, which is a requirement like any other.
 func TestFieldCoverageReachesEveryField(t *testing.T) {
+	t.Parallel()
 	out, code := runVerify(t, "../../testdata/example")
 	if code != 0 {
 		t.Fatalf("a project that binds its stored fields must pass, got exit %d:\n%s", code, out)
@@ -370,6 +381,7 @@ func TestFieldCoverageReachesEveryField(t *testing.T) {
 // The fixture holds both: a ui directory with the wrong name, which must be
 // reported, and a package below it with an ordinary name, which must not.
 func TestUINamingAppliesToTheUIDirectoryOnly(t *testing.T) {
+	t.Parallel()
 	out, _ := runVerify(t, "../../testdata/arch")
 	if n := strings.Count(out, "[SPEC-V6-040]"); n != 1 {
 		t.Errorf("expected SPEC-V6-040 exactly once, found %d times:\n%s", n, out)
@@ -445,6 +457,7 @@ func rewrite(t *testing.T, root, rel, old, new string) {
 // binary is a main package outside cmd/, which K8-MAIN-LOCATION would report in
 // every package that has a test.
 func TestTestFilesDoNotChangeTheVerdict(t *testing.T) {
+	t.Parallel()
 	before, code := runVerify(t, "../../testdata/example")
 	if code != 0 {
 		t.Fatalf("the reference project is not clean: %s", before)
@@ -484,6 +497,7 @@ func summary(out string) string {
 // must therefore leave coverage untouched and verification broken — if both
 // move together, one of them is not measuring anything of its own.
 func TestVerificationIsSeparateFromCoverage(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 
 	rewrite(t, dir, "app/sales/sales_test.go",
@@ -510,6 +524,7 @@ func TestVerificationIsSeparateFromCoverage(t *testing.T) {
 // unreported it would look like verification that simply never gets recorded,
 // which is the most expensive kind of silence in this tool.
 func TestVerifiedOutsideATestIsReported(t *testing.T) {
+	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
 
 	rewrite(t, dir, "app/sales/uc_submit_quote.go",

@@ -15,6 +15,7 @@ import (
 // This is the same reasoning that makes the diagnostic texts public API. A new
 // rule is not finished when it fires; it is finished when it can be answered.
 func TestReadmeListsEveryRule(t *testing.T) {
+	t.Parallel()
 	readme, err := os.ReadFile("../../README.md")
 	if err != nil {
 		t.Fatalf("read README: %v", err)
@@ -111,6 +112,7 @@ func TestReadmeListsEveryRule(t *testing.T) {
 // The check now guards the absence, so that reintroducing a second document
 // takes a deliberate decision rather than a commit.
 func TestReadmeIsSelfContained(t *testing.T) {
+	t.Parallel()
 	readme, err := os.ReadFile("../../README.md")
 	if err != nil {
 		t.Fatalf("read README: %v", err)
