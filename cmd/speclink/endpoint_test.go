@@ -198,15 +198,26 @@ func TestNarrowScopeAccusesNothing(t *testing.T) {
 // TestUnmeasuredRoutesAreCountedApart is why the silence above is not itself a
 // lie.
 //
-// Saying nothing about a route whose handler was never loaded would leave it
+// Saying nothing about a route the run could not account for would leave it
 // indistinguishable from one that was traced, and the count would then claim a
 // completeness the run never had. The figure carries the third number instead,
 // so the reader can see the width of the run in the same line as its result.
+//
+// Reaching it from here takes a scope that measures the presentation package
+// and excludes the context behind it, because a pattern no longer truncates the
+// load. The route is then found, the trace resolves, and the use case is not
+// among the constructs this run reports on.
 func TestUnmeasuredRoutesAreCountedApart(t *testing.T) {
 	t.Parallel()
-	out, _ := runSpeclink(t, "verify", "../../testdata/bare", "./app/sales/rest/...")
-	if !strings.Contains(out, "1 route (0 traced to a use case, 1 outside this scope)") {
-		t.Errorf("an unmeasured route must be counted apart from a traced one:\n%s", summary(out))
+	dir := copyFixture(t, "../../testdata/bare")
+	writeConfig(t, dir, `{"profile":"go_bare_ddd1","scope":["app/sales/rest"]}`)
+
+	out, _ := runVerify(t, dir)
+	if !strings.Contains(out, "1 route") {
+		t.Fatalf("the route of the measured package was not found:\n%s", summary(out))
+	}
+	if strings.Contains(out, "K20-ENDPOINT-NO-USE-CASE") {
+		t.Errorf("a use case outside the scope was reported as absent:\n%s", out)
 	}
 }
 

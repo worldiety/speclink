@@ -331,7 +331,11 @@ func requirements(args []string) error {
 	// the named packages have to compile, which is the point of narrowing the
 	// patterns: the tree can be checked while the implementation around it is
 	// still in pieces.
-	model, layout, p, err := open(absRoot, *cfgPath, *prof, fs.Args(), false)
+	//
+	// It is the one command allowed to narrow the load, and it is allowed
+	// because it makes no claim about the module. Everything below is answered
+	// by the files it read.
+	model, layout, p, err := openNamed(absRoot, *cfgPath, *prof, fs.Args(), false)
 	if err != nil {
 		return err
 	}
@@ -505,11 +509,29 @@ func report(format string, findings *diag.Set, can lang.Capabilities, cov check.
 		if can.Constructs {
 			parts = append(parts, fmt.Sprintf("%d constructs (%.0f%% bound)", len(str.Constructs), str.Ratio()*100))
 		}
-		requirements := fmt.Sprintf("%d normative requirements (%.0f%% covered", cov.Normative, cov.Ratio()*100)
-		if can.Verifications {
-			requirements += fmt.Sprintf(", %.0f%% verified, %.0f%% demonstrated", ver.Ratio()*100, ver.ShownRatio()*100)
+		// A share of nothing is not a hundred percent, here as much as for the
+		// processes below. A scope that reaches no requirement used to report
+		// "0 normative requirements (100% covered, 100% verified, 100%
+		// demonstrated)", which is arithmetically true of an empty set and
+		// reads as a clean bill of health for a tree the run never asked
+		// about. It says what it left out instead.
+		var requirements string
+		switch {
+		case cov.Normative == 0 && cov.Excluded > 0:
+			requirements = fmt.Sprintf("no normative requirement in this scope (%d outside it)", cov.Excluded)
+		case cov.Normative == 0:
+			requirements = "no normative requirements"
+		default:
+			requirements = fmt.Sprintf("%d normative requirements (%.0f%% covered", cov.Normative, cov.Ratio()*100)
+			if can.Verifications {
+				requirements += fmt.Sprintf(", %.0f%% verified, %.0f%% demonstrated", ver.Ratio()*100, ver.ShownRatio()*100)
+			}
+			if cov.Excluded > 0 {
+				requirements += fmt.Sprintf(", %d outside this scope", cov.Excluded)
+			}
+			requirements += ")"
 		}
-		parts = append(parts, requirements+")")
+		parts = append(parts, requirements)
 		// Only where processes exist. A share of nothing is not a hundred
 		// percent, it is no claim at all, and printing one would tell a
 		// project that never adopted them that its courses of business are

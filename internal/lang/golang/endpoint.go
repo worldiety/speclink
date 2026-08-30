@@ -33,8 +33,21 @@ func (m *Model) Endpoints() []ir.Endpoint {
 		byPkg[p.PkgPath()] = p
 	}
 
+	// Which types are use cases is a question about the module, not about the
+	// scope, so it is asked of every loaded package rather than of the measured
+	// ones. The same distinction the entry point rule already makes: where a
+	// construct lives belongs to the scope, whether a type is a use case at all
+	// does not.
+	//
+	// Reading it from Measured was wrong in a way that only showed under a
+	// narrowed run, and showed as the worst possible reading. A route in the
+	// presentation layer whose use case sits one package away reported as
+	// having nothing accountable behind it — a door in the wall that no drawing
+	// shows — when in truth the drawing was simply not in the operator's hand.
+	world := *m
+	world.Measured = m.All
 	useCases := map[string]bool{}
-	for _, c := range m.Constructs(discard()) {
+	for _, c := range world.Constructs(discard()) {
 		if c.Kind.PerformsWork() {
 			useCases[c.Name] = true
 		}

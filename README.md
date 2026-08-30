@@ -484,6 +484,32 @@ Three things follow, and all three are load-bearing:
   not measured` follows the summary. Without it a hundred percent would be true
   of what was looked at and silent about what was not.
 
+**A package pattern on the command line is a scope entry**, not an instruction
+to the loader. `speclink verify ./app/sales/...` is the same run as
+`"scope": ["app/sales/**"]`: the whole module is loaded, `app/sales` is what is
+measured. There is one narrowing mechanism, and it is the one above.
+
+| pattern | scope entry |
+|---|---|
+| `./...` or none | unrestricted |
+| `./app/sales/...` | `app/sales/**` |
+| `./app/sales` | `app/sales` |
+
+Import paths, globs and meta patterns like `all` are **refused, not
+approximated**. Several patterns compose, which is how a narrowed run reaches
+the tree — the requirements are named alongside the code, exactly as a
+configured scope has to name them:
+
+```
+speclink verify ./app/sales/... ./requirements/...
+```
+
+`speclink requirements` is the one command that still narrows the *load*, so
+the tree can be read while the implementation around it is in pieces. It is
+allowed to because it makes no claim about the module: it never asks whether an
+entry point exists, what satisfies a requirement or what the system exposes.
+Every other command does, which is why every other command loads all of it.
+
 ---
 
 ## 3. Project layout

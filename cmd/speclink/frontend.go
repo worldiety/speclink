@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/worldiety/speclink/internal/config"
 	"github.com/worldiety/speclink/internal/diag"
@@ -21,7 +22,32 @@ import (
 // way. It reports dozens of findings about a convention the project never meant
 // to follow, which teaches the reader that the tool is wrong rather than that
 // the project is. Better to ask once.
+//
+// Package patterns narrow what is *measured*, never what is loaded. See
+// scopeFromPatterns for why, and openNamed for the one command that means the
+// other thing and says so.
 func open(root, cfgPath, override string, patterns []string, withTests bool) (lang.Model, config.Config, *profile.Profile, error) {
+	return read(root, cfgPath, override, patterns, withTests, false)
+}
+
+// openNamed loads only the packages the patterns name.
+//
+// It exists for the command that reads the requirement tree and nothing else.
+// That command has to work while the implementation around the tree is still in
+// pieces, so it must not load the code — and it is allowed to, because it makes
+// no claim about the module: it never asks whether an entry point exists, what
+// satisfies a requirement, or what the system exposes. Every question it does
+// ask is answered entirely by the files it loaded.
+//
+// The distinction is the whole of it. A command that narrows the load and then
+// makes a statement about the whole project is the defect this pair exists to
+// keep from recurring; a command that narrows the load and only speaks about
+// what it read is correct.
+func openNamed(root, cfgPath, override string, patterns []string, withTests bool) (lang.Model, config.Config, *profile.Profile, error) {
+	return read(root, cfgPath, override, patterns, withTests, true)
+}
+
+func read(root, cfgPath, override string, patterns []string, withTests, named bool) (lang.Model, config.Config, *profile.Profile, error) {
 	declared, err := loadLayout(root, cfgPath)
 	if err != nil {
 		return nil, config.Config{}, nil, err
@@ -45,11 +71,93 @@ func open(root, cfgPath, override string, patterns []string, withTests bool) (la
 	// The profile carries the conventions, the project states its deviations.
 	layout := declared.Over(p.Layout)
 
-	model, err := p.Open(root, layout, patterns, withTests, &diag.Set{})
+	if named {
+		model, err := p.Open(root, layout, patterns, withTests, &diag.Set{})
+		if err != nil {
+			return nil, layout, p, err
+		}
+		return model, layout, p, nil
+	}
+
+	// A package pattern on the command line is a scope, and it is folded into
+	// the one the configuration declares rather than handed to the loader.
+	//
+	// This is the same mistake the configured scope already made once and was
+	// fixed for: filtering the loaded set makes every rule that resolves across
+	// packages answer differently depending on what the operator typed. Worse
+	// here, because the rules are written against an invariant the loader was
+	// quietly breaking — All is the whole module and answers questions about
+	// the module, Measured is the reported subset and answers questions about a
+	// package. A narrowed load left K8-MAIN-EXISTS reporting that a module has
+	// no entry point because cmd/ had not been read, and the whole requirement
+	// tree absent, so a run announced "100% covered" having loaded no
+	// requirement at all.
+	//
+	// Folding it here means there is one narrowing mechanism instead of two,
+	// and the surviving one is the tested one.
+	scoped, err := scopeFromPatterns(patterns)
+	if err != nil {
+		return nil, layout, p, err
+	}
+	layout.Scope = append(layout.Scope, scoped...)
+
+	model, err := p.Open(root, layout, []string{wholeModule}, withTests, &diag.Set{})
 	if err != nil {
 		return nil, layout, p, err
 	}
 	return model, layout, p, nil
+}
+
+// wholeModule is the only pattern the loader is ever given.
+const wholeModule = "./..."
+
+// scopeFromPatterns turns command line package patterns into scope entries.
+//
+// The translation is lexical and it is allowed to be, because both sides are
+// directories relative to the same root: a scope entry is a project relative
+// path, and a relative Go pattern is resolved against -root. The only
+// difference is spelling, "/..." against "/**".
+//
+// Anything else is refused rather than approximated. An import path or a meta
+// pattern could be mapped onto directories with a couple of assumptions, and a
+// pattern mapped slightly wrong does not fail — it quietly measures something
+// other than what was asked for, which is precisely the failure this whole
+// change exists to remove.
+func scopeFromPatterns(patterns []string) ([]string, error) {
+	var out []string
+	for _, raw := range patterns {
+		pattern := strings.TrimSpace(raw)
+		if pattern == "" {
+			continue
+		}
+		if pattern == wholeModule || pattern == "..." {
+			// The whole module is asked for, so nothing is narrowed. Returning
+			// early rather than collecting the rest: a run that names the whole
+			// module and one package below it has asked for the whole module,
+			// and quietly intersecting the two would answer a question nobody
+			// put.
+			return nil, nil
+		}
+		if !strings.HasPrefix(pattern, "./") && pattern != "." {
+			return nil, fmt.Errorf("package pattern %q is not a path relative to the root; "+
+				"speclink narrows by directory, so write it as ./dir/... rather than an import path or a meta pattern like all", raw)
+		}
+		if strings.ContainsAny(pattern, "*?[") {
+			return nil, fmt.Errorf("package pattern %q uses a glob; "+
+				"write ./dir/... to mean a directory and everything below it", raw)
+		}
+
+		rel := strings.TrimPrefix(pattern, "./")
+		switch {
+		case rel == "." || rel == "":
+			out = append(out, ".")
+		case strings.HasSuffix(rel, "/..."):
+			out = append(out, strings.TrimSuffix(rel, "/...")+"/**")
+		default:
+			out = append(out, strings.TrimSuffix(rel, "/"))
+		}
+	}
+	return out, nil
 }
 
 // absRootOf resolves the repository root.

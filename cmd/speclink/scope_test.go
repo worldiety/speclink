@@ -75,6 +75,11 @@ func TestScopeDoesNotInventAMissingMain(t *testing.T) {
 // A restricted scope has to reach the requirement tree, or it is unusable for
 // the thing it exists for: the requirements of packages still outside would be
 // satisfied by nothing in scope, which is true and would bury the run.
+//
+// What it says about them is the other half. "0 normative requirements (100%
+// covered)" is arithmetically true of an empty set and reads as a clean bill of
+// health for a tree the run never asked about, so the figure names what it left
+// out instead.
 func TestScopeReachesTheRequirementTree(t *testing.T) {
 	t.Parallel()
 	dir := copyFixture(t, "../../testdata/example")
@@ -84,8 +89,11 @@ func TestScopeReachesTheRequirementTree(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("a scope holding no domain package must have nothing to report:\n%s", out)
 	}
-	if !strings.Contains(out, "0 normative requirements") {
+	if !strings.Contains(out, "no normative requirement in this scope") {
 		t.Errorf("requirements outside the scope were still measured:\n%s", summary(out))
+	}
+	if strings.Contains(out, "100% covered") {
+		t.Errorf("a share of nothing was reported as a hundred percent:\n%s", summary(out))
 	}
 }
 

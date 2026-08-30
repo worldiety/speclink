@@ -38,6 +38,13 @@ type Coverage struct {
 	Uncovered []string
 	// Normative is the number of requirements that had to be covered.
 	Normative int
+	// Excluded is how many normative requirements the scope did not ask about.
+	//
+	// It is carried so the summary can say "0 of 6" rather than "0". A run that
+	// measured no requirement and printed a hundred percent would be telling
+	// the truth about nothing, which is the one way this tool could mislead
+	// without ever stating a falsehood.
+	Excluded int
 }
 
 // Ratio returns the covered share of normative requirements in [0,1].
@@ -97,6 +104,7 @@ func CoverRequirements(tree *reqtree.Tree, bindings []ir.Binding, measured map[s
 			continue
 		}
 		if measured != nil && !measured[id] {
+			cov.Excluded++
 			continue
 		}
 		cov.Normative++
