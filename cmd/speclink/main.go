@@ -62,6 +62,8 @@ func run(args []string) error {
 		return generate(args[1:])
 	case "diagrams":
 		return diagrams(args[1:])
+	case "attest":
+		return attest(args[1:])
 	case "help", "-h", "--help":
 		usage()
 		return nil
@@ -84,6 +86,7 @@ usage:
   speclink evidence     [flags] [packages]
   speclink generate     [flags] [packages]
   speclink diagrams     [flags] [packages]
+  speclink attest       [flags] [packages|constructs]
 
 commands:
   init          write a starting point for a new project, from a profile's
@@ -99,6 +102,7 @@ commands:
   generate      derive the specification document from the source
   diagrams      write the PlantUML sources of the context, the building blocks
                 and every process; renders nothing itself
+  attest        record who wrote a declaration and who has read it
 
 run "speclink <command> -h" for the flags of a command.
 `)
@@ -257,6 +261,13 @@ func verify(args []string) error {
 		proc = check.Processes(tree, processes, constructs, bindings, scope, model.Dialect(), findings)
 	}
 
+	// K18: who wrote each declaration and who has read it. A record of what
+	// happened, so it reads the lock rather than the code.
+	var prov check.ProvenanceReport
+	if _, ok := model.(lang.ConstructInferrer); ok {
+		prov = check.Provenance(constructs, base, findings)
+	}
+
 	// K15: which states an aggregate can be in. It rides on the same set of
 	// constructs as forward coverage and is therefore asked under the same
 	// condition — a frontend that infers nothing has no events to hold to it.
@@ -264,7 +275,7 @@ func verify(args []string) error {
 		check.Lifecycle(constructs, bindings, model.Dialect(), findings)
 	}
 
-	if err := report(*format, findings, lang.Of(model), cov, str, src, ver, proc, tp, len(bindings), skippedPackages(model)); err != nil {
+	if err := report(*format, findings, lang.Of(model), cov, str, src, ver, proc, tp, prov, len(bindings), skippedPackages(model)); err != nil {
 		return err
 	}
 	if *format == "text" {
@@ -469,7 +480,7 @@ func loadLayout(absRoot, explicit string) (config.Config, error) {
 // question above both: whether every part of what was actually asked for
 // became a requirement at all. Without the third the other two measure a tree
 // against itself.
-func report(format string, findings *diag.Set, can lang.Capabilities, cov check.Coverage, str check.Structure, src check.SourceCoverage, ver check.Verification, proc check.ProcessReport, tp check.TopologyReport, bindings, skipped int) error {
+func report(format string, findings *diag.Set, can lang.Capabilities, cov check.Coverage, str check.Structure, src check.SourceCoverage, ver check.Verification, proc check.ProcessReport, tp check.TopologyReport, prov check.ProvenanceReport, bindings, skipped int) error {
 	switch format {
 	case "json":
 		return findings.WriteJSON(os.Stdout)
@@ -496,6 +507,10 @@ func report(format string, findings *diag.Set, can lang.Capabilities, cov check.
 		if proc.Declared > 0 {
 			parts = append(parts, fmt.Sprintf("%s (%d sound, %d of %d steps placed)",
 				plural(proc.Declared, "process", "processes"), proc.Sound, proc.Placed, proc.Work))
+		}
+		if prov.Total > 0 {
+			parts = append(parts, fmt.Sprintf("%s (%d machine written, %d read by a person)",
+				plural(prov.Total, "declaration", "declarations"), prov.Machine, prov.Reviewed))
 		}
 		if tp.Declared {
 			parts = append(parts, fmt.Sprintf("%s (%d of %d boundaries described)",

@@ -87,6 +87,8 @@ type Package struct {
 	processFiles []*ast.File
 	// topologyFiles are the *.topology.go files of this package.
 	topologyFiles []*ast.File
+	// files caches the source bytes, for the declaration fingerprints.
+	files map[string][]byte
 	// sourceNames holds the base names of ordinary Go files, used to detect
 	// orphaned annotation files.
 	sourceNames map[string]bool

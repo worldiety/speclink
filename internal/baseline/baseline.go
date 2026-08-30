@@ -100,6 +100,35 @@ type File struct {
 	// Verifications are the tests that demonstrated a requirement, keyed by
 	// requirement ID.
 	Verifications map[string][]Verification `json:"verifications,omitempty"`
+	// Constructs records who wrote each declaration and who has read it,
+	// keyed by the qualified construct name.
+	Constructs map[string]Construct `json:"constructs,omitempty"`
+}
+
+// Construct records the provenance of one declaration.
+//
+// # Why this is recorded rather than declared
+//
+// The code could say who wrote it. It would be worthless: the same machine that
+// writes the code writes the annotation, and a claim of human authorship made
+// by the author is not evidence of anything. This is the reason spec.Requirement
+// has no Reviewed field either.
+//
+// So an outside actor records it, exactly as freeze -reviewer already does. The
+// harness that ran the generator knows it ran; the person who read a use case
+// knows they read it. speclink writes down what it is told and cannot check any
+// of it — which is worth saying plainly rather than implying otherwise. What
+// keeps the record honest is who is allowed to make the call, and that is not
+// speclink's to decide.
+type Construct struct {
+	// Fingerprint is the declaration as it stood when this was recorded.
+	// Everything below is a statement about that text and no other.
+	Fingerprint string `json:"fingerprint"`
+	// Origin is llm or human. Absent means unattested, which is deliberately
+	// not the same as human: silence must never read as handwork.
+	Origin string `json:"origin,omitempty"`
+	// ReviewedBy names whoever read it. Empty until somebody has.
+	ReviewedBy string `json:"reviewedBy,omitempty"`
 }
 
 // Verification is one test that demonstrated a requirement and passed.
@@ -240,6 +269,9 @@ func (f *File) fill() {
 	if f.Verifications == nil {
 		f.Verifications = map[string][]Verification{}
 	}
+	if f.Constructs == nil {
+		f.Constructs = map[string]Construct{}
+	}
 }
 
 // Save writes the baseline to the project root.
@@ -290,6 +322,9 @@ func (f *File) VerifiedBy(id, text string) []string {
 	sort.Strings(out)
 	return out
 }
+
+// ConstructNames returns the recorded declarations, ordered.
+func (f *File) ConstructNames() []string { return sortedKeys(f.Constructs) }
 
 // RequirementOf returns the ID already recorded for a source segment.
 //

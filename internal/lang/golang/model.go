@@ -105,13 +105,53 @@ func (m *Model) Constructs(out *diag.Set) []ir.Construct {
 		for _, p := range m.Measured {
 			constructs = append(constructs, p.InferBare(m.Framework, marked)...)
 		}
+		m.foldConstructors(constructs)
 		return constructs
 	}
 
 	for _, p := range m.Measured {
 		constructs = append(constructs, p.Infer()...)
 	}
+	m.foldConstructors(constructs)
 	return constructs
+}
+
+// foldConstructors folds a use case's constructor into its fingerprint.
+//
+// Without this the record of who read what would be close to worthless for the
+// one role it matters most for. A use case is declared as a named func type —
+// a signature and nothing else — while everything it actually does lives in the
+// constructor beside it. A reviewer reads the logic; a fingerprint over the
+// signature alone would survive any rewrite of it and go on claiming the review
+// still holds.
+//
+// The constructor is found by the style's own spelling, which is the same
+// source the architecture rules use to demand one. Where a style names none, or
+// a construct has none, the fingerprint stays what it was.
+func (m *Model) foldConstructors(constructs []ir.Construct) {
+	if m.Style.Constructor == nil {
+		return
+	}
+	byPkg := map[string]*Package{}
+	for _, p := range m.Measured {
+		byPkg[p.PkgPath()] = p
+	}
+
+	for i := range constructs {
+		c := &constructs[i]
+		if c.Fingerprint == "" || !c.Kind.PerformsWork() {
+			continue
+		}
+		p, ok := byPkg[c.Package]
+		if !ok {
+			continue
+		}
+		start, end, found := p.FuncExtent(m.Style.Constructor(last(c.Name)))
+		if !found {
+			continue
+		}
+		p.FoldInto(c, start, end)
+	}
 }
 
 // Schemas reads the shape of every persisted type.

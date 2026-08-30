@@ -63,6 +63,50 @@ speclink impact       [flags] <requirement|doc.md#anchor|path>...
   -out <dir>          diagrams only: where to write the .puml sources
 ```
 
+### Who wrote it, and who has read it
+
+```
+speclink attest -origin llm ./app/sales/...
+speclink attest -reviewer "TS" example.com/erp/app/sales.SubmitQuote
+speclink attest -reviewer "TS" SubmitQuote
+```
+
+**Recorded from outside, never declared in the code.** The code could say who
+wrote it and it would be worthless: the same machine that writes the code writes
+the annotation, and a claim of human authorship made by the author is not
+evidence of anything. This is the reason `spec.Requirement` has no `Reviewed`
+field either.
+
+**Targets, because a reviewer is specialised.** Recording a whole run as read
+because somebody looked at one use case is the fastest way to make the figure
+meaningless.
+
+**A use case's fingerprint covers its constructor**, not just the named func
+type. The signature is a line; the logic a reviewer actually reads lives in the
+`New…` beside it, and a fingerprint over the signature alone would survive any
+rewrite of the body and go on claiming the review still holds.
+
+**There is no finding for unread code.** In a project whose code a machine
+writes and a person samples, a build that stays red until everything has been
+read is never green, and a signal that is always on is not a signal. It is a
+figure:
+
+```
+8 declarations (8 machine written, 2 read by a person)
+```
+
+**Unattested is not human.** A declaration nothing has said anything about
+counts as neither, because silence must not be able to pass for handwork.
+
+**There is one finding**, and it is the one that matters: `K18-REVIEW-STALE`,
+a review that outlived its subject. That is somebody's name attached to text
+they never saw, and nothing else in the record can tell the difference.
+
+**What this cannot do.** speclink writes down what it is told and checks none of
+it. If whatever drives the generator may also call `-reviewer`, the record is
+worth nothing. What keeps it honest is who is permitted to make which call, and
+that is not speclink's to decide.
+
 ### Drawing the model
 
 `speclink diagrams` writes PlantUML sources and **runs nothing**. PlantUML is a
@@ -1693,6 +1737,7 @@ is refused rather than accepted.
 | `K16-PROCESS-DUPLICATE` | `V6-081` | two processes claim one ID |
 | `K16-WORK-OUTSIDE-PROCESS` | `V6-082` | a use case belongs to no course of business |
 | `K16-EVENT-UNPLACED` | `V6-083` | no process raises or awaits an event |
+| `K18-REVIEW-STALE` | `V6-140` | a declaration was read and then changed |
 | `K19-TOPIC-DUPLICATE` | `V6-130` | two themes claim one ID |
 | `K19-TOPIC-UNUSED` | `V6-131` | nothing is filed under a declared theme |
 | `K17-CHANNEL-ENDPOINT-UNKNOWN` | `V6-090` | an end of a channel resolves to nothing |

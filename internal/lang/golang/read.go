@@ -1,10 +1,13 @@
 package golang
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"go/ast"
 	"go/constant"
 	"go/token"
 	"go/types"
+	"os"
 
 	"github.com/worldiety/speclink/internal/diag"
 	"github.com/worldiety/speclink/internal/ir"
@@ -414,4 +417,79 @@ func qualified(obj types.Object) string {
 		return obj.Pkg().Path() + "." + obj.Name()
 	}
 	return obj.Name()
+}
+
+// extent records where a declaration begins and ends, and what it says.
+//
+// The text is hashed rather than kept: nothing downstream wants to print a
+// declaration, and everything wants to know whether it is the one somebody
+// looked at.
+func (p *Package) extent(c *ir.Construct, start, end token.Pos) {
+	fset := p.pkg.Fset
+	from, to := fset.Position(start), fset.Position(end)
+	if from.Filename != to.Filename {
+		return
+	}
+	c.EndLine = to.Line
+
+	body, err := p.fileBytes(from.Filename)
+	if err != nil || to.Offset > len(body) || from.Offset > to.Offset {
+		return
+	}
+	sum := sha256.Sum256(body[from.Offset:to.Offset])
+	c.Fingerprint = hex.EncodeToString(sum[:])
+}
+
+// fileBytes reads a source file once per run.
+//
+// A package holds many declarations and each would otherwise re-read the whole
+// file. The cache is per package, which is where the loop is.
+func (p *Package) fileBytes(name string) ([]byte, error) {
+	if p.files == nil {
+		p.files = map[string][]byte{}
+	}
+	if body, ok := p.files[name]; ok {
+		return body, nil
+	}
+	body, err := os.ReadFile(name)
+	if err != nil {
+		return nil, err
+	}
+	p.files[name] = body
+	return body, nil
+}
+
+// FuncExtent returns the source range of a top level function of this package.
+func (p *Package) FuncExtent(name string) (start, end token.Pos, ok bool) {
+	for _, f := range p.pkg.Syntax {
+		if p.isGeneratedByUs(f) {
+			continue
+		}
+		for _, decl := range f.Decls {
+			fd, isFunc := decl.(*ast.FuncDecl)
+			if !isFunc || fd.Recv != nil || fd.Name.Name != name {
+				continue
+			}
+			return fd.Pos(), fd.End(), true
+		}
+	}
+	return 0, 0, false
+}
+
+// FoldInto adds a second range to an existing fingerprint.
+//
+// Order matters and is the caller's: the same two ranges hashed the other way
+// round would be a different fingerprint for the same code.
+func (p *Package) FoldInto(c *ir.Construct, start, end token.Pos) {
+	fset := p.pkg.Fset
+	from, to := fset.Position(start), fset.Position(end)
+	body, err := p.fileBytes(from.Filename)
+	if err != nil || to.Offset > len(body) || from.Offset > to.Offset {
+		return
+	}
+	sum := sha256.Sum256(append([]byte(c.Fingerprint+"\x00"), body[from.Offset:to.Offset]...))
+	c.Fingerprint = hex.EncodeToString(sum[:])
+	if to.Line > c.EndLine {
+		c.EndLine = to.Line
+	}
 }

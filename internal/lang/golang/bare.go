@@ -89,6 +89,7 @@ func (p *Package) inferBareType(ts *ast.TypeSpec, f Framework, marked map[string
 		Package: p.PkgPath(),
 		Pos:     p.pos(ts.Name.Pos()),
 	}
+	p.extent(&base, ts.Pos(), ts.End())
 
 	if marked[base.Name] {
 		if types.IsInterface(named.Underlying()) {

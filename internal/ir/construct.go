@@ -150,6 +150,21 @@ type Construct struct {
 	// beside it carries the meaning. Neither answers for the other.
 	Fields []SchemaField
 	Pos    Position
+	// EndLine is the last line of the declaration.
+	//
+	// With Pos it gives the extent of what implements a requirement, which is
+	// what a line level trace and a coverage figure both need. Zero where the
+	// role has no body worth reading — a permission is a call, not a thing
+	// somebody reviews.
+	EndLine int
+	// Fingerprint is a hash of the declaration's text, hex encoded.
+	//
+	// The doc comment is deliberately outside it. The record this feeds says
+	// that a person read what the code does; invalidating that because
+	// somebody fixed a typo above it would teach people to re-attest without
+	// re-reading, which is the one way a review record becomes worse than no
+	// record at all.
+	Fingerprint string
 }
 
 // Target renders the construct as the binding target that would annotate it.
