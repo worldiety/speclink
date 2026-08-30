@@ -83,6 +83,22 @@
     "requirements/_sources/sales/quoteflow.md#angebotsfluss": {
       "fingerprint": "3c7df0faebd576b71ecf915dc26208ec259a9417c9fc5e66cb5c6dae5f916dee",
       "kind": "markdown"
+    },
+    "requirements/_sources/vorgaben.standard.json#CRY-01": {
+      "fingerprint": "9e897f2d5da8f6bf5d2eec8dad1fe261d827ad48735a00f4d46ba1d55da0b237",
+      "kind": "standard"
+    },
+    "requirements/_sources/vorgaben.standard.json#IAM-01": {
+      "fingerprint": "02f250d762a93e153327d926aff1523eb71d7219818e3b15dfc749b75f9032ee",
+      "kind": "standard"
+    },
+    "requirements/_sources/vorgaben.standard.json#OPS-01": {
+      "fingerprint": "6cb0df6fb4001453bdf79d2ea061bc034753a69b1934c236c71c06cc28294139",
+      "kind": "standard"
+    },
+    "requirements/_sources/vorgaben.standard.json#PS-01": {
+      "fingerprint": "b1c41262ee33a1978f2fdede2873f67bd0facfadfaab1c7a4da308eac24f848f",
+      "kind": "standard"
     }
   },
   "verifications": {

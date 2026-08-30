@@ -66,6 +66,15 @@ const (
 	KindMarkdown Kind = iota + 1
 	// KindImage is a raster image segmented by a declared region manifest.
 	KindImage
+	// KindStandard is a catalogue of the clauses of an external standard,
+	// segmented by clause.
+	//
+	// It is a source like any other, and deliberately so. A standard is where
+	// an obligation comes from, exactly as a specification document is, and
+	// making it the same kind of thing means the coverage, the drift and the
+	// citation checks are the ones that already exist rather than a second set
+	// written for audits.
+	KindStandard
 )
 
 func (k Kind) String() string {
@@ -74,6 +83,8 @@ func (k Kind) String() string {
 		return "markdown"
 	case KindImage:
 		return "image"
+	case KindStandard:
+		return "standard"
 	}
 	return "unknown"
 }
@@ -110,6 +121,10 @@ type Segment struct {
 	Fingerprint string
 	// Informative excludes the segment from the coverage obligation.
 	Informative bool
+	// Because is why the segment is exempt, set only where the exemption is a
+	// decision somebody had to justify. For a clause of a standard these
+	// collected reasons are the statement of applicability.
+	Because string
 	// Pos locates the segment in its document, for diagnostics. Line is 0 for
 	// image regions, which have no line.
 	Pos Pos
@@ -140,6 +155,10 @@ func (p Pos) String() string {
 type Document struct {
 	// Doc is the repository relative path.
 	Doc string
+	// Title names the standard, set only for KindStandard. A catalogue is
+	// referred to by the name of the standard rather than by its file name in
+	// every place a reader sees it.
+	Title string
 	// Kind is the sort of document.
 	Kind Kind
 	// Segments are in document order.
@@ -188,7 +207,14 @@ func (d Document) IDs() []string {
 // a silently unsegmented document would contribute nothing to the forward
 // coverage and look exactly like one that is fully covered.
 func KindOf(path string) (Kind, bool) {
-	switch strings.ToLower(filepath.Ext(path)) {
+	lower := strings.ToLower(path)
+	// The suffix is tested before the extension, because a clause catalogue is
+	// a .json and so is an image manifest. Announcing itself is what makes it
+	// one.
+	if strings.HasSuffix(lower, StandardSuffix) {
+		return KindStandard, true
+	}
+	switch filepath.Ext(lower) {
 	case ".md":
 		return KindMarkdown, true
 	case ".png", ".jpg", ".jpeg":

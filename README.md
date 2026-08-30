@@ -458,7 +458,7 @@ convention too.
 
 ---
 
-## 4. The four kinds of file you write
+## 4. The five kinds of file you write
 
 ### 4.1 Requirement files: `<ID>.spec.go`
 
@@ -726,6 +726,59 @@ The one case the rule cannot see is an in-memory adapter, which is structurally
 an adapter and crosses nothing. That is a waiver rather than a weakened rule —
 it names the reason, counts toward the figure like every other waiver, and stops
 being true the moment somebody puts a database behind the port.
+
+### 4.5 Standards: `<name>.standard.json`
+
+An external standard — a norm, a criteria catalogue, a regulation — is a source
+document like any other, and its segments are its clauses.
+
+That is the whole design. A standard is where an obligation comes from, exactly
+as a specification document is, so making it the same kind of thing means
+`K11`, `K12` and `K13` apply unchanged: a requirement citing a clause that no
+longer exists, a clause that became no requirement, a clause reworded under the
+requirements derived from it. **No new rule was needed.**
+
+```json
+{
+  "id": "C5",
+  "title": "BSI C5:2020",
+  "clauses": [
+    { "ref": "IAM-05.04B", "title": "Entziehen von Identitäten",
+      "text": "Beim Entziehen von Identitäten stellt das System sicher, …" },
+    { "ref": "PS-01.01B", "title": "Zutrittskontrolle Rechenzentrum",
+      "applicable": false,
+      "because": "Der IaaS-Anbieter trägt die physische Sicherheit; eigenes Testat liegt vor." }
+  ]
+}
+```
+
+A requirement cites a clause the way it cites anything else:
+
+```go
+Sources: []spec.Source{
+	{Doc: "requirements/_sources/c5.standard.json", Anchor: "IAM-05.04B"},
+},
+```
+
+**The clause text may be absent.** The wording of ISO and DIN standards may not
+be reproduced, and a catalogue that demanded it could not be committed.
+Reference and title are enough to enumerate the obligations and to say which are
+answered; the fingerprint covers whatever is there.
+
+**An exclusion needs a reason.** `"applicable": false` without `"because"` is
+refused, because the reason is the whole of what an exemption is worth.
+Collected, these reasons are the **statement of applicability** — a document
+ISO 27001 requires in its own right, and one that falls out here rather than
+being maintained by hand.
+
+**The figures stay apart.** A project can have accounted for every line of its
+own material and answered half a standard, and one number saying seventy five
+per cent tells nobody that:
+
+```
+4 source segments (100% accounted), …
+BSI C5:2020: 74 of 106 applicable clauses answered, 15 not applicable
+```
 
 ## 5. nago in one page
 

@@ -18,5 +18,9 @@ var RQuoteSubmit = spec.Requirement{
 	Supersedes:  []spec.Requirement{RQuoteSubmitManual},
 	Sources: []spec.Source{
 		{Doc: "requirements/_sources/sales/quoteflow.md", Anchor: "8-abgabe"},
+		// The house standard is a source like any other: it is where an
+		// obligation comes from, and citing it is what makes the clause
+		// count as answered.
+		{Doc: "requirements/_sources/vorgaben.standard.json", Anchor: "IAM-01"},
 	},
 }

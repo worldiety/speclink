@@ -498,6 +498,18 @@ func report(format string, findings *diag.Set, can lang.Capabilities, cov check.
 			plural(findings.Len(), "finding", "findings"))
 
 		fmt.Fprintf(os.Stderr, "\n%s\n", strings.Join(parts, ", "))
+
+		// One line per standard, rather than another clause in the summary.
+		// A title carries commas of its own, and a figure buried in a run of
+		// them is a figure nobody reads.
+		for _, st := range src.Standards {
+			fmt.Fprintf(os.Stderr, "%s: %d of %s answered", st.Title, st.Answered,
+				plural(st.Clauses, "applicable clause", "applicable clauses"))
+			if st.Excluded > 0 {
+				fmt.Fprintf(os.Stderr, ", %d not applicable", st.Excluded)
+			}
+			fmt.Fprintln(os.Stderr)
+		}
 		if skipped > 0 {
 			// A run that measures part of a project has to say so. Without it
 			// the figures above are true of what was looked at and silent

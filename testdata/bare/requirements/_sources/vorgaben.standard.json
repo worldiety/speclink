@@ -1,0 +1,28 @@
+{
+  "id": "HAUS-1",
+  "title": "Hausstandard für Fachanwendungen, Fassung 1",
+  "clauses": [
+    {
+      "ref": "IAM-01",
+      "title": "Jede fachliche Handlung wird gegen eine Berechtigung geprüft",
+      "text": "Vor jeder fachlichen Handlung ist zu prüfen, ob der Handelnde die dafür vorgesehene Berechtigung besitzt. Die Prüfung erfolgt vor jeder Wirkung."
+    },
+    {
+      "ref": "OPS-01",
+      "title": "Geschäftsdaten werden als aktueller Stand geführt",
+      "text": "Geschäftsdaten sind so abzulegen, dass der aktuelle Stand ohne Auswertung einer Historie lesbar ist."
+    },
+    {
+      "ref": "PS-01",
+      "title": "Zutrittskontrolle zum Rechenzentrum",
+      "applicable": false,
+      "because": "Die Anwendung stellt keinen Betrieb bereit. Zutritt und physische Sicherheit verantwortet der Betreiber der Maschine, nicht diese Anwendung."
+    },
+    {
+      "ref": "CRY-01",
+      "title": "Verschlüsselung im Transport",
+      "applicable": false,
+      "because": "Die Ablage liegt im Dateisystem derselben Maschine; es gibt keinen Transport, der zu schützen wäre. Der Kanal weist das ausdrücklich aus."
+    }
+  ]
+}

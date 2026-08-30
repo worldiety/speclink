@@ -42,8 +42,8 @@ func Load(root, doc string) Document {
 		return Document{Doc: doc, Err: &SegmentError{
 			Doc: doc,
 			Msg: "unsupported source document type",
-			Why: "speclink segments Markdown by its headings and raster images by a declared region manifest. A type it cannot segment contributes nothing to the forward coverage while looking fully covered.",
-			How: "Convert the document to Markdown, or supply it as PNG or JPEG with a region manifest.",
+			Why: "speclink segments Markdown by its headings, raster images by a declared region manifest, and a standard by its clauses. A type it cannot segment contributes nothing to the forward coverage while looking fully covered.",
+			How: "Convert the document to Markdown, supply it as PNG or JPEG with a region manifest, or as a clause catalogue named " + StandardSuffix + ".",
 		}}
 	}
 
@@ -59,8 +59,9 @@ func Load(root, doc string) Document {
 	}
 
 	var (
-		segs []Segment
-		errs []error
+		segs  []Segment
+		errs  []error
+		title string
 	)
 	switch kind {
 	case KindMarkdown:
@@ -75,9 +76,11 @@ func Load(root, doc string) Document {
 		segs, errs = segmentMarkdown(doc, string(data))
 	case KindImage:
 		segs, errs = segmentImage(doc, abs)
+	case KindStandard:
+		title, segs, errs = segmentStandard(doc, abs)
 	}
 
-	d := Document{Doc: doc, Kind: kind, Segments: segs}
+	d := Document{Doc: doc, Kind: kind, Title: title, Segments: segs}
 	if len(errs) > 0 {
 		d.Err = errs[0]
 		d.More = errs[1:]

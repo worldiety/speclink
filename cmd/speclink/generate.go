@@ -140,6 +140,7 @@ func (m *specModel) writeMarkdown(w io.Writer) error {
 
 	m.writeSummary(b)
 	m.writeGaps(b)
+	m.writeStandards(b)
 	m.writeBoundary(b)
 	m.writeProcesses(b)
 	m.writeRequirements(b)
@@ -496,4 +497,74 @@ func oneLine(s string) string {
 	s = strings.ReplaceAll(s, "\n", " ")
 	s = strings.ReplaceAll(s, "|", "\\|")
 	return strings.TrimSpace(s)
+}
+
+// writeStandards renders one chapter per external standard.
+//
+// It is the audit chapter, and it exists because the tool already had every
+// part of it. A standard is a source document whose segments are its clauses,
+// so which clause is answered by what is the ordinary citation index read from
+// the other end — and which clause is answered by nothing is the ordinary
+// coverage rule, reported against a catalogue instead of a Markdown file.
+//
+// The second table is the statement of applicability. ISO 27001 requires it as
+// a document in its own right, and here it is the collected reasons of every
+// clause somebody excluded — which is the form it has to take anyway, and the
+// form nobody maintains by hand for long.
+func (m *specModel) writeStandards(b *strings.Builder) {
+	if len(m.src.Standards) == 0 {
+		return
+	}
+
+	b.WriteString("## Standards\n\n")
+	for _, st := range m.src.Standards {
+		fmt.Fprintf(b, "### %s\n\n", or(st.Title, st.Doc))
+		fmt.Fprintf(b, "%d of %s answered", st.Answered,
+			plural(st.Clauses, "applicable clause", "applicable clauses"))
+		if st.Excluded > 0 {
+			fmt.Fprintf(b, " · %d not applicable", st.Excluded)
+		}
+		fmt.Fprintf(b, " · `%s`\n\n", st.Doc)
+
+		doc := m.docs.Get(st.Doc)
+		m.writeClauses(b, doc)
+		m.writeApplicability(b, doc)
+	}
+}
+
+func (m *specModel) writeClauses(b *strings.Builder, doc source.Document) {
+	b.WriteString("| Clause | Obligation | Answered by |\n|---|---|---|\n")
+	for _, seg := range doc.Segments {
+		if seg.Informative {
+			continue
+		}
+		by := m.src.ByCiter[seg.Ref()]
+		answer := "**nothing**"
+		if len(by) > 0 {
+			answer = strings.Join(by, ", ")
+		}
+		fmt.Fprintf(b, "| `%s` | %s | %s |\n", seg.ID, oneLine(seg.Title), answer)
+	}
+	b.WriteString("\n")
+}
+
+// writeApplicability renders the exclusions with the reason each was given.
+func (m *specModel) writeApplicability(b *strings.Builder, doc source.Document) {
+	var excluded []source.Segment
+	for _, seg := range doc.Segments {
+		if seg.Informative {
+			excluded = append(excluded, seg)
+		}
+	}
+	if len(excluded) == 0 {
+		return
+	}
+
+	b.WriteString("#### Statement of applicability\n\n")
+	b.WriteString("Clauses excluded here, and why. An exclusion is a decision somebody\nmade; the reason is the whole of what it is worth.\n\n")
+	b.WriteString("| Clause | Obligation | Does not apply because |\n|---|---|---|\n")
+	for _, seg := range excluded {
+		fmt.Fprintf(b, "| `%s` | %s | %s |\n", seg.ID, oneLine(seg.Title), oneLine(seg.Because))
+	}
+	b.WriteString("\n")
 }

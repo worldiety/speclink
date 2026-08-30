@@ -72,7 +72,7 @@ func Walk(root string, roots []string) ([]string, []error) {
 				errs = append(errs, &SegmentError{
 					Doc: rel,
 					Msg: "unsupported document type in a source root",
-					Why: "speclink segments Markdown by its headings and raster images by a declared region manifest. Anything else contributes nothing to the forward coverage while sitting among documents that do.",
+					Why: "speclink segments Markdown by its headings, raster images by a declared region manifest, and a standard by its clauses. Anything else contributes nothing to the forward coverage while sitting among documents that do.",
 					How: "Convert it to Markdown, supply it as PNG or JPEG with a region manifest, or move it out of the source root.",
 				})
 				return nil
