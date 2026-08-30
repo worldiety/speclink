@@ -6,6 +6,15 @@ import (
 	"github.com/worldiety/speclink/spec"
 )
 
+// What a business number may look like. The rule cannot live in the type — Go
+// carries "string" and nothing more — so it is written down, and the examples
+// are what make it decidable rather than merely stated.
+var _ = spec.For[QuoteNumber](
+	spec.Restrict("Ein Q, ein Bindestrich und mindestens eine Ziffer. Keine Leerzeichen, keine Steuerzeichen, und niemals leer."),
+	spec.Valid("Q-1", "Q-42", "Q-1000000"),
+	spec.Invalid("", "Q-", "1", "q-1", "Q 1", "Q-1\n"),
+)
+
 // The quote is kept as state, and the repository is what that ruling looks like
 // in code.
 var _ = spec.For[Quote](

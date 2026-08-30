@@ -31,6 +31,17 @@ var allowedTargets = map[ir.AssertionKind][]ir.TargetKind{
 	// Verified is stated by a test about itself, so its only target is the
 	// test function it stands in.
 	ir.AssertVerified: {ir.TargetFunc},
+	// A restriction and its vectors are about the values a type may hold, so
+	// they attach to the type. A single field is restricted by restricting the
+	// named type it is declared with, which is also what makes the rule
+	// reusable instead of repeated at every field that carries it.
+	ir.AssertRestrict: {ir.TargetType},
+	ir.AssertValid:    {ir.TargetType},
+	ir.AssertInvalid:  {ir.TargetType},
+	// A claim is about one field. A whole type cannot be an assertion by the
+	// sender: it is the message, and the question is which parts of it the
+	// receiver may believe.
+	ir.AssertClaim: {ir.TargetField},
 	// Persistence is a statement about a type: an interface is a port, a
 	// struct is a shape. A function has neither.
 	ir.AssertPersistence: {ir.TargetType},
@@ -50,6 +61,11 @@ var repeatable = map[ir.AssertionKind]bool{
 	// one place: the statement is about the point control reached, so two calls
 	// on two paths are two different statements.
 	ir.AssertVerified: true,
+	// Vectors accumulate. Several calls are how a set is grown a line at a
+	// time as cases are found, and merging them into one would make every
+	// addition a change to an existing line.
+	ir.AssertValid:   true,
+	ir.AssertInvalid: true,
 }
 
 // checkTargetAllowed validates one binding against the rules above and against
@@ -137,6 +153,14 @@ func exportedName(k ir.AssertionKind) string {
 		return "Persistence"
 	case ir.AssertStoredAs:
 		return "StoredAs"
+	case ir.AssertRestrict:
+		return "Restrict"
+	case ir.AssertValid:
+		return "Valid"
+	case ir.AssertInvalid:
+		return "Invalid"
+	case ir.AssertClaim:
+		return "Claim"
 	case ir.AssertVerified:
 		return "Verified"
 	}

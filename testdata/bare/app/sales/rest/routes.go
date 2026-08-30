@@ -15,7 +15,7 @@ import (
 
 // Submit exposes the submission use case.
 func Submit(who rest.Authenticator, submit sales.SubmitQuote) http.HandlerFunc {
-	return rest.Handle(who, func(subject auth.Subject, cmd sales.SubmitQuoteCmd) (string, error) {
+	return rest.Handle(who, func(subject auth.Subject, cmd sales.SubmitQuoteCmd) (sales.QuoteNumber, error) {
 		return submit(subject, cmd)
 	})
 }

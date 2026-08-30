@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/worldiety/speclink/internal/baseline"
@@ -127,6 +128,11 @@ type specModel struct {
 	waived   ir.Waivers
 	skipped  int
 
+	// restrictions are the rules types state about the values they may hold.
+	restrictions []check.Restriction
+	// claims maps "Type.Field" onto what the sender merely asserts there.
+	claims map[string]string
+
 	arch       ir.Architecture
 	programs   []ir.EntryPoint
 	pkgs       ir.PackageGraph
@@ -229,6 +235,8 @@ func readModel(absRoot, cfgPath, prof string, patterns []string) (*specModel, er
 		m.known[r.ID] = true
 	}
 
+	m.restrictions = check.Restrictions(bindings, discard)
+	m.claims = collectClaims(bindings)
 	m.waived = ir.CollectWaivers(bindings)
 	m.base, err = baseline.Load(absRoot)
 	if err != nil {
@@ -263,6 +271,7 @@ func (m *specModel) document() *doc.Doc {
 	m.writeBoundary(d)
 	m.prose(d, ir.PlaceBeforeSurface)
 	m.writeSurface(d)
+	m.writeRestrictions(d)
 	m.prose(d, ir.PlaceBeforeProcesses)
 	m.writeProcesses(d)
 	m.writeRegister(d)
@@ -272,6 +281,65 @@ func (m *specModel) document() *doc.Doc {
 	m.prose(d, ir.PlaceAppendix)
 
 	return d
+}
+
+// writeRestrictions is what an implementer on the far end programs against.
+//
+// The rule is set out in the words it was stated in, and then the cases that
+// decide it. The cases carry the weight: they are the only part of a
+// restriction that survives translation into another language, another
+// generator and another team, because "this must be accepted" and "this must
+// be refused" mean the same thing everywhere and a paragraph of German does
+// not.
+func (m *specModel) writeRestrictions(d *doc.Doc) {
+	if len(m.restrictions) == 0 {
+		return
+	}
+	d.H(2, "Values with a rule")
+	d.P(doc.T("What the type system cannot carry, written down and decided by example. "),
+		doc.T("An implementation on either end conforms when it accepts every case in the first column and refuses every case in the second."))
+
+	for _, r := range m.restrictions {
+		d.H(3, lastSegment(r.Type))
+		d.P(doc.T(r.Text))
+
+		t := d.Table("Must accept", "Must refuse")
+		for i := 0; i < max(len(r.Valid), len(r.Invalid)); i++ {
+			t.Add(doc.Cell(vector(r.Valid, i)), doc.Cell(vector(r.Invalid, i)))
+		}
+	}
+}
+
+// vector renders one example, or nothing where that column has run out.
+//
+// Quoted in Go notation, which is how it was written: a trailing newline has
+// to be visible as an escape, because an example that ends in an invisible
+// byte is one nobody can copy correctly.
+func vector(list []string, i int) doc.Inline {
+	if i >= len(list) {
+		return doc.T("")
+	}
+	return doc.Code(strconv.Quote(list[i]))
+}
+
+// collectClaims indexes the fields the sender only asserts.
+//
+// Keyed by type and field rather than carried on the shape, because the shape
+// is read from the code and a claim is stated about it: keeping them apart is
+// what stops a reader taking the marker for something the compiler knows.
+func collectClaims(bindings []ir.Binding) map[string]string {
+	out := map[string]string{}
+	for _, b := range bindings {
+		if b.Target.Kind != ir.TargetField {
+			continue
+		}
+		for _, a := range b.Assertions {
+			if a.Kind == ir.AssertClaim {
+				out[b.Target.Name+"."+b.Target.Field] = a.Text
+			}
+		}
+	}
+	return out
 }
 
 // prose sets the written chapters standing at one place in the document.
@@ -1181,7 +1249,7 @@ func (m *specModel) writeContracts(d *doc.Doc) {
 			continue
 		}
 		d.P(doc.Strong("Shape"), doc.T(" "), doc.Code(lastSegment(w.Type)))
-		fieldTable(d, w)
+		m.fieldTable(d, w)
 	}
 }
 
@@ -1313,7 +1381,7 @@ func (m *specModel) writeShapeTable(d *doc.Doc, side string, w *ir.WireShape) {
 		return
 	}
 	d.P(doc.Strong(side), doc.T(" "), doc.Code(lastSegment(w.Type)))
-	fieldTable(d, w)
+	m.fieldTable(d, w)
 }
 
 // fieldTable prints the fields of one shape.
@@ -1324,7 +1392,7 @@ func (m *specModel) writeShapeTable(d *doc.Doc, side string, w *ir.WireShape) {
 // on this path ever sets — so every field of every payload was published as
 // required, including the ones tagged omitempty. A column that is right by
 // accident on the majority of rows is worse than no column.
-func fieldTable(d *doc.Doc, w *ir.WireShape) {
+func (m *specModel) fieldTable(d *doc.Doc, w *ir.WireShape) {
 	t := d.Table("Field", "Wire", "Shape", "Omitted when empty")
 	t.Aligned(doc.Left, doc.Left, doc.Left, doc.Right)
 	for _, f := range w.Fields {
@@ -1339,6 +1407,31 @@ func fieldTable(d *doc.Doc, w *ir.WireShape) {
 			doc.Cell(omitted),
 		)
 	}
+	m.writeClaims(d, w)
+}
+
+// writeClaims names the fields of a shape that the sender only asserts.
+//
+// Under the table rather than as a column, and deliberately. A column of ticks
+// would put the marker where a reader skims past it, and what matters here is
+// not that a field is a claim but what decides the matter instead. That is a
+// sentence, and a sentence does not fit in a column.
+func (m *specModel) writeClaims(d *doc.Doc, w *ir.WireShape) {
+	var items []doc.Bullet
+	for _, f := range w.Fields {
+		reason, ok := m.claims[w.Type+"."+f.Name]
+		if !ok {
+			continue
+		}
+		items = append(items, doc.Bullet{Text: []doc.Inline{
+			doc.Code(f.Name), doc.T(" — "), doc.T(reason),
+		}})
+	}
+	if len(items) == 0 {
+		return
+	}
+	d.Notef("The sender asserts the following and the receiver may not take them as true.")
+	d.Blocks = append(d.Blocks, &doc.List{Items: items})
 }
 
 func (m *specModel) writeSurface(d *doc.Doc) {

@@ -16,10 +16,10 @@ import (
 // rather than the call.
 type countingNumbers struct{ issued []string }
 
-func (n *countingNumbers) Next() (string, error) {
+func (n *countingNumbers) Next() (QuoteNumber, error) {
 	s := string(rune('A' + len(n.issued)))
 	n.issued = append(n.issued, s)
-	return s, nil
+	return QuoteNumber(s), nil
 }
 
 // memQuotes is the port, in memory. The whole point of declaring the port in the

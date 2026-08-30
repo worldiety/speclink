@@ -259,6 +259,11 @@ func verify(args []string) error {
 	// the constructs they name — so it is asked only where both are available.
 	// K17: what surrounds the code, and where it reaches out.
 	tp := check.Topology(tree, topo, bindings, model.Dialect(), findings)
+	// A restriction is about the values a type may hold, which is a promise to
+	// whoever is on the other end of the wire. Checked here rather than beside
+	// the schema rules because it holds whether or not the type is persisted:
+	// the far end of a channel is bound by it just the same.
+	check.Restrictions(bindings, findings)
 
 	// K17 again, in the other direction: the shapes this system depends on
 	// receiving. The rules above hold a channel to describing itself; this

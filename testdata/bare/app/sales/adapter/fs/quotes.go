@@ -45,7 +45,7 @@ func (q *Quotes) Save(_ context.Context, quote sales.Quote) error {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	raw, err := json.Marshal(QuoteStore{ID: string(quote.ID), Number: quote.Number, Status: quote.Status, Note: quote.Note})
+	raw, err := json.Marshal(QuoteStore{ID: string(quote.ID), Number: string(quote.Number), Status: quote.Status, Note: quote.Note})
 	if err != nil {
 		return err
 	}
@@ -68,7 +68,7 @@ func (q *Quotes) FindByID(_ context.Context, id sales.QuoteID) (sales.Quote, boo
 	if err := json.Unmarshal(raw, &stored); err != nil {
 		return sales.Quote{}, false, err
 	}
-	return sales.Quote{ID: sales.QuoteID(stored.ID), Number: stored.Number, Status: stored.Status, Note: stored.Note}, true, nil
+	return sales.Quote{ID: sales.QuoteID(stored.ID), Number: sales.QuoteNumber(stored.Number), Status: stored.Status, Note: stored.Note}, true, nil
 }
 
 func (q *Quotes) DeleteByID(_ context.Context, id sales.QuoteID) error {

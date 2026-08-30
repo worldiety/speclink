@@ -7,10 +7,16 @@ import "example.com/bare/foundation/data"
 // QuoteID identifies a quote.
 type QuoteID string
 
+// QuoteNumber is the business number a quote carries once it is submitted.
+//
+// A named type rather than a bare string, so the rule about what may be in it
+// has somewhere to live and every field carrying one inherits it.
+type QuoteNumber string
+
 // Quote is the domain model.
 type Quote struct {
 	ID     QuoteID
-	Number string
+	Number QuoteNumber
 	Status string
 	Note   string
 }
@@ -31,7 +37,7 @@ type QuoteRepository data.Repository[Quote, QuoteID]
 // and only counts. spec.Persistence marks it so, because nothing about the
 // interface says it.
 type NumberRegistry interface {
-	Next() (string, error)
+	Next() (QuoteNumber, error)
 }
 
 // SubmitQuoteCmd carries the input of a submission.

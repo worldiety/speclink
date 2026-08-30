@@ -175,6 +175,29 @@ func (p *Package) readAssertion(call *ast.CallExpr, out *diag.Set) (ir.Assertion
 	case "Optional":
 		return ir.Assertion{Kind: ir.AssertOptional, Pos: pos}, true
 
+	case "Restrict":
+		text, _ := p.stringArg(argAt(call, 0))
+		return ir.Assertion{Kind: ir.AssertRestrict, Pos: pos, Text: text}, true
+
+	case "Valid":
+		return ir.Assertion{Kind: ir.AssertValid, Pos: pos, Vectors: p.stringList(call)}, true
+
+	case "Invalid":
+		return ir.Assertion{Kind: ir.AssertInvalid, Pos: pos, Vectors: p.stringList(call)}, true
+
+	case "Claim":
+		text, _ := p.stringArg(argAt(call, 0))
+		if text == "" {
+			out.Add(diag.Finding{
+				Code: diag.Code(diag.PhaseBinding, 9),
+				Pos:  pos,
+				What: "spec.Claim requires the reason.",
+				Why:  "Marking a field as merely asserted warns a reader off it and leaves them nowhere to go. What decides the matter instead is the half that makes the marker usable, and it is the half nobody adds later.",
+				How:  "Name what is authoritative, e.g. spec.Claim(\"maßgeblich ist der öffentliche Schlüssel des vorgelegten Zertifikats\").",
+			})
+		}
+		return ir.Assertion{Kind: ir.AssertClaim, Pos: pos, Text: text}, true
+
 	case "Persistence":
 		return ir.Assertion{Kind: ir.AssertPersistence, Pos: pos}, true
 
@@ -190,10 +213,26 @@ func (p *Package) readAssertion(call *ast.CallExpr, out *diag.Set) (ir.Assertion
 
 func isAssertionName(name string) bool {
 	switch name {
-	case "Satisfies", "Transition", "External", "Help", "Term", "Rationale", "Waive", "Draft", "Optional", "Persistence", "StoredAs":
+	case "Satisfies", "Transition", "External", "Help", "Term", "Rationale", "Waive", "Draft", "Optional", "Persistence", "StoredAs",
+		"Restrict", "Valid", "Invalid", "Claim":
 		return true
 	}
 	return false
+}
+
+// stringList reads every argument of a variadic call as a string literal.
+//
+// An argument that is not one is skipped rather than guessed at: a vector
+// assembled at run time is not a vector anybody can read in the source, and
+// the point of writing them here is that both ends see the same bytes.
+func (p *Package) stringList(call *ast.CallExpr) []string {
+	var out []string
+	for _, arg := range call.Args {
+		if s, ok := p.stringArg(arg); ok {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func argAt(call *ast.CallExpr, i int) ast.Expr {

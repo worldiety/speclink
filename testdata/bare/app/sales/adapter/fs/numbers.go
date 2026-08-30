@@ -3,6 +3,8 @@ package fs
 import (
 	"fmt"
 	"sync/atomic"
+
+	"example.com/bare/app/sales"
 )
 
 // Numbers hands out sequential numbers.
@@ -15,4 +17,6 @@ func NewNumbers(last int64) *Numbers {
 	return n
 }
 
-func (n *Numbers) Next() (string, error) { return fmt.Sprintf("Q-%d", n.last.Add(1)), nil }
+func (n *Numbers) Next() (sales.QuoteNumber, error) {
+	return sales.QuoteNumber(fmt.Sprintf("Q-%d", n.last.Add(1))), nil
+}

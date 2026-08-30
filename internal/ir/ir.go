@@ -135,6 +135,16 @@ const (
 	// AssertStoredAs marks a type as the written form of a domain type, which
 	// moves the promise onto it and leaves the domain type free.
 	AssertStoredAs
+	// AssertRestrict states in prose the rule a value of a type must satisfy,
+	// which the type system cannot carry.
+	AssertRestrict
+	// AssertValid gives examples a conforming implementation must accept.
+	AssertValid
+	// AssertInvalid gives examples it must reject.
+	AssertInvalid
+	// AssertClaim marks a field as asserted by the sender and not to be taken
+	// as true by the receiver.
+	AssertClaim
 	// AssertVerified is the only assertion that is not read from an annotation
 	// file. It comes from a spec.Verified call inside a test, whose target is
 	// the test function.
@@ -165,6 +175,14 @@ func (k AssertionKind) String() string {
 		return "persistence"
 	case AssertStoredAs:
 		return "storedAs"
+	case AssertRestrict:
+		return "restrict"
+	case AssertValid:
+		return "valid"
+	case AssertInvalid:
+		return "invalid"
+	case AssertClaim:
+		return "claim"
 	case AssertVerified:
 		return "verified"
 	}
@@ -191,6 +209,8 @@ type Assertion struct {
 	Term string
 	// Rule is the suspended rule ID of an AssertWaive.
 	Rule string
+	// Vectors carries the examples of an AssertValid or AssertInvalid.
+	Vectors []string
 }
 
 // Binding attaches a set of assertions to one construct.

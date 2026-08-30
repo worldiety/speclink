@@ -17,6 +17,10 @@ const (
 	kindOptional
 	kindPersistence
 	kindStoredAs
+	kindRestrict
+	kindValid
+	kindInvalid
+	kindClaim
 )
 
 // Assertion states one fact about the construct named by the surrounding
@@ -45,6 +49,66 @@ type Assertion struct {
 
 	// domainType is the type a kindStoredAs assertion writes down.
 	domainType reflect.Type
+
+	// vectors carries the examples of a kindValid or kindInvalid assertion.
+	vectors []string
+}
+
+// Restrict states the rule a value of this type must satisfy, in prose.
+//
+// # Why prose, and why that is not enough on its own
+//
+// A Go type carries what the type system can carry. That a field is a string
+// is in the type; that it holds at most 64 characters, never a control
+// character, and never one of the prefixes this platform reserves for itself
+// is not, and no amount of reading the declaration will find it. It is a
+// promise made to whoever is on the other end of the wire, and it is made in
+// words.
+//
+// Words cannot be checked, which is exactly why a constraint on its own is
+// refused. A rule stated only in prose is one a code generator drops without a
+// sound, and both ends then agree about a shape while disagreeing about what
+// may be in it. State it, and then give the examples that decide it — see
+// [Valid] and [Invalid].
+func Restrict(text string) Assertion {
+	return Assertion{kind: kindRestrict, text: text}
+}
+
+// Valid gives examples a conforming implementation must accept.
+//
+// Written as ordinary Go string literals, so a control character is a control
+// character and is visible as an escape rather than as an invisible byte.
+func Valid(examples ...string) Assertion {
+	return Assertion{kind: kindValid, vectors: examples}
+}
+
+// Invalid gives examples a conforming implementation must reject.
+//
+// The half that does the work. Accepting what should be accepted is what an
+// implementation does by accident; refusing what must be refused is the part
+// nobody gets right without being told, and the part a schema generator most
+// reliably drops on the floor.
+func Invalid(examples ...string) Assertion {
+	return Assertion{kind: kindInvalid, vectors: examples}
+}
+
+// Claim marks a field as something the sender asserts and the receiver may not
+// treat as true.
+//
+// The reason names what actually decides the matter, so the field can be read
+// without going to look for it: "maßgeblich ist der öffentliche Schlüssel des
+// vorgelegten Zertifikats".
+//
+// # Why this is worth a word of its own
+//
+// Because without one the two are indistinguishable. A field holding an
+// identity that was verified and a field holding an identity the far end
+// merely says it has look identical in the struct, in the JSON and in every
+// generated schema. Somebody downstream reads the second as the first, and an
+// assertion has quietly become an authorisation. That step is invisible in
+// review precisely because nothing about the field is wrong.
+func Claim(reason string) Assertion {
+	return Assertion{kind: kindClaim, text: reason}
 }
 
 // Satisfies binds the surrounding construct to one or more requirements.

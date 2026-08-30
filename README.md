@@ -807,9 +807,71 @@ Assertions are pure and are passed into a binding. They are never standalone.
 | `spec.Draft()` | this persisted shape is not promised yet; see section 6 |
 | `spec.Optional()` | this field may be absent from stored data; see section 6 |
 | `spec.StoredAs[D]()` | this struct is the written form of domain type `D`; `go_bare_ddd1` only, see section 11a |
+| `spec.Restrict(text)` | the rule a value of this type must satisfy, in prose; needs `Valid` and `Invalid` |
+| `spec.Valid(examples…)` | cases a conforming implementation must accept |
+| `spec.Invalid(examples…)` | cases it must reject |
+| `spec.Claim(reason)` | this field is asserted by the sender and may not be taken as true; the reason names what is authoritative |
 
 A field binding satisfies a requirement for that field, not for the type it
 belongs to — annotating one field does not make the whole command covered.
+
+### 4.9 Rules about values, and fields that are only asserted
+
+A Go type carries what the type system carries. That a string holds at most 64
+characters, never a control character and never a prefix this system reserves is
+not in the type and cannot be put there. It is a promise to whoever is on the
+other end of the wire, and it is made in words.
+
+```go
+var _ = spec.For[QuoteNumber](
+	spec.Restrict("Ein Q, ein Bindestrich und mindestens eine Ziffer. Keine Leerzeichen, keine Steuerzeichen, und niemals leer."),
+	spec.Valid("Q-1", "Q-42"),
+	spec.Invalid("", "Q-", "q-1", "Q-1\n"),
+)
+```
+
+**A rule with no cases is refused.** Words are exactly what a schema generator
+drops without a sound, and both ends then agree about the shape of a message
+while disagreeing about what may be in it — the same failure as having no
+agreement, arrived at with more ceremony. The cases are also the only part that
+survives translation into another language, another generator and another team:
+"must be accepted" and "must be refused" mean the same thing everywhere and a
+paragraph of German does not.
+
+**Both directions are required, and the second does the work.** Accepting what
+should be accepted is what an implementation does by accident. Refusing what
+must be refused is the part nobody gets right unprompted, and the part that
+decides whether a reserved prefix is reserved or merely mentioned.
+
+Examples are ordinary Go string literals, so a control character is visible as
+an escape instead of as an invisible byte, and the document prints them as
+written.
+
+**A claim is a field the sender asserts and the receiver may not believe.**
+
+```go
+var _ = spec.ForField[Hello]("RunnerID",
+	spec.Claim("maßgeblich ist der öffentliche Schlüssel des vorgelegten Zertifikats"),
+)
+```
+
+The word is borrowed from where it is already established: the payload of a JWT
+is a set of *claims*, statements worth exactly as much as the signature over
+them. It needs a word because both cases look identical — a field holding a
+verified identity and a field holding one the far end merely says it has are the
+same string in the struct, in the payload and in every generated schema. Nothing
+about the second is wrong, which is why review does not catch it, and why
+somebody three layers away reads it as the first. At that point an assertion has
+become an authorisation, and `X-Forwarded-For` is the same mistake made a
+million times.
+
+The reason is mandatory and names what decides the matter instead, because a
+marker that warns a reader off a field and leaves them nowhere to go is half a
+warning.
+
+**What this does not do** is find the fields that should carry one. Nothing in
+the code distinguishes them; that is the whole problem. `Claim` improves the
+fields somebody marked and says nothing about the rest.
 
 ---
 
@@ -2051,6 +2113,9 @@ is refused rather than accepted.
 | `K19-TOPIC-DUPLICATE` | `V6-130` | two themes claim one ID |
 | `K19-TOPIC-UNUSED` | `V6-131` | nothing is filed under a declared theme |
 | `K19-TOPIC-REF-UNKNOWN` | `V6-096` | a channel or participant names a theme that does not exist |
+| `K21-RESTRICTION-UNPROVEN` | `V6-191` | a rule about values gives no case that decides it |
+| `K21-VECTORS-UNRESTRICTED` | `V6-190` | examples are given for a type that states no rule |
+| `K21-VECTOR-DUPLICATE` | `V6-192` | the same example is given twice |
 | `K17-PARTICIPANT-UNBOUND` | `V6-097` | a participant names a requirement that does not exist |
 | `K22-CHAPTER-INCOMPLETE` | `V5-061` | a prose chapter leaves out its name, its file or its place |
 | `K22-CHAPTER-DUPLICATE` | `V6-180` | two prose chapters claim one ID |
