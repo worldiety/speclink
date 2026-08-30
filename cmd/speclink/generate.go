@@ -668,6 +668,11 @@ func (m *specModel) writeRequirements(d *doc.Doc) {
 		if r.Rationale != "" {
 			d.P(doc.Strong("Why."), doc.T(" "+r.Rationale))
 		}
+		// Directly under the justification, because the two are read together
+		// or the first one is read as advocacy.
+		if r.Consequences != "" {
+			d.P(doc.Strong("What it costs."), doc.T(" "+r.Consequences))
+		}
 
 		it := &items{}
 		m.writeList(it, "Asked for in", m.origins(r))

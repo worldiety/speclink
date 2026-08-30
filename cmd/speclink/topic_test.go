@@ -16,11 +16,11 @@ func TestEmptyThemeIsReported(t *testing.T) {
 	t.Parallel()
 	dir := copyFixture(t, "../../testdata/bare")
 	rewrite(t, dir, "requirements/dec/R-DEC-QUOTE-STATE.spec.go",
-		"\tTopics:     []spec.Topic{requirements.Ablage},\n", "")
+		"\tTopics:       []spec.Topic{requirements.Ablage},\n", "")
 	rewrite(t, dir, "requirements/dec/R-DEC-QUOTE-STATE.spec.go",
 		"\t\"example.com/bare/requirements\"\n", "")
 	rewrite(t, dir, "requirements/dec/R-DEC-INVOICE-STATE.spec.go",
-		"\tTopics:     []spec.Topic{requirements.Ablage},\n", "")
+		"\tTopics:       []spec.Topic{requirements.Ablage},\n", "")
 	rewrite(t, dir, "requirements/dec/R-DEC-INVOICE-STATE.spec.go",
 		"\t\"example.com/bare/requirements\"\n", "")
 

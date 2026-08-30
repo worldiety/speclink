@@ -51,18 +51,36 @@ type Attachment struct {
 // diagnostics. Long form (tables, acceptance criteria, process descriptions)
 // belongs in the Markdown file named by Detail.
 type Requirement struct {
-	ID          RequirementID
-	Kind        Kind
-	Discipline  Discipline
-	Status      Status
-	Title       string
-	Text        string
-	Detail      string // Markdown file in the attachment folder, optional
-	Rationale   string // mandatory when Kind is Decision
-	DerivedFrom []Requirement
-	Supersedes  []Requirement
-	Sources     []Source
-	Attachments []Attachment
+	ID         RequirementID
+	Kind       Kind
+	Discipline Discipline
+	Status     Status
+	Title      string
+	Text       string
+	Detail     string // Markdown file in the attachment folder, optional
+	Rationale  string // mandatory when Kind is Decision
+	// Consequences is what this ruling costs, and is mandatory when Kind is
+	// Decision.
+	//
+	// # Why it is not part of the rationale
+	//
+	// Because it is the half nobody writes unprompted. A justification is
+	// pleasant to write and people write it at length; admitting what the
+	// decision makes worse is not, and in a single field it quietly
+	// disappears. Every decision record worth the name has carried this
+	// separately since Nygard's original, and the reason is the same: without
+	// it a record reads as advocacy for the choice rather than as an account
+	// of it.
+	//
+	// It is what stops the reader in three years from beginning an
+	// improvement that was already considered and paid for. "The registry is
+	// a single writer and will not scale past one machine" is the sentence
+	// that saves that week.
+	Consequences string
+	DerivedFrom  []Requirement
+	Supersedes   []Requirement
+	Sources      []Source
+	Attachments  []Attachment
 	// Topics are the themes this requirement belongs to, and the chapters it
 	// appears in. Optional: what carries none is gathered in a chapter of its
 	// own rather than dropped.

@@ -155,19 +155,20 @@ type Attachment struct {
 // graph is assembled after all declarations have been collected, so forward
 // references are legal and order is irrelevant.
 type Requirement struct {
-	ID          string
-	GoIdent     string // qualified Go identifier, e.g. "…/requirements/fun/quote.RQuoteSubmit"
-	Kind        Kind
-	Discipline  Discipline
-	Status      Status
-	Title       string
-	Text        string
-	Detail      string
-	Rationale   string
-	DerivedFrom []string
-	Supersedes  []string
-	Sources     []Source
-	Attachments []Attachment
+	ID           string
+	GoIdent      string // qualified Go identifier, e.g. "…/requirements/fun/quote.RQuoteSubmit"
+	Kind         Kind
+	Discipline   Discipline
+	Status       Status
+	Title        string
+	Text         string
+	Detail       string
+	Rationale    string
+	Consequences string
+	DerivedFrom  []string
+	Supersedes   []string
+	Sources      []Source
+	Attachments  []Attachment
 	// Topics holds qualified Go identifiers until they are resolved, then
 	// topic IDs — the same two pass shape DerivedFrom uses, for the same
 	// reason: order of declaration must not matter.

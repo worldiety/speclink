@@ -6,13 +6,14 @@ import "github.com/worldiety/speclink/spec"
 
 // RDecRecordState fixes the persistence pattern of this context.
 var RDecRecordState = spec.Requirement{
-	ID:         "R-DEC-RECORD-STATE",
-	Kind:       spec.Decision,
-	Discipline: spec.Technical,
-	Status:     spec.Normative,
-	Title:      "Records are kept as current state",
-	Text:       "A record MUST be stored as its current state in a repository, not as a log of changes.",
-	Rationale:  "The context answers questions about how a record stands now; a history would be a second model to keep true.",
+	ID:           "R-DEC-RECORD-STATE",
+	Kind:         spec.Decision,
+	Discipline:   spec.Technical,
+	Status:       spec.Normative,
+	Title:        "Records are kept as current state",
+	Text:         "A record MUST be stored as its current state in a repository, not as a log of changes.",
+	Rationale:    "The context answers questions about how a record stands now; a history would be a second model to keep true.",
+	Consequences: "How a record came to look the way it does cannot be reconstructed, so a question about a past state has to be answered from the operational log, which is kept for running the system and not for the business.",
 	Sources: []spec.Source{
 		{Doc: "requirements/_sources/{{.Context}}/overview.md", Anchor: "3-how-records-are-kept"},
 	},

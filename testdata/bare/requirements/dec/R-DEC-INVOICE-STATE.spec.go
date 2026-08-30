@@ -8,14 +8,15 @@ import (
 
 // RDecInvoiceState fixes the persistence pattern of the invoicing context.
 var RDecInvoiceState = spec.Requirement{
-	ID:         "R-DEC-INVOICE-STATE",
-	Kind:       spec.Decision,
-	Discipline: spec.Technical,
-	Status:     spec.Normative,
-	Title:      "Invoices are kept as current state",
-	Text:       "An invoice MUST be stored as its current state, not as a log of changes.",
-	Rationale:  "The context answers questions about how an invoice stands now, and the shape is still being worked out; a history would fix a second model before the first one is settled.",
-	Topics:     []spec.Topic{requirements.Ablage},
+	ID:           "R-DEC-INVOICE-STATE",
+	Kind:         spec.Decision,
+	Discipline:   spec.Technical,
+	Status:       spec.Normative,
+	Title:        "Invoices are kept as current state",
+	Text:         "An invoice MUST be stored as its current state, not as a log of changes.",
+	Rationale:    "The context answers questions about how an invoice stands now, and the shape is still being worked out; a history would fix a second model before the first one is settled.",
+	Consequences: "Nothing can answer how an invoice looked at the time it was sent, so a dispute about a past bill has to be settled from the printed document rather than from this system.",
+	Topics:       []spec.Topic{requirements.Ablage},
 	Sources: []spec.Source{
 		{Doc: "requirements/_sources/sales/quoteflow.md", Anchor: "14-rechnung"},
 	},

@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -146,3 +147,37 @@ var B = spec.Chapter{ID: "warum", Doc: "doc/warum.md", At: spec.Appendix}
 		})
 	}
 }
+
+// TestADecisionMustSayWhatItCosts is the half nobody writes unprompted.
+//
+// A justification is pleasant to write and gets written at length. Admitting
+// what the ruling makes worse is not, and in a single field it quietly
+// disappears — leaving a record that reads as advocacy for the choice rather
+// than an account of it.
+func TestADecisionMustSayWhatItCosts(t *testing.T) {
+	t.Parallel()
+	dir := copyFixture(t, "../../testdata/bare")
+
+	path := filepath.Join(dir, "requirements", "dec", "R-DEC-NUMBERING.spec.go")
+	src, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cut := regexpConsequences.ReplaceAll(src, nil)
+	if len(cut) == len(src) {
+		t.Fatal("the fixture no longer declares Consequences")
+	}
+	if err := os.WriteFile(path, cut, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, code := runVerify(t, dir)
+	if code == 0 {
+		t.Fatalf("a decision without its cost must be reported:\n%s", summary(out))
+	}
+	if !strings.Contains(out, "SPEC-V5-006") {
+		t.Errorf("expected the missing consequences to be reported, got:\n%s", summary(out))
+	}
+}
+
+var regexpConsequences = regexp.MustCompile(`(?m)^\tConsequences:.*\n`)

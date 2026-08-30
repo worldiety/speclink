@@ -136,6 +136,8 @@ func (p *Package) readRequirement(vs *ast.ValueSpec, lit *ast.CompositeLit, out 
 			r.Detail, _ = p.stringArg(kv.Value)
 		case "Rationale":
 			r.Rationale, _ = p.stringArg(kv.Value)
+		case "Consequences":
+			r.Consequences, _ = p.stringArg(kv.Value)
 		case "Kind":
 			r.Kind = ir.Kind(p.enumValue(kv.Value))
 		case "Discipline":
@@ -300,6 +302,15 @@ func (p *Package) checkRequirementShape(r *ir.Requirement, vs *ast.ValueSpec, ou
 			What: "decision " + r.ID + " has no Rationale.",
 			Why:  "A decision without a justification cannot be reviewed, and its cost cannot be weighed later.",
 			How:  "Add a Rationale explaining why this ruling was made and what the alternative would have cost.",
+		})
+	}
+	if r.Kind == ir.Decision && r.Consequences == "" {
+		out.Add(diag.Finding{
+			Code: diag.Code(diag.PhaseResolve, 6),
+			Pos:  pos,
+			What: "decision " + r.ID + " does not say what it costs.",
+			Why:  "A justification is pleasant to write and gets written; what the ruling makes worse does not, and a record with only the first half reads as advocacy for the choice rather than an account of it. It is also what stops somebody in three years from starting an improvement that was already considered and paid for.",
+			How:  "Add Consequences naming what this ruling gives up, what it makes harder, or what it rules out later.",
 		})
 	}
 	if r.Text == "" {

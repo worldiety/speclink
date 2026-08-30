@@ -710,7 +710,17 @@ Field rules:
 - `Text` is normative and short — one sentence. It appears in lists, matrices
   and diagnostics. Long form belongs in the Markdown file named by `Detail`.
 - `Kind`: `Functional`, `NonFunctional`, `Constraint`, `Decision`.
-  A `Decision` **must** carry a `Rationale`.
+  A `Decision` **must** carry both a `Rationale` and `Consequences`.
+- `Consequences` is what the ruling costs, and is required for a `Decision`.
+  It is separate from `Rationale` because it is the half nobody writes
+  unprompted: a justification is pleasant to write and gets written at length,
+  while admitting what the decision makes worse is not, and in a single field
+  it quietly disappears. Every decision record worth the name has carried this
+  separately since Nygard's original, for the same reason — without it a record
+  reads as advocacy for the choice rather than an account of it. It is also
+  what stops the reader in three years from beginning an improvement that was
+  already considered and paid for. Neither field can be waived: if you cannot
+  say what a decision costs, you have not finished making it.
 - `Discipline`: `Business`, `Technical`, `Mixed`.
 - `Status`: `Normative`, `Abstract`, `Planned`, `OutOfScope`, `Informative`,
   `Superseded`. **Only `Normative` must be covered.** `Abstract` is a pure
@@ -1522,8 +1532,8 @@ Not legitimate:
   dependency (`K6-CTX-NO-UI-IMPORT`).
 
 Record the choice. A persistence pattern is a `Kind: spec.Decision` requirement
-with a `Rationale`, bound at the construct that implements it with
-`spec.Rationale(…)`. That is how the choice stops being tribal knowledge.
+with a `Rationale` and `Consequences`, bound at the construct that implements it
+with `spec.Rationale(…)`. That is how the choice stops being tribal knowledge.
 
 ---
 
