@@ -26,6 +26,17 @@ type Actor struct {
 	Name string
 	// Role says what this person does with the system, in one sentence.
 	Role string
+	// Satisfies names the requirements this participant answers to.
+	//
+	// A person outside the boundary is rarely there for no reason: somebody
+	// decided this role exists and that the system deals with it. Where that
+	// decision is written down, naming it here is what keeps the drawing and
+	// the requirement tree from drifting into two different accounts of who
+	// uses this system.
+	Satisfies []Requirement
+	// Topics are the themes this participant belongs to. Optional, as
+	// everywhere else: a carelessly assigned theme is worse than none.
+	Topics []Topic
 }
 
 // Foreign is a system outside the boundary that this one talks to.
@@ -41,6 +52,17 @@ type Foreign struct {
 	Name string
 	// Role says what it is to this system, and whose responsibility it is.
 	Role string
+	// Satisfies names the requirements this participant answers to.
+	//
+	// A person outside the boundary is rarely there for no reason: somebody
+	// decided this role exists and that the system deals with it. Where that
+	// decision is written down, naming it here is what keeps the drawing and
+	// the requirement tree from drifting into two different accounts of who
+	// uses this system.
+	Satisfies []Requirement
+	// Topics are the themes this participant belongs to. Optional, as
+	// everywhere else: a carelessly assigned theme is worse than none.
+	Topics []Topic
 }
 
 // Channel is one way across the boundary, or one way between two parts.
@@ -78,6 +100,10 @@ type Channel struct {
 	// the boundary that answers to nothing is a way somebody opened without
 	// being asked.
 	Satisfies []Requirement
+
+	// Topics are the themes this channel belongs to. Optional, as everywhere
+	// else.
+	Topics []Topic
 
 	// Contract is the Go type whose shape crosses here, given as a zero value:
 	//

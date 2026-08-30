@@ -56,6 +56,10 @@ func (p *Package) readParticipant(kind ir.ParticipantKind, vs *ast.ValueSpec, li
 			part.Name, _ = p.stringArg(value)
 		case "Role":
 			part.Role, _ = p.stringArg(value)
+		case "Satisfies":
+			part.Satisfies = p.identList(value)
+		case "Topics":
+			part.Topics = p.identList(value)
 		}
 	}
 	return part
@@ -81,6 +85,8 @@ func (p *Package) readChannel(vs *ast.ValueSpec, lit *ast.CompositeLit) ir.Chann
 			ch.Crypto, _ = p.stringArg(value)
 		case "Satisfies":
 			ch.Satisfies = p.identList(value)
+		case "Topics":
+			ch.Topics = p.identList(value)
 		case "Contract":
 			// The declaration gives a zero value, so the type of the
 			// expression is the contract. Read the same way a request body

@@ -45,6 +45,10 @@ type Tree struct {
 	// topics are the declared themes, keyed by topic ID.
 	topics map[string]*ir.Topic
 
+	// byTopicIdent indexes the themes by the Go identifier that declares them,
+	// for the declarations outside the tree that name one.
+	byTopicIdent map[string]*ir.Topic
+
 	// chapters are the prose chapters, ordered as they are set.
 	chapters []*ir.Chapter
 	// root is the repository root against which Source.Doc is resolved.

@@ -176,9 +176,17 @@ func verify(args []string) error {
 	tree := reqtree.Build(absRoot, reqs, findings)
 	tree.CheckLayout(model.Dialect(), findings)
 	docs, sourceDocs := loadSources(absRoot, layout, findings)
+	// The topology is read here rather than in V6, because a channel may be the
+	// only thing filed under a theme and the check for an empty theme has to
+	// see it. Reading it twice would be the alternative, and two reads of one
+	// declaration is how the two copies start to disagree.
+	var topo ir.Topology
+	if tr, ok := model.(lang.TopologyReader); ok {
+		topo = tr.Topology(findings)
+	}
 	if tr, ok := model.(lang.TopicReader); ok {
 		tree.ResolveTopics(tr.Topics(), findings)
-		tree.CheckTopicsUsed(findings)
+		tree.CheckTopicsUsed(topicIdents(topo), findings)
 	}
 	if cr, ok := model.(lang.ChapterReader); ok {
 		tree.ResolveChapters(cr.Chapters(findings), findings)
@@ -201,13 +209,6 @@ func verify(args []string) error {
 	if pr, ok := model.(lang.ProcessReader); ok {
 		processes = pr.Processes(findings)
 	}
-	// A channel answers to requirements for the same reason: a way across the
-	// boundary that nobody asked for is the finding, not the silence.
-	var topo ir.Topology
-	if tr, ok := model.(lang.TopologyReader); ok {
-		topo = tr.Topology(findings)
-	}
-
 	satisfiers := bindings
 	for _, p := range processes {
 		satisfiers = append(satisfiers, p.Binding())
@@ -361,9 +362,17 @@ func requirements(args []string) error {
 	tree := reqtree.Build(absRoot, reqs, findings)
 	tree.CheckLayout(model.Dialect(), findings)
 	docs, sourceDocs := loadSources(absRoot, layout, findings)
+	// The topology is read here rather than in V6, because a channel may be the
+	// only thing filed under a theme and the check for an empty theme has to
+	// see it. Reading it twice would be the alternative, and two reads of one
+	// declaration is how the two copies start to disagree.
+	var topo ir.Topology
+	if tr, ok := model.(lang.TopologyReader); ok {
+		topo = tr.Topology(findings)
+	}
 	if tr, ok := model.(lang.TopicReader); ok {
 		tree.ResolveTopics(tr.Topics(), findings)
-		tree.CheckTopicsUsed(findings)
+		tree.CheckTopicsUsed(topicIdents(topo), findings)
 	}
 	if cr, ok := model.(lang.ChapterReader); ok {
 		tree.ResolveChapters(cr.Chapters(findings), findings)
@@ -630,4 +639,16 @@ func plural(n int, one, many string) string {
 		return fmt.Sprintf("%d %s", n, one)
 	}
 	return fmt.Sprintf("%d %s", n, many)
+}
+
+// topicIdents collects every theme named by the edge of the system.
+func topicIdents(t ir.Topology) []string {
+	var out []string
+	for _, p := range t.Participants {
+		out = append(out, p.Topics...)
+	}
+	for _, c := range t.Channels {
+		out = append(out, c.Topics...)
+	}
+	return out
 }

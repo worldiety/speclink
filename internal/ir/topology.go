@@ -21,12 +21,19 @@ func (k ParticipantKind) String() string {
 }
 
 // Participant is something outside the code that the system deals with.
+//
+// Satisfies and Topics hold qualified Go identifiers until they are resolved,
+// the same two pass shape the requirements go through and for the same reason:
+// a theme may be declared after the participant that names it, and the order of
+// files must not decide what a drawing says.
 type Participant struct {
-	Kind ParticipantKind
-	ID   string
-	Name string
-	Role string
-	Pos  Position
+	Kind      ParticipantKind
+	ID        string
+	Name      string
+	Role      string
+	Satisfies []string
+	Topics    []string
+	Pos       Position
 }
 
 // Channel is one way across a boundary.
@@ -44,6 +51,7 @@ type Channel struct {
 	Crypto   string
 
 	Satisfies []string
+	Topics    []string
 	// Contract is the structure that crosses, where the declaration names a
 	// type for it. Nil where none was stated, which is different from a
 	// channel that carries nothing: one is unknown and the other is empty.

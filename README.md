@@ -911,9 +911,10 @@ code — it is knowledge the code cannot hold.
 
 ```go
 var Vertrieb = spec.Actor{
-	ID:   "vertrieb",
-	Name: "Vertrieb",
-	Role: "Legt Angebote an, gibt sie ab und schlägt sie nach.",
+	ID:     "vertrieb",
+	Name:   "Vertrieb",
+	Role:   "Legt Angebote an, gibt sie ab und schlägt sie nach.",
+	Topics: []spec.Topic{requirements.Zugriff},
 }
 
 var Dateiablage = spec.Foreign{
@@ -931,8 +932,17 @@ var Angebotsablage = spec.Channel{
 	Auth:      "Rechte des Prozessbenutzers",
 	Crypto:    "entfällt, lokal",
 	Satisfies: []spec.Requirement{dec.RDecQuoteState},
+	Topics:    []spec.Topic{requirements.Ablage},
 }
 ```
+
+**`Satisfies` and `Topics` are available on all three.** A person outside the
+boundary is rarely there for no reason — somebody decided the role exists and
+that the system deals with it — and naming that decision is what keeps the
+drawing and the requirement tree from becoming two accounts of who uses this
+system. Both are optional on a participant and `Satisfies` is required on a
+channel, because a way across the boundary that answers to nothing is a way
+somebody opened without being asked.
 
 **An endpoint is a participant ID or a package**, written as its repository
 relative directory. A package rather than a type, because a channel is not a
@@ -1029,6 +1039,11 @@ var Zugriff = spec.Topic{
 ```go
 Topics: []spec.Topic{requirements.Zugriff},
 ```
+
+A theme is also what a **channel** or a **participant** is filed under, with the
+same optional `Topics` field. A theme carrying only channels is not empty: the
+edge of the system is a part of it worth a heading, and reporting it as empty
+would push people to file requirements there that do not belong.
 
 **Optional on purpose.** Forcing a theme on every requirement buys a complete
 table of contents at the price of a decision at every declaration, most of which
@@ -2035,6 +2050,8 @@ is refused rather than accepted.
 | `K18-REVIEW-STALE` | `V6-140` | a declaration was read and then changed |
 | `K19-TOPIC-DUPLICATE` | `V6-130` | two themes claim one ID |
 | `K19-TOPIC-UNUSED` | `V6-131` | nothing is filed under a declared theme |
+| `K19-TOPIC-REF-UNKNOWN` | `V6-096` | a channel or participant names a theme that does not exist |
+| `K17-PARTICIPANT-UNBOUND` | `V6-097` | a participant names a requirement that does not exist |
 | `K22-CHAPTER-INCOMPLETE` | `V5-061` | a prose chapter leaves out its name, its file or its place |
 | `K22-CHAPTER-DUPLICATE` | `V6-180` | two prose chapters claim one ID |
 | `K22-CHAPTER-DOC-MISSING` | `V6-181` | the outline names prose that cannot be read |

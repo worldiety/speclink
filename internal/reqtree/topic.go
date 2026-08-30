@@ -19,7 +19,8 @@ const RuleTopicDuplicate = "K19-TOPIC-DUPLICATE"
 // files must not decide whether a document has chapters.
 func (t *Tree) ResolveTopics(topics []*ir.Topic, out *diag.Set) {
 	t.topics = make(map[string]*ir.Topic, len(topics))
-	byIdent := make(map[string]*ir.Topic, len(topics))
+	t.byTopicIdent = make(map[string]*ir.Topic, len(topics))
+	byIdent := t.byTopicIdent
 
 	for _, top := range topics {
 		if first, dup := t.topics[top.ID]; dup {
@@ -77,6 +78,14 @@ func (t *Tree) Topics() []*ir.Topic {
 // Topic resolves one theme by ID.
 func (t *Tree) Topic(id string) *ir.Topic { return t.topics[id] }
 
+// TopicByGoIdent resolves a theme by the qualified identifier that names it.
+//
+// Declarations outside the requirement tree — a channel, a participant — name a
+// theme the way Go names it, because that is what the compiler checks. They
+// need the same lookup the requirements get, rather than a second index that
+// could disagree with this one.
+func (t *Tree) TopicByGoIdent(ident string) *ir.Topic { return t.byTopicIdent[ident] }
+
 func strconvQuote(s string) string { return `"` + s + `"` }
 
 // lastDotted renders a qualified Go identifier as the name a reader wrote.
@@ -90,17 +99,27 @@ func lastDotted(s string) string {
 // RuleTopicUnused fires when nothing is filed under a declared theme.
 const RuleTopicUnused = "K19-TOPIC-UNUSED"
 
-// CheckTopicsUsed reports a theme no requirement belongs to.
+// CheckTopicsUsed reports a theme nothing belongs to.
 //
 // It is the only direction worth checking here. There is no such thing as a
 // theme nobody has covered — a theme is not an obligation — but an empty one is
 // a chapter heading with nothing under it, which reads as a part of the system
 // that was left out rather than as a heading somebody stopped using.
-func (t *Tree) CheckTopicsUsed(out *diag.Set) {
+// alsoUsed are the Go identifiers naming a theme from outside the requirement
+// tree — a channel or a participant. They count as use, because a theme that
+// only groups the edge of the system is still a heading with something under
+// it, and reporting it as empty would push people to file requirements under it
+// that do not belong there.
+func (t *Tree) CheckTopicsUsed(alsoUsed []string, out *diag.Set) {
 	used := map[string]bool{}
 	for _, r := range t.ByID {
 		for _, id := range r.Topics {
 			used[id] = true
+		}
+	}
+	for _, ident := range alsoUsed {
+		if top := t.byTopicIdent[ident]; top != nil {
+			used[top.ID] = true
 		}
 	}
 
@@ -112,9 +131,9 @@ func (t *Tree) CheckTopicsUsed(out *diag.Set) {
 			Code: diag.Code(diag.PhaseSemantic, 131),
 			Pos:  top.Pos,
 			Rule: RuleTopicUnused,
-			What: "no requirement is filed under " + strconvQuote(top.ID) + ".",
+			What: "nothing is filed under " + strconvQuote(top.ID) + ".",
 			Why:  "A theme heads a chapter. An empty one reads as a part of the system that was left out, rather than as a heading somebody stopped using.",
-			How:  "File the requirements that belong here, or remove the topic.",
+			How:  "File the requirements, channels or participants that belong here, or remove the topic.",
 		})
 	}
 }

@@ -181,3 +181,30 @@ func TestADecisionMustSayWhatItCosts(t *testing.T) {
 }
 
 var regexpConsequences = regexp.MustCompile(`(?m)^\tConsequences:.*\n`)
+
+// TestTheEdgeCanBeFiledUnderAThemeToo covers the second half of a theme.
+//
+// A requirement under a theme says what was asked for; a channel under it says
+// where the system is actually open. Somebody reading a theme to find out what
+// it covers needs both, and a theme carrying only channels must not be
+// reported as empty — that would push people to file requirements there that
+// do not belong.
+func TestTheEdgeCanBeFiledUnderAThemeToo(t *testing.T) {
+	t.Parallel()
+	dir := copyFixture(t, "../../testdata/bare")
+
+	out, code := runSpeclink(t, "generate", dir)
+	if code != 0 {
+		t.Fatalf("generate failed with %d:\n%s", code, out)
+	}
+	chapter := out[strings.Index(out, "### Zugriff und Berechtigung"):]
+	if i := strings.Index(chapter[1:], "\n### "); i > 0 {
+		chapter = chapter[:i]
+	}
+	if !strings.Contains(chapter, "At the boundary") {
+		t.Errorf("the theme does not list what the edge files under it:\n%s", chapter)
+	}
+	if !strings.Contains(chapter, "Vertrieb") {
+		t.Errorf("the actor filed under this theme is missing:\n%s", chapter)
+	}
+}

@@ -10,6 +10,7 @@ package topology
 
 import (
 	"example.com/bare/app/sales/adapter/fs"
+	"example.com/bare/requirements"
 	"example.com/bare/requirements/dec"
 	"example.com/bare/requirements/fun/quote"
 	"github.com/worldiety/speclink/spec"
@@ -17,9 +18,10 @@ import (
 
 // Vertrieb is the only person this skeleton knows.
 var Vertrieb = spec.Actor{
-	ID:   "vertrieb",
-	Name: "Vertrieb",
-	Role: "Legt Angebote an, gibt sie ab und schlägt sie nach. Handelt unter einer Kennung mit Berechtigungen.",
+	ID:     "vertrieb",
+	Name:   "Vertrieb",
+	Role:   "Legt Angebote an, gibt sie ab und schlägt sie nach. Handelt unter einer Kennung mit Berechtigungen.",
+	Topics: []spec.Topic{requirements.Zugriff},
 }
 
 // Dateiablage is outside the program even though it is on the same machine.

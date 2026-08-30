@@ -28,7 +28,7 @@ func TestEmptyThemeIsReported(t *testing.T) {
 	if code == 0 {
 		t.Fatalf("a theme has nothing under it and nothing was reported:\n%s", out)
 	}
-	if !strings.Contains(out, `no requirement is filed under "T-ABLAGE"`) {
+	if !strings.Contains(out, `nothing is filed under "T-ABLAGE"`) {
 		t.Errorf("expected K19-TOPIC-UNUSED:\n%s", out)
 	}
 }

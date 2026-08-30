@@ -23,6 +23,12 @@ const (
 	RuleParticipantUnused = "K17-PARTICIPANT-UNUSED"
 	// RuleParticipantDuplicate fires when two participants share an ID.
 	RuleParticipantDuplicate = "K17-PARTICIPANT-DUPLICATE"
+	// RuleParticipantUnbound fires when a participant names a requirement that
+	// does not exist.
+	RuleParticipantUnbound = "K17-PARTICIPANT-UNBOUND"
+	// RuleTopicRefUnknown fires when a declaration outside the requirement tree
+	// names a theme that does not exist.
+	RuleTopicRefUnknown = "K19-TOPIC-REF-UNKNOWN"
 	// RuleAdapterNoChannel fires when the system reaches outside at a place no
 	// channel describes.
 	RuleAdapterNoChannel = "K17-ADAPTER-NO-CHANNEL"
@@ -70,6 +76,9 @@ func Topology(tree *reqtree.Tree, t ir.Topology, bindings []ir.Binding, d ir.Dia
 	}
 
 	parts := indexParticipants(t, out)
+	for _, part := range sortedParticipants(t) {
+		checkParticipantRefs(tree, part, out)
+	}
 	touched := map[string]bool{}
 	described := map[string]bool{}
 
@@ -79,6 +88,7 @@ func Topology(tree *reqtree.Tree, t ir.Topology, bindings []ir.Binding, d ir.Dia
 	for _, c := range channels {
 		checkChannelFields(c, d, out)
 		checkChannelRequirements(tree, c, out)
+		checkTopicRefs(tree, c.Topics, "channel "+c.Name(), c.Pos, out)
 		for _, end := range []string{c.From, c.To} {
 			switch {
 			case end == "":
@@ -191,11 +201,59 @@ func checkChannelRequirements(tree *reqtree.Tree, c ir.Channel, out *diag.Set) {
 	}
 }
 
-func checkUnusedParticipants(t ir.Topology, touched map[string]bool, out *diag.Set) {
+// checkTopicRefs reports a theme reference that resolves to nothing.
+//
+// The Go compiler already refuses a misspelled identifier, so this only fires
+// where the declaring package was left out of the analysed patterns. Saying so
+// is worth a line: a reference that resolves to nothing looks like filing and
+// is not, and the drawing would quietly sit under no heading at all.
+func checkTopicRefs(tree *reqtree.Tree, refs []string, subject string, pos ir.Position, out *diag.Set) {
+	for _, ref := range refs {
+		if tree.TopicByGoIdent(ref) != nil {
+			continue
+		}
+		out.Add(diag.Finding{
+			Code: diag.Code(diag.PhaseSemantic, 96),
+			Pos:  pos,
+			Rule: RuleTopicRefUnknown,
+			What: subject + " names " + shortName(ref) + ", which is not a declared theme.",
+			Why:  "A theme that resolves to nothing files this under no heading while looking as though somebody had filed it.",
+			How:  "Include the declaring package in the analysed patterns, or remove the reference.",
+		})
+	}
+}
+
+// checkParticipantRefs holds a declared participant to the same two checks a
+// channel gets: the requirements it answers to and the themes it is filed
+// under have to exist.
+func checkParticipantRefs(tree *reqtree.Tree, p ir.Participant, out *diag.Set) {
+	subject := p.Kind.String() + " " + quote(p.ID)
+	checkTopicRefs(tree, p.Topics, subject, p.Pos, out)
+	for _, ref := range p.Satisfies {
+		if tree.ByGoIdent(ref) != nil {
+			continue
+		}
+		out.Add(diag.Finding{
+			Code: diag.Code(diag.PhaseSemantic, 97),
+			Pos:  p.Pos,
+			Rule: RuleParticipantUnbound,
+			What: subject + " names " + shortName(ref) + ", which is not a requirement.",
+			Why:  "A reference that resolves to nothing looks like traceability and provides none.",
+			How:  "Name a declared requirement.",
+		})
+	}
+}
+
+// sortedParticipants puts the declarations in file order, so diagnostics never
+// depend on the order a map happened to be walked in.
+func sortedParticipants(t ir.Topology) []ir.Participant {
 	sorted := append([]ir.Participant(nil), t.Participants...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Pos.Less(sorted[j].Pos) })
+	return sorted
+}
 
-	for _, p := range sorted {
+func checkUnusedParticipants(t ir.Topology, touched map[string]bool, out *diag.Set) {
+	for _, p := range sortedParticipants(t) {
 		if touched[p.ID] {
 			continue
 		}

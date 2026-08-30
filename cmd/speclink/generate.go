@@ -1632,6 +1632,44 @@ func (m *specModel) writeApplicability(d *doc.Doc, sd source.Document) {
 // is not a defect — themes are optional on purpose — but leaving it out of the
 // document silently would be, because an absent requirement reads as one that
 // does not exist rather than as one nobody filed.
+// writeTopicEdge lists what the edge of the system files under one theme.
+//
+// Separate from the requirements table because they answer different questions.
+// A requirement under a theme says what was asked for; a channel under it says
+// where the system is actually open, and somebody reading a theme to find out
+// what it covers needs both. Kept out of the same table because a channel has
+// no requirement ID and would sit there with an empty first column.
+func (m *specModel) writeTopicEdge(d *doc.Doc, id string) {
+	var rows [][]doc.Inline
+	for _, p := range m.topo.Participants {
+		if m.filedUnder(p.Topics, id) {
+			rows = append(rows, []doc.Inline{doc.T(p.Kind.String()), doc.T(or(p.Name, p.ID))})
+		}
+	}
+	for _, c := range m.topo.Channels {
+		if m.filedUnder(c.Topics, id) {
+			rows = append(rows, []doc.Inline{doc.T("channel"), doc.T(oneLine(or(c.Label, c.Name())))})
+		}
+	}
+	if len(rows) == 0 {
+		return
+	}
+	t := d.Table("", "At the boundary")
+	for _, r := range rows {
+		t.Add(doc.Cell(r[0]), doc.Cell(r[1]))
+	}
+}
+
+// filedUnder reports whether any of the Go identifiers names the given theme.
+func (m *specModel) filedUnder(refs []string, id string) bool {
+	for _, ref := range refs {
+		if top := m.tree.TopicByGoIdent(ref); top != nil && top.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *specModel) writeTopics(d *doc.Doc) {
 	topics := m.tree.Topics()
 	if !m.can.Topics {
@@ -1661,6 +1699,7 @@ func (m *specModel) writeTopics(d *doc.Doc) {
 			filed[id] = true
 			t.Add(doc.Cell(doc.Code(r.ID)), doc.Cell(doc.T(oneLine(or(r.Title, r.Text)))))
 		}
+		m.writeTopicEdge(d, top.ID)
 	}
 
 	var loose []string
