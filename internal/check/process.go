@@ -377,6 +377,18 @@ func checkRefs(p *ir.Process, known map[string]ir.Construct, scope map[string]bo
 		if scope != nil && n.RefPackage != "" && !scope[n.RefPackage] {
 			continue
 		}
+		// A send names what crosses, not what performs. Its payload is a wire
+		// type — a struct that exists to be marshalled — and the recognisers
+		// have no reason to have found it: it is not a use case, not an
+		// aggregate and not an event. Asking whether it is one of those would
+		// report every correct message on every channel.
+		//
+		// The question that does apply is asked elsewhere and is the right
+		// one: K16-SEND-UNCARRIED holds the payload against the channels and
+		// refuses a message that crosses nothing.
+		if n.Kind == ir.NodeSend {
+			continue
+		}
 		c, found := known[n.Ref]
 		switch {
 		case !found:

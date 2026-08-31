@@ -316,3 +316,66 @@ func TestAMessageMustCrossSomething(t *testing.T) {
 		t.Errorf("expected the uncarried send to be reported, got:\n%s", summary(out))
 	}
 }
+
+// TestACarriedSendIsNotAlsoAskedToBeAUseCase closes the other half of that.
+//
+// A send names what crosses, not what performs. Its payload is a wire type — a
+// struct that exists to be marshalled — and the recognisers have no reason to
+// have found it: it is not a use case, not an aggregate and not an event.
+//
+// The rule that asked whether it was one of those reported every correct
+// message on every channel, which nobody noticed while the only test for a
+// send was one where the send was wrong in a different way. The first project
+// to draw a real protocol found it immediately.
+func TestACarriedSendIsNotAlsoAskedToBeAUseCase(t *testing.T) {
+	t.Parallel()
+	dir := copyFixture(t, "../../testdata/bare")
+
+	// A payload the channel already carries, sent from a process. Nothing
+	// about it is wrong, so nothing about it may be reported.
+	rewrite(t, dir, "topology/boundary.topology.go",
+		"\tContract: fs.QuoteStore{},",
+		"\tMessages: []spec.Message{Angebotsmeldung},\n}\n\n// Angebotsmeldung is the one thing that crosses.\nvar Angebotsmeldung = spec.Message{\n\tPayload:    fs.QuoteStore{},\n\tFrom:       \"app/sales/adapter/fs\",\n\tTo:         \"dateiablage\",\n\tPurpose:    \"Legt ein Angebot ab.\",\n\tTrigger:    \"Nach jeder Abgabe.\",\n\tRepeatable: spec.Yes,")
+
+	process := `package processes
+
+import (
+	"example.com/bare/app/sales"
+	"example.com/bare/app/sales/adapter/fs"
+	"example.com/bare/requirements/fun/quote"
+	"github.com/worldiety/speclink/spec"
+)
+
+var Ablauf = spec.Process{
+	ID:        "ablage",
+	Title:     "Angebot ablegen",
+	Purpose:   "Ein abgegebenes Angebot verlässt den Prozess und liegt danach in der Dateiablage.",
+	Satisfies: []spec.Requirement{quote.RQuoteSubmit},
+	Nodes: []spec.Node{
+		spec.Start("start", "Angebot liegt vor"),
+		spec.Do[sales.SubmitQuote]("abgeben"),
+		spec.Send[fs.QuoteStore]("ablegen"),
+		spec.End("abgelegt", "abgelegt"),
+	},
+	Edges: []spec.Edge{
+		{From: "start", To: "abgeben"},
+		{From: "abgeben", To: "ablegen"},
+		{From: "ablegen", To: "abgelegt"},
+	},
+}
+`
+	if err := os.MkdirAll(filepath.Join(dir, "processes"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "processes", "ablage.process.go"), []byte(process), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, _ := runVerify(t, dir)
+	if strings.Contains(out, "SPEC-V6-079") {
+		t.Errorf("a wire payload was judged as though it were a use case:\n%s", summary(out))
+	}
+	if strings.Contains(out, "SPEC-V6-221") {
+		t.Errorf("a payload the channel carries was called uncarried:\n%s", summary(out))
+	}
+}
