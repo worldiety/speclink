@@ -42,6 +42,15 @@ type SchemaField struct {
 	// named types: a field declared as RelationID with underlying string has
 	// the shape "string", because that is what a stored message contains.
 	Shape string
+	// Type is the qualified name the field was declared with, where that is a
+	// named type. Empty for a plain string or int.
+	//
+	// Nothing is compared on it — a rename breaks nothing a caller can see,
+	// which is why Shape and not this is the comparison key. It is kept so
+	// that a field can be tied back to the rules its type carries: a
+	// restriction lives on RunnerId, and by the time the shape says "string"
+	// the connection is gone.
+	Type string
 	// Optional reports whether the field may be absent from stored data. It is
 	// set for fields added after the type was promised.
 	Optional bool

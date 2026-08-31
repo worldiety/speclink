@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -209,4 +211,65 @@ func TestTheProtocolReachesTheDocument(t *testing.T) {
 			t.Errorf("the document is missing %q:\n%s", want, out)
 		}
 	}
+}
+
+// TestTheSchemaIsDerivedFromTheTypes is the point of the command.
+//
+// A schema written by hand beside the types would be the same fact in two
+// places, and the two disagree the first time somebody adds a field — which is
+// the failure the schema existed to prevent.
+func TestTheSchemaIsDerivedFromTheTypes(t *testing.T) {
+	t.Parallel()
+	dir := protocolFixture(t, soundProtocol)
+	out := t.TempDir()
+
+	if o, code := runSpeclink(t, "schema", dir, "-out", out); code != 0 {
+		t.Fatalf("schema failed with %d:\n%s", code, o)
+	}
+
+	body := readFile(t, filepath.Join(out, "quote_store.schema.json"))
+	for _, want := range []string{
+		`"$schema": "https://json-schema.org/draft/2020-12/schema"`,
+		`"title": "QuoteStore"`,
+		`"id"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the schema is missing %q:\n%s", want, body)
+		}
+	}
+	// note is both omitempty and declared optional, so it is the one field the
+	// far end may legitimately not send.
+	if strings.Contains(requiredBlock(body), `"note"`) {
+		t.Errorf("an optional field was published as required:\n%s", body)
+	}
+
+	// The rule about values cannot be carried by a schema, so it travels
+	// beside it as the cases that decide it.
+	vectors := readFile(t, filepath.Join(out, "vectors.json"))
+	if !strings.Contains(vectors, "QuoteNumber") || !strings.Contains(vectors, `"Q-1\n"`) {
+		t.Errorf("the vectors did not reach the file:\n%s", vectors)
+	}
+}
+
+func readFile(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+// requiredBlock is the required list of a schema, for asserting what is not in
+// it without matching the property of the same name.
+func requiredBlock(body string) string {
+	i := strings.Index(body, `"required"`)
+	if i < 0 {
+		return ""
+	}
+	j := strings.Index(body[i:], "]")
+	if j < 0 {
+		return body[i:]
+	}
+	return body[i : i+j]
 }

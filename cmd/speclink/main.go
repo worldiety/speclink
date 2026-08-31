@@ -62,6 +62,8 @@ func run(args []string) error {
 		return generate(args[1:])
 	case "diagrams":
 		return diagrams(args[1:])
+	case "schema":
+		return schemas(args[1:])
 	case "attest":
 		return attest(args[1:])
 	case "help", "-h", "--help":
@@ -86,6 +88,7 @@ usage:
   speclink evidence     [flags] [packages]
   speclink generate     [flags] [packages]
   speclink diagrams     [flags] [packages]
+  speclink schema       [flags] [packages]
   speclink attest       [flags] [packages|constructs]
 
 commands:
@@ -102,6 +105,8 @@ commands:
   generate      derive the specification document from the source
   diagrams      write the PlantUML sources of the context, the building blocks
                 and every process; renders nothing itself
+  schema        write a JSON Schema for every shape that crosses a boundary,
+                and the cases every implementation is judged by
   attest        record who wrote a declaration and who has read it
 
 run "speclink <command> -h" for the flags of a command.

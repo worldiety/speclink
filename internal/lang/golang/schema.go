@@ -173,6 +173,7 @@ func (p *Package) readFields(st *types.Struct) []ir.SchemaField {
 			Name:      f.Name(),
 			Wire:      wire,
 			Shape:     shapeOf(f.Type(), map[*types.Named]bool{}),
+			Type:      declaredName(f.Type()),
 			OmitEmpty: hasTagOption(st.Tag(i), "omitempty"),
 			Pos:       p.pos(f.Pos()),
 		})
@@ -195,6 +196,27 @@ func wireName(f *types.Var, tag string) (name string, skipped bool) {
 		return f.Name(), false
 	}
 	return parts[0], false
+}
+
+// declaredName is the qualified name of a named type, empty for anything else.
+//
+// A pointer and a slice are unwrapped, because a rule about the values of a
+// type holds however many of them travel together and whether or not one may
+// be absent.
+func declaredName(t types.Type) string {
+	switch u := t.(type) {
+	case *types.Pointer:
+		return declaredName(u.Elem())
+	case *types.Slice:
+		return declaredName(u.Elem())
+	case *types.Array:
+		return declaredName(u.Elem())
+	case *types.Named:
+		return typeName(u)
+	case *types.Alias:
+		return declaredName(types.Unalias(u))
+	}
+	return ""
 }
 
 // hasTagOption reports whether the json tag carries an option such as

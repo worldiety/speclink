@@ -1036,6 +1036,30 @@ against duplicates. On a channel that can drop and reconnect that is the
 difference between a safe retry and doing the work twice. `spec.Yes`, `spec.No`,
 and an unstated one is a finding.
 
+**The schema is written, not maintained.** `speclink schema` renders every shape
+that crosses a boundary as JSON Schema 2020-12, and the restrictions beside it
+as a file of cases:
+
+```bash
+speclink schema -root . -out build/schema
+```
+
+It writes and does not validate, for the reason `diagrams` writes and does not
+draw: nothing here runs a validator or pins a version of one, so a checkout with
+no JavaScript toolchain still runs every rule. The types stay the one place a
+shape is written down; this is a projection of them into the format the far end
+reads.
+
+Two things it does not claim. A **nested object carries no required list**,
+because speclink compares nested structure as a whole and never recorded which
+of its fields may be omitted — an invented list there is a generator producing a
+parser that dereferences an absent value. And a **restriction is not enforced by
+the schema**: it is prose, and the half that matters is what must be refused,
+which JSON Schema expresses as a negated pattern that generators drop without a
+sound. The rule travels as a `$comment` on the field and the cases travel in
+`vectors.json`, because "this must be rejected" means the same thing in every
+language.
+
 Every message shape is recorded in `speclink.lock`. Both ends of a protocol are
 deployed apart and upgraded apart, so at any moment one is older than the other
 — still sending what it always sent. A field quietly dropped is found by neither
