@@ -100,7 +100,14 @@ func diagrams(args []string) error {
 		written++
 	}
 	for _, p := range processes {
-		if err := writeDiagram(*out, "process-"+p.ID+".puml", render.Process(p)); err != nil {
+		// The same graph, pictured the way the declaration asks for. A course
+		// that crosses no boundary has nothing to gain from a sequence, which
+		// is why the flow drawing stays the default.
+		body := render.Process(p)
+		if p.Drawn == ir.AsSequence {
+			body = render.Sequence(p, participantsByIdent(topo))
+		}
+		if err := writeDiagram(*out, "process-"+p.ID+".puml", body); err != nil {
 			return err
 		}
 		written++
@@ -114,4 +121,18 @@ func diagrams(args []string) error {
 
 func writeDiagram(dir, name, body string) error {
 	return os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644)
+}
+
+// participantsByIdent indexes the declared participants by the identifier a
+// process names them with.
+//
+// The identifier and not the ID, because a process names the declaration and
+// the compiler checks that: a drawing tied to a string would go on naming a
+// participant that had been renamed out from under it.
+func participantsByIdent(t ir.Topology) map[string]ir.Participant {
+	out := make(map[string]ir.Participant, len(t.Participants))
+	for _, p := range t.Participants {
+		out[p.GoIdent] = p
+	}
+	return out
 }

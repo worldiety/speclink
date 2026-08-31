@@ -14,6 +14,10 @@ const (
 	NodeEmit
 	// NodeCatch waits for one.
 	NodeCatch
+	// NodeSend is a message crossing a boundary of this system. Not an
+	// activity: control does not pass to it, because the other end is somebody
+	// else's program.
+	NodeSend
 	// NodeFork splits into branches that all run.
 	NodeFork
 	// NodeJoin waits for every branch of a fork.
@@ -36,6 +40,8 @@ func (k NodeKind) String() string {
 		return "event raised"
 	case NodeCatch:
 		return "event awaited"
+	case NodeSend:
+		return "message"
 	case NodeFork:
 		return "fork"
 	case NodeJoin:
@@ -63,6 +69,15 @@ func (k NodeKind) Gateway() bool { return k.Splits() || k.Merges() }
 
 // References reports whether this kind names a construct in the code.
 func (k NodeKind) References() bool {
+	return k == NodeActivity || k == NodeEmit || k == NodeCatch || k == NodeSend
+}
+
+// PerformedHere reports whether this module does the work of the node.
+//
+// A send does not qualify, and that is the distinction the drawing rests on:
+// an activity is something this module performs and answers for, a send goes
+// to somebody else's program.
+func (k NodeKind) PerformedHere() bool {
 	return k == NodeActivity || k == NodeEmit || k == NodeCatch
 }
 
@@ -73,6 +88,12 @@ type ProcessNode struct {
 	ID string
 	// Label is the human readable text, set on start and end nodes.
 	Label string
+	// Note is an aside for what a reader must know at this step and cannot
+	// read off the graph.
+	Note string
+	// Actor is the participant that brings a beginning about, empty where the
+	// process simply starts.
+	Actor string
 	// Ref is the fully qualified construct this node names, empty for
 	// gateways and endpoints.
 	Ref string
@@ -80,6 +101,25 @@ type ProcessNode struct {
 	// misspelled reference from one into a package the scope left out.
 	RefPackage string
 	Pos        Position
+}
+
+// View is how a course of business is pictured. It mirrors spec.View.
+type View int
+
+const (
+	AsFlow View = iota
+	AsSequence
+)
+
+// ViewOf maps the name of a spec.View constant onto the value.
+func ViewOf(ident string) (View, bool) {
+	switch ident {
+	case "AsFlow":
+		return AsFlow, true
+	case "AsSequence":
+		return AsSequence, true
+	}
+	return 0, false
 }
 
 // ProcessEdge joins two nodes of one process.
@@ -105,6 +145,9 @@ type Process struct {
 
 	Nodes []ProcessNode
 	Edges []ProcessEdge
+
+	// Drawn says how the course is pictured. Mirrors spec.View.
+	Drawn View
 
 	// GoIdent is the declaration this came from, for diagnostics.
 	GoIdent string

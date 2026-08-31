@@ -67,6 +67,10 @@ func (p *Package) readProcess(vs *ast.ValueSpec, lit *ast.CompositeLit, out *dia
 			proc.Nodes = p.readNodes(kv.Value, out)
 		case "Edges":
 			proc.Edges = p.readEdges(kv.Value, out)
+		case "Drawn":
+			if sel, ok := kv.Value.(*ast.SelectorExpr); ok {
+				proc.Drawn, _ = ir.ViewOf(sel.Sel.Name)
+			}
 		}
 	}
 	return proc
@@ -74,15 +78,17 @@ func (p *Package) readProcess(vs *ast.ValueSpec, lit *ast.CompositeLit, out *dia
 
 // nodeKinds maps the constructor name to what it builds.
 var nodeKinds = map[string]ir.NodeKind{
-	"Start":  ir.NodeStart,
-	"End":    ir.NodeEnd,
-	"Do":     ir.NodeActivity,
-	"Emit":   ir.NodeEmit,
-	"On":     ir.NodeCatch,
-	"Fork":   ir.NodeFork,
-	"Join":   ir.NodeJoin,
-	"Choice": ir.NodeChoice,
-	"Merge":  ir.NodeMerge,
+	"Start":     ir.NodeStart,
+	"StartedBy": ir.NodeStart,
+	"Send":      ir.NodeSend,
+	"End":       ir.NodeEnd,
+	"Do":        ir.NodeActivity,
+	"Emit":      ir.NodeEmit,
+	"On":        ir.NodeCatch,
+	"Fork":      ir.NodeFork,
+	"Join":      ir.NodeJoin,
+	"Choice":    ir.NodeChoice,
+	"Merge":     ir.NodeMerge,
 }
 
 func (p *Package) readNodes(expr ast.Expr, out *diag.Set) []ir.ProcessNode {
@@ -97,6 +103,11 @@ func (p *Package) readNodes(expr ast.Expr, out *diag.Set) []ir.ProcessNode {
 		if !ok {
 			continue
 		}
+		// A node may be wrapped in method calls that decorate it —
+		// .Note("…") — so the constructor is found by peeling those off
+		// first. Their arguments are collected on the way, because the
+		// constructor call underneath has no idea they were made.
+		call, decor := peelDecorations(p, call)
 		name := p.specFuncName(call.Fun)
 		kind, known := nodeKinds[name]
 		if !known {
@@ -114,10 +125,18 @@ func (p *Package) readNodes(expr ast.Expr, out *diag.Set) []ir.ProcessNode {
 			continue
 		}
 
-		node := ir.ProcessNode{Kind: kind, Pos: p.pos(call.Pos())}
-		node.ID, _ = p.stringArg(argAt(call, 0))
+		node := ir.ProcessNode{Kind: kind, Pos: p.pos(call.Pos()), Note: decor.note}
+
+		// StartedBy names the participant first, so every other argument
+		// shifts along by one.
+		shift := 0
+		if name == "StartedBy" {
+			shift = 1
+			node.Actor = p.participantID(argAt(call, 0))
+		}
+		node.ID, _ = p.stringArg(argAt(call, shift))
 		if kind == ir.NodeStart || kind == ir.NodeEnd {
-			node.Label, _ = p.stringArg(argAt(call, 1))
+			node.Label, _ = p.stringArg(argAt(call, shift+1))
 		}
 		if kind.References() {
 			if t, ok := p.typeArg(call, 0); ok {
@@ -178,4 +197,59 @@ func typePackage(t types.Type) string {
 		return ""
 	}
 	return named.Obj().Pkg().Path()
+}
+
+// decorations are the optional extras a node carries, collected while the
+// method calls wrapping its constructor are peeled off.
+type decorations struct {
+	note string
+}
+
+// peelDecorations unwraps X.Note("…") down to the constructor call.
+func peelDecorations(p *Package, call *ast.CallExpr) (*ast.CallExpr, decorations) {
+	var d decorations
+	for {
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return call, d
+		}
+		inner, ok := sel.X.(*ast.CallExpr)
+		if !ok {
+			return call, d
+		}
+		if sel.Sel.Name == "Note" {
+			d.note, _ = p.stringArg(argAt(call, 0))
+		}
+		call = inner
+	}
+}
+
+// participantID returns the qualified identifier of the actor a beginning
+// names.
+//
+// The identifier and not the ID, because the participant may be declared in a
+// package this one does not read. It is resolved in a second pass once the
+// topology is in hand, the same shape the requirements and the themes go
+// through and for the same reason: the order of files must not decide what a
+// drawing says.
+func (p *Package) participantID(e ast.Expr) string {
+	id, ok := e.(*ast.Ident)
+	if !ok {
+		if sel, isSel := e.(*ast.SelectorExpr); isSel {
+			id = sel.Sel
+		} else {
+			return ""
+		}
+	}
+	obj := p.pkg.TypesInfo.Uses[id]
+	if obj == nil {
+		obj = p.pkg.TypesInfo.Defs[id]
+	}
+	if obj == nil {
+		return ""
+	}
+	if obj.Pkg() == nil {
+		return ""
+	}
+	return obj.Pkg().Path() + "." + obj.Name()
 }

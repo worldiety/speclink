@@ -50,7 +50,11 @@ func (p *Package) ReadTopology(out *diag.Set) ([]ir.Participant, []ir.Channel, [
 }
 
 func (p *Package) readParticipant(kind ir.ParticipantKind, vs *ast.ValueSpec, lit *ast.CompositeLit) ir.Participant {
-	part := ir.Participant{Kind: kind, Pos: p.pos(vs.Pos())}
+	part := ir.Participant{
+		Kind:    kind,
+		GoIdent: p.PkgPath() + "." + vs.Names[0].Name,
+		Pos:     p.pos(vs.Pos()),
+	}
 	for key, value := range p.fieldsOfLit(lit) {
 		switch key {
 		case "ID":

@@ -27,7 +27,10 @@ func (k ParticipantKind) String() string {
 // a theme may be declared after the participant that names it, and the order of
 // files must not decide what a drawing says.
 type Participant struct {
-	Kind      ParticipantKind
+	Kind ParticipantKind
+	// GoIdent is the declaration, so that something outside the topology can
+	// name this participant in a form the compiler checks.
+	GoIdent   string
 	ID        string
 	Name      string
 	Role      string

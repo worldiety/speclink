@@ -282,6 +282,10 @@ func verify(args []string) error {
 	var proc check.ProcessReport
 	if _, inf := model.(lang.ConstructInferrer); inf {
 		proc = check.Processes(tree, processes, constructs, bindings, scope, model.Dialect(), findings)
+		// What a drawing of a course can honestly say: control flow stays
+		// inside the module, a message crosses a declared channel, and an
+		// exchange has somebody to exchange with.
+		check.Sequences(topo, processes, findings)
 	}
 
 	// K20: what the system answers on. Asked only where the frontend can

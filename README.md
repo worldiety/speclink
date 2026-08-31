@@ -928,11 +928,47 @@ notices.
 | `spec.On[Event](id)` | the course waits for a fact |
 | `spec.Fork(id)` / `spec.Join(id)` | branches that all run, and the wait for them |
 | `spec.Choice(id)` / `spec.Merge(id)` | exactly one branch, and the rejoining |
+| `spec.StartedBy(actor, id, label)` | a beginning somebody outside brings about |
+| `spec.Send[Payload](id)` | a message across a channel, to another program |
+
+Any node takes `.Note("…")` for what a reader must know at that step and cannot
+read off the graph — that a lock is held elsewhere, that a comparison is against
+the previous run. Without somewhere to put it, it ends up in the label, where it
+makes the box unreadable, or nowhere.
 
 Inclusive and event based gateways, boundary events, timers, compensation and
 subprocesses are deliberately absent. Each is expressible the moment a real case
 asks for it, and each one added before then would be another vocabulary nobody
 reads.
+
+### 4.3a One model, two drawings
+
+`Drawn: spec.AsSequence` pictures the same graph as an exchange between the
+parts of the system, with time running downwards, instead of as a graph of what
+happens.
+
+**The participants are not declared.** Each activity names a use case, the use
+case lives in a package, and the package is the part of the system performing
+it — so the lanes are derived. Declaring them as well would be that fact written
+twice, and the copy is the one that goes stale when a use case moves.
+
+**Control flow may not leave the module.** An activity is work this module
+performs and answers for; what runs in another program may be slow, absent or a
+different version of itself, and none of that is true of a call this module
+makes. Drawing the two the same way makes a picture of a distributed system read
+like a call stack, and reading it that way is how the failure modes get
+forgotten. So a step naming work outside the module is refused
+(`K16-ACTIVITY-OUTSIDE-MODULE`), and the way to say it is `spec.Send`, which must
+name a payload some channel carries (`K16-SEND-UNCARRIED`).
+
+**The two views are not equal in general.** Time runs downwards in a sequence,
+so every arrow is ordered — and two branches of a fork have no order between
+them. They are drawn inside a `par` frame rather than stacked, because stacking
+would invent a sequence the model does not have. A choice becomes `alt`.
+
+A course drawn as an exchange with one participant is refused
+(`K16-SEQUENCE-ONE-LANE`): that is the ordinary view with more ceremony and less
+room for the labels.
 
 **Why a graph and not nested blocks.** Real processes come back: a quote sent
 for rework returns to the drafting step. A nested form can express everything
@@ -2193,6 +2229,9 @@ is refused rather than accepted.
 | `K17-MESSAGE-SHAPE-CHANGED` | `V6-210` | a recorded message is gone or changed structure |
 | `K17-MESSAGE-FIELD-REMOVED` | `V6-211` | a field of a recorded message is gone |
 | `K17-MESSAGE-FIELD-CHANGED` | `V6-212` | a field kept its name and changed its structure |
+| `K16-ACTIVITY-OUTSIDE-MODULE` | `V6-220` | a step performs work in a package this module does not contain |
+| `K16-SEND-UNCARRIED` | `V6-221` | a message a process sends crosses no declared channel |
+| `K16-SEQUENCE-ONE-LANE` | `V6-222` | a course drawn as an exchange has one participant |
 | `K17-PARTICIPANT-UNBOUND` | `V6-097` | a participant names a requirement that does not exist |
 | `K22-CHAPTER-INCOMPLETE` | `V5-061` | a prose chapter leaves out its name, its file or its place |
 | `K22-CHAPTER-DUPLICATE` | `V6-180` | two prose chapters claim one ID |

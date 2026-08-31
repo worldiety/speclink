@@ -273,3 +273,46 @@ func requiredBlock(body string) string {
 	}
 	return body[i : i+j]
 }
+
+// TestASequenceNeedsSomebodyToExchangeWith keeps the two drawings honest.
+//
+// A sequence pictures who says what to whom. With one participant it is a list
+// of steps down the side of a single line, which is the ordinary view with
+// more ceremony and less room for the labels.
+func TestASequenceNeedsSomebodyToExchangeWith(t *testing.T) {
+	t.Parallel()
+	dir := copyFixture(t, "../../testdata/example")
+	rewrite(t, dir, "processes/quote.process.go",
+		"\tNodes: []spec.Node{", "\tDrawn: spec.AsSequence,\n\tNodes: []spec.Node{")
+
+	out, code := runVerify(t, dir)
+	if code == 0 {
+		t.Fatalf("a one sided exchange must be reported:\n%s", summary(out))
+	}
+	if !strings.Contains(out, "SPEC-V6-222") {
+		t.Errorf("expected the single participant to be reported, got:\n%s", summary(out))
+	}
+}
+
+// TestAMessageMustCrossSomething is the other half of that honesty.
+//
+// A send that travels on no channel is a step in a drawing and nothing in the
+// model: no boundary, nobody at the far end, and no record of what it carries.
+func TestAMessageMustCrossSomething(t *testing.T) {
+	t.Parallel()
+	dir := copyFixture(t, "../../testdata/example")
+	rewrite(t, dir, "processes/quote.process.go",
+		"\t\tspec.End(\"freigegeben\", \"freigegeben\"),",
+		"\t\tspec.Send[sales.SubmitQuoteCmd](\"melden\"),\n\t\tspec.End(\"freigegeben\", \"freigegeben\"),")
+	rewrite(t, dir, "processes/quote.process.go",
+		"\t\t{From: \"freigeben\", To: \"freigegeben\"},",
+		"\t\t{From: \"freigeben\", To: \"melden\"},\n\t\t{From: \"melden\", To: \"freigegeben\"},")
+
+	out, code := runVerify(t, dir)
+	if code == 0 {
+		t.Fatalf("a message crossing nothing must be reported:\n%s", summary(out))
+	}
+	if !strings.Contains(out, "SPEC-V6-221") {
+		t.Errorf("expected the uncarried send to be reported, got:\n%s", summary(out))
+	}
+}

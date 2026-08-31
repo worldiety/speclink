@@ -41,7 +41,35 @@ type Process struct {
 	Nodes []Node
 	// Edges join them. Order is irrelevant; the graph is what counts.
 	Edges []Edge
+
+	// Drawn says how the course is pictured. The default is a graph of what
+	// happens; AsSequence pictures the same graph as who says what to whom.
+	//
+	// # Why one model and two drawings
+	//
+	// Because a sequence diagram and an activity graph are the same
+	// information whenever control passes with the message, which is what a
+	// synchronous request and response is. The participants are not declared:
+	// each activity names a use case, the use case lives in a package, and the
+	// package is the part of the system performing it. Declaring the lane as
+	// well would be that fact written twice.
+	//
+	// The equality is not universal. Two branches of a fork have no order
+	// between them, and a sequence drawing puts them side by side in a frame
+	// rather than pretending there is one.
+	Drawn View
 }
+
+// View is how a course of business is pictured.
+type View int
+
+const (
+	// AsFlow is the default: a graph of what happens in what order.
+	AsFlow View = iota
+	// AsSequence pictures the same graph as an exchange between the parts of
+	// the system, with time running downwards.
+	AsSequence
+)
 
 // NodeKind discriminates what a node is. It is opaque to callers.
 type NodeKind int
@@ -52,6 +80,7 @@ const (
 	nodeActivity
 	nodeEmit
 	nodeCatch
+	nodeSend
 	nodeFork
 	nodeJoin
 	nodeChoice
@@ -72,10 +101,30 @@ type Node struct {
 	id    string
 	label string
 	ref   reflect.Type
+	note  string
+	actor string
 }
+
+// Note attaches an aside to a node.
+//
+// For what a reader has to know at that step and cannot read off the graph:
+// that a lock is held elsewhere, that a comparison is against the previous run,
+// that the field is a code and not a checksum. Without somewhere to put it, it
+// ends up in the label — where it makes the box unreadable — or nowhere.
+func (n Node) Note(text string) Node { n.note = text; return n }
 
 // Start is where a process begins. A process may have more than one.
 func Start(id, label string) Node { return Node{kind: nodeStart, id: id, label: label} }
+
+// StartedBy is a beginning somebody outside the system brings about.
+//
+// The actor is named because in a drawing of who talks to whom, a process that
+// simply begins has nobody on the left of it. It is the same fact a channel
+// states about a boundary, said at the moment it is crossed rather than about
+// the boundary in general.
+func StartedBy(actor Actor, id, label string) Node {
+	return Node{kind: nodeStart, id: id, label: label, actor: actor.ID}
+}
 
 // End is where a process finishes.
 //
@@ -102,6 +151,23 @@ func Emit[T any](id string) Node {
 // On waits for a domain event before continuing.
 func On[T any](id string) Node {
 	return Node{kind: nodeCatch, id: id, ref: reflect.TypeFor[T]()}
+}
+
+// Send is a message crossing a boundary of this system.
+//
+// The type parameter is the payload of a declared message, so the compiler
+// checks the type exists and a rule checks that some channel actually carries
+// it.
+//
+// # Why this is not an activity
+//
+// Because control does not pass to it. An activity is work this module
+// performs and answers for; a message goes to another program, which may be
+// slow, absent, or a different version of itself. Drawing the two the same way
+// is what makes a picture of a distributed system read like a call stack, and
+// reading it that way is how the failure modes get forgotten.
+func Send[T any](id string) Node {
+	return Node{kind: nodeSend, id: id, ref: reflect.TypeFor[T]()}
 }
 
 // Fork splits into branches that all run.
