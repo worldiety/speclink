@@ -52,12 +52,89 @@ type Channel struct {
 
 	Satisfies []string
 	Topics    []string
+
+	// Envelope is the shape wrapping every message, nil where none was stated.
+	Envelope *WireShape
+	// Messages holds qualified Go identifiers until they are resolved, the
+	// same two pass shape the requirements go through: a message may be
+	// declared after the channel that lists it.
+	MessageRefs []string
+	// Messages are the resolved declarations.
+	Messages []Message
+
 	// Contract is the structure that crosses, where the declaration names a
 	// type for it. Nil where none was stated, which is different from a
 	// channel that carries nothing: one is unknown and the other is empty.
 	Contract *WireShape
 
 	Pos Position
+}
+
+// Message is one kind of thing that crosses a channel.
+//
+// Payload carries the shape, read from the Go type. Everything beside it is
+// what no type can state: the direction, the moment, whether it may be sent
+// twice, and what answers it.
+type Message struct {
+	GoIdent string
+	// Payload is the shape that crosses, nil where the declaration named no
+	// type — which is a finding rather than an empty message.
+	Payload *WireShape
+	// PayloadType is the qualified name of that type, for a rule to compare
+	// and a document to print.
+	PayloadType string
+
+	From, To string
+	Purpose  string
+	Trigger  string
+	// Repeatable is yes, no, or unstated, and the third is a finding: an
+	// unanswered question read as a no is a decision nobody made.
+	Repeatable Answer
+	// AckType is the qualified payload type of the answering message, empty
+	// where none was named.
+	AckType string
+
+	Satisfies []string
+	Topics    []string
+	Pos       Position
+}
+
+// Answer is a three valued yes or no whose zero value is neither. It mirrors
+// spec.Answer.
+type Answer int
+
+const (
+	Unanswered Answer = iota
+	Yes
+	No
+)
+
+func (a Answer) String() string {
+	switch a {
+	case Yes:
+		return "yes"
+	case No:
+		return "no"
+	}
+	return "unanswered"
+}
+
+// AnswerOf maps the name of a spec.Answer constant onto the value.
+//
+// By name rather than by the integer, for the reason PlaceOf gives: the
+// integer is an implementation detail of the spec package, and reading it here
+// would make two orders have to agree forever with nothing checking that they
+// do.
+func AnswerOf(ident string) (Answer, bool) {
+	switch ident {
+	case "Yes":
+		return Yes, true
+	case "No":
+		return No, true
+	case "Unanswered":
+		return Unanswered, true
+	}
+	return 0, false
 }
 
 // Topology is what a frontend can say about the world around the code.
@@ -72,6 +149,11 @@ type Topology struct {
 	Participants []Participant
 	// Channels are the declared ways across.
 	Channels []Channel
+	// DeclaredMessages holds every message declaration found, whether or not a
+	// channel lists it, so that one nobody carries can be reported. A message
+	// declared and never listed is a shape somebody wrote down and nothing
+	// sends, which looks exactly like part of a protocol.
+	DeclaredMessages []Message
 
 	// Packages are the repository relative directories the run measured, so
 	// that a misspelled endpoint can be told from a package the scope left out.

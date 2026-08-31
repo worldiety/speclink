@@ -1224,6 +1224,86 @@ func (m *specModel) writeArchitecture(d *doc.Doc) {
 // channel that names a type gets its structure printed, from the same reading
 // that records it in the lock file — so what a developer sees here is exactly
 // what a run compares.
+// writeProtocols is the chapter somebody on the far end programs against.
+//
+// A contract answers "what shape crosses here", which is the whole story for a
+// boundary carrying one payload. A control channel carries a dozen kinds of
+// message in both directions, each with its own moment and its own answer, and
+// the reader needs all of it before they can speak a word of it.
+func (m *specModel) writeProtocols(d *doc.Doc) {
+	var carrying []ir.Channel
+	for _, c := range m.topo.Channels {
+		if len(c.Messages) > 0 {
+			carrying = append(carrying, c)
+		}
+	}
+	if len(carrying) == 0 {
+		return
+	}
+
+	d.H(3, "What is spoken on each channel")
+	d.P(doc.T("Every shape below is recorded in "), doc.Code("speclink.lock"), doc.T(". "),
+		doc.T("Both ends of a protocol are deployed apart and upgraded apart, so at any moment one of them is older than the other — still sending what it always sent, and still expecting what it always expected."))
+
+	for _, c := range carrying {
+		d.H(4, c.Name())
+		if c.Envelope != nil {
+			d.P(doc.Strong("Envelope"), doc.T(" "), doc.Code(lastSegment(c.Envelope.Type)),
+				doc.T(" — carried by every message below."))
+			m.fieldTable(d, c.Envelope)
+		}
+
+		t := d.Table("Message", "Direction", "Sent when", "Twice", "Answered by")
+		t.Aligned(doc.Left, doc.Left, doc.Left, doc.Right, doc.Left)
+		for _, msg := range c.Messages {
+			t.Add(
+				doc.Cell(doc.Code(lastSegment(msg.PayloadType))),
+				doc.Cell(doc.T(msg.From+" → "+msg.To)),
+				doc.Cell(doc.T(oneLine(msg.Trigger))),
+				doc.Cell(repeatMark(msg.Repeatable)),
+				doc.Cell(ackCell(msg.AckType)),
+			)
+		}
+
+		for _, msg := range c.Messages {
+			if msg.Payload == nil {
+				continue
+			}
+			d.H(5, lastSegment(msg.PayloadType))
+			if msg.Purpose != "" {
+				d.P(doc.T(msg.Purpose))
+			}
+			m.fieldTable(d, msg.Payload)
+		}
+	}
+}
+
+// ackCell names the answering message, or says plainly that there is none.
+//
+// An empty cell would read as an omission. A message that is not answered is a
+// fact about the protocol, and one a caller has to know before it sits waiting.
+func ackCell(typ string) doc.Inline {
+	if typ == "" {
+		return doc.NotRequired
+	}
+	return doc.Code(lastSegment(typ))
+}
+
+// repeatMark renders the promise about redelivery, including its absence.
+//
+// Unanswered is drawn as unknown rather than as a no, because the two are
+// opposite instructions to whoever implements the far end and the rule that
+// demands an answer has already said so at the declaration.
+func repeatMark(a ir.Answer) doc.Inline {
+	switch a {
+	case ir.Yes:
+		return doc.Yes
+	case ir.No:
+		return doc.No
+	}
+	return doc.Unknown
+}
+
 func (m *specModel) writeContracts(d *doc.Doc) {
 	var stated []ir.Channel
 	for _, c := range m.topo.Channels {
@@ -1291,6 +1371,7 @@ func (m *specModel) writeBoundary(d *doc.Doc) {
 		return
 	}
 	m.writeContracts(d)
+	m.writeProtocols(d)
 	d.H(3, "Every way across")
 	t := d.Table("Channel", "Protocol", "Data", "Authentication", "In transit")
 	for _, c := range m.topo.Channels {

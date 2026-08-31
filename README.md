@@ -998,6 +998,50 @@ var Angebotsablage = spec.Channel{
 }
 ```
 
+**A channel carrying a protocol lists its messages** instead of one contract.
+
+```go
+var Steuerkanal = spec.Channel{
+	From: "app/controlplane", To: "app/runner",
+	// … Protocol, Data, Auth, Crypto …
+	Envelope: proto.Envelope{},
+	Messages: []spec.Message{Challenge, Hello, Welcome},
+}
+
+var Hello = spec.Message{
+	Payload:    proto.Hello{},
+	From:       "app/runner",
+	To:         "app/controlplane",
+	Purpose:    "Weist die Identität nach und meldet, was der Runner über sich vorfindet.",
+	Trigger:    "Als Antwort auf challenge, vor jeder anderen Nachricht.",
+	Repeatable: spec.Yes,
+	Ack:        proto.Welcome{},
+}
+```
+
+`Contract` is the short form for a boundary carrying exactly one shape. Stating
+both is refused: two fields would say what crosses and a reader would have to
+work out which is authoritative.
+
+**The shape is not declared.** It follows from `Payload`, and so do the field
+names, the nesting, what may be omitted and what a generated schema says.
+Writing the fields down again would be the same fact in two places, and the copy
+is the one that rots. What is declared is what no type can carry: the direction,
+the purpose, the moment, the promise about redelivery and the answer.
+
+**`Repeatable` is not a bool**, because the zero value of a bool makes "nobody
+said" and "no" the same answer, and they are opposite instructions to whoever
+implements the far end — one means look the identifier up, the other means guard
+against duplicates. On a channel that can drop and reconnect that is the
+difference between a safe retry and doing the work twice. `spec.Yes`, `spec.No`,
+and an unstated one is a finding.
+
+Every message shape is recorded in `speclink.lock`. Both ends of a protocol are
+deployed apart and upgraded apart, so at any moment one is older than the other
+— still sending what it always sent. A field quietly dropped is found by neither
+program's tests, because each is consistent with itself; what breaks is the
+pair, and only once the two versions meet.
+
 **`Satisfies` and `Topics` are available on all three.** A person outside the
 boundary is rarely there for no reason — somebody decided the role exists and
 that the system deals with it — and naming that decision is what keeps the
@@ -2116,6 +2160,15 @@ is refused rather than accepted.
 | `K21-RESTRICTION-UNPROVEN` | `V6-191` | a rule about values gives no case that decides it |
 | `K21-VECTORS-UNRESTRICTED` | `V6-190` | examples are given for a type that states no rule |
 | `K21-VECTOR-DUPLICATE` | `V6-192` | the same example is given twice |
+| `K17-CHANNEL-CONTRACT-AND-MESSAGES` | `V6-200` | a channel states what crosses it twice |
+| `K17-MESSAGE-INCOMPLETE` | `V6-201` | a message leaves out its payload, its purpose or its moment |
+| `K17-MESSAGE-END-UNKNOWN` | `V6-202` | a message names an end its channel does not have |
+| `K17-MESSAGE-REPEAT-UNSTATED` | `V6-203` | a message does not say whether it may be delivered twice |
+| `K17-MESSAGE-ACK-UNKNOWN` | `V6-204` | the answering message is carried by no channel |
+| `K17-MESSAGE-UNCARRIED` | `V6-205` | a message is declared and no channel lists it |
+| `K17-MESSAGE-SHAPE-CHANGED` | `V6-210` | a recorded message is gone or changed structure |
+| `K17-MESSAGE-FIELD-REMOVED` | `V6-211` | a field of a recorded message is gone |
+| `K17-MESSAGE-FIELD-CHANGED` | `V6-212` | a field kept its name and changed its structure |
 | `K17-PARTICIPANT-UNBOUND` | `V6-097` | a participant names a requirement that does not exist |
 | `K22-CHAPTER-INCOMPLETE` | `V5-061` | a prose chapter leaves out its name, its file or its place |
 | `K22-CHAPTER-DUPLICATE` | `V6-180` | two prose chapters claim one ID |

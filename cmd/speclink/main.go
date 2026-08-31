@@ -264,6 +264,10 @@ func verify(args []string) error {
 	// the schema rules because it holds whether or not the type is persisted:
 	// the far end of a channel is bound by it just the same.
 	check.Restrictions(bindings, findings)
+	// The protocol a channel carries, where it carries one. Separate from the
+	// topology rules because those are about the boundary and these are about
+	// what travels along it.
+	check.Messages(tree, topo, findings)
 
 	// K17 again, in the other direction: the shapes this system depends on
 	// receiving. The rules above hold a channel to describing itself; this

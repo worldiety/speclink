@@ -105,6 +105,22 @@ type Channel struct {
 	// else.
 	Topics []Topic
 
+	// Envelope is the Go type wrapping every message on this channel, given as
+	// a zero value. Stated once here rather than repeated in each message,
+	// because it is one fact about the channel and fourteen copies of it would
+	// disagree the first time somebody added a field.
+	Envelope any
+
+	// Messages are the kinds of thing that cross, for a channel that carries a
+	// protocol rather than a single payload.
+	//
+	// Declared separately and named here, so that a process step can send one
+	// and a message can name the one that answers it. Contract is the short
+	// form for a boundary carrying exactly one shape; stating both is refused,
+	// because then two fields describe what crosses and a reader has to work
+	// out which is authoritative.
+	Messages []Message
+
 	// Contract is the Go type whose shape crosses here, given as a zero value:
 	//
 	//	Contract: fs.QuoteFile{}

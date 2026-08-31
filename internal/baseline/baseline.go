@@ -88,7 +88,7 @@ const FileName = "speclink.lock"
 // Version 7 added the contracts a channel depends on. Six recorded only the
 // surfaces this system offers; the surfaces it relies on were the same kind of
 // unchecked edge seen from the other side, and carried no fingerprint at all.
-const Version = 7
+const Version = 8
 
 // File is the on disk form. Maps are used so the encoding is stable under
 // Go's sorted map marshalling, and so a diff stays readable per type.
@@ -165,8 +165,18 @@ type Endpoint struct {
 // different facts, and the whole point of the record is that it can tell them
 // apart.
 type Channel struct {
-	// Contract is the structure that was promised to cross here.
+	// Contract is the structure that was promised to cross here, for a
+	// boundary carrying exactly one shape.
 	Contract *Wire `json:"contract,omitempty"`
+	// Messages are the recorded shapes of a channel carrying a protocol,
+	// keyed by the qualified payload type.
+	//
+	// Keyed by type rather than listed, because the identity of a message is
+	// its payload: a message renamed in the declaration is the same message,
+	// and a message whose payload type changed is a different one. Ordering
+	// would also make the lock file churn on a reordered declaration, and a
+	// diff nobody trusts is a diff nobody reads.
+	Messages map[string]*Wire `json:"messages,omitempty"`
 }
 
 type Wire struct {

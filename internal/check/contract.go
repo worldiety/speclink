@@ -69,22 +69,53 @@ func ContractEvolution(channels []ir.Channel, base *baseline.File, out *diag.Set
 			})
 			continue
 		}
-		contractEvolution(ch, rec.Contract, wireOf(ch.Contract), out)
+		shapeEvolution(ch.Name(), ch.Pos, rec.Contract, wireOf(ch.Contract), contractRules, out)
 	}
+	MessageEvolution(channels, base, out)
 }
 
-// contractEvolution compares one channel's promised shape with the current one.
-func contractEvolution(ch ir.Channel, was, now *baseline.Wire, out *diag.Set) {
-	ref := ch.Name()
+// evolutionRules names what a broken promise about a shape is called, so the
+// comparison can be written once and reported in the words of whichever kind
+// of promise it was.
+type evolutionRules struct {
+	shape, removed, changed             string
+	shapeCode, removedCode, changedCode int
+	// reads says what depends on the shape, for the Why line of a whole shape
+	// that moved.
+	reads string
+	// removedWhy and removedHow are the words for a field that is gone, which
+	// differ by the kind of promise: a contract is broken by somebody who has
+	// never heard of this repository, a protocol by the half of it that is
+	// still deployed.
+	removedWhy, removedHow string
+}
 
+var contractRules = evolutionRules{
+	shape: RuleContractShapeChanged, removed: RuleContractFieldRemoved, changed: RuleContractFieldChanged,
+	shapeCode: 170, removedCode: 171, changedCode: 172,
+	reads:      "This system reads that structure. Nothing at the far end knows this repository exists, so the first report of a mismatch is whatever goes wrong in production.",
+	removedWhy: "Code in this module reads it. Where the far end dropped it, every read now yields a zero value, and a zero value is indistinguishable from a legitimately empty one at the point it is read.",
+	removedHow: "Stop reading the field, or restore it at the far end. If its loss is accepted, record it with freeze so the lock file carries the decision.",
+}
+
+var messageRules = evolutionRules{
+	shape: RuleMessageShapeChanged, removed: RuleMessageFieldRemoved, changed: RuleMessageFieldChanged,
+	shapeCode: 210, removedCode: 211, changedCode: 212,
+	reads:      "Both ends of this channel were written against that structure. A protocol is a promise between two programs that are deployed apart, so the older of them is still sending and still expecting the shape recorded here.",
+	removedWhy: "The other end is still deployed and still sends it. Both programs go on passing their own tests, because each is consistent with itself; what breaks is the pair, and only once the two versions meet.",
+	removedHow: "Restore the field, or carry the removal through both ends and record it with freeze so the lock file carries the decision.",
+}
+
+// shapeEvolution compares a promised shape with the current one.
+func shapeEvolution(ref string, pos ir.Position, was, now *baseline.Wire, r evolutionRules, out *diag.Set) {
 	if len(was.Fields) == 0 && len(now.Fields) == 0 {
 		if was.Shape != now.Shape && was.Shape != "" {
 			out.Add(diag.Finding{
-				Code: diag.Code(diag.PhaseSemantic, 170),
-				Pos:  ch.Pos,
-				Rule: RuleContractShapeChanged,
+				Code: diag.Code(diag.PhaseSemantic, r.shapeCode),
+				Pos:  pos,
+				Rule: r.shape,
 				What: "what crosses " + ref + " was recorded as " + was.Shape + " and is now " + now.Shape + ".",
-				Why:  "This system reads that structure. Nothing at the far end knows this repository exists, so the first report of a mismatch is whatever goes wrong in production.",
+				Why:  r.reads,
 				How:  "Follow the change here, or hold the far end to the old shape. Either way record the decision with freeze.",
 			})
 		}
@@ -95,20 +126,20 @@ func contractEvolution(ch ir.Channel, was, now *baseline.Wire, out *diag.Set) {
 		current, still := now.ByWire(promised.Wire)
 		if !still {
 			out.Add(diag.Finding{
-				Code: diag.Code(diag.PhaseSemantic, 171),
-				Pos:  ch.Pos,
-				Rule: RuleContractFieldRemoved,
+				Code: diag.Code(diag.PhaseSemantic, r.removedCode),
+				Pos:  pos,
+				Rule: r.removed,
 				What: ref + " relied on the field " + promised.Wire + ", which the shape crossing it no longer has.",
-				Why:  "Code in this module reads it. Where the far end dropped it, every read now yields a zero value, and a zero value is indistinguishable from a legitimately empty one at the point it is read.",
-				How:  "Stop reading the field, or restore it at the far end. If its loss is accepted, record it with freeze so the lock file carries the decision.",
+				Why:  r.removedWhy,
+				How:  r.removedHow,
 			})
 			continue
 		}
 		if current.Shape != promised.Shape {
 			out.Add(diag.Finding{
-				Code: diag.Code(diag.PhaseSemantic, 172),
-				Pos:  ch.Pos,
-				Rule: RuleContractFieldChanged,
+				Code: diag.Code(diag.PhaseSemantic, r.changedCode),
+				Pos:  pos,
+				Rule: r.changed,
 				What: "the field " + promised.Wire + " of " + ref + " was recorded as " + promised.Shape + " and is now " + current.Shape + ".",
 				Why:  "It kept its name, so nothing at either end will fail to find it. It will simply be read as the wrong thing, which is the failure that surfaces furthest from its cause.",
 				How:  "Follow the change, or hold the far end to the recorded structure. Record whichever with freeze.",
@@ -119,23 +150,36 @@ func contractEvolution(ch ir.Channel, was, now *baseline.Wire, out *diag.Set) {
 
 // RecordContracts writes the contracts into the baseline.
 //
-// Only channels that state one. A channel with no contract is left out rather
-// than recorded as empty, because unstated and empty are different facts and
-// the record exists to keep them apart.
+// A channel that never stated one is left out rather than recorded as empty,
+// because unstated and empty are different facts and the record exists to keep
+// them apart. A channel whose contract was recorded and is now gone is a
+// different case again: the finding for it says to record the removal with
+// freeze, so freeze has to be able to.
 func RecordContracts(channels []ir.Channel, base *baseline.File) int {
 	changed := 0
 	for _, ch := range channels {
+		rec, known := base.Channels[ch.Name()]
+
 		if ch.Contract == nil {
+			if !known || rec.Contract == nil {
+				continue
+			}
+			rec.Contract = nil
+			base.Channels[ch.Name()] = rec
+			changed++
 			continue
 		}
+
 		if base.Channels == nil {
 			base.Channels = map[string]baseline.Channel{}
+			rec = baseline.Channel{}
 		}
 		now := wireOf(ch.Contract)
-		if rec, ok := base.Channels[ch.Name()]; ok && sameWire(rec.Contract, now) {
+		if known && sameWire(rec.Contract, now) {
 			continue
 		}
-		base.Channels[ch.Name()] = baseline.Channel{Contract: now}
+		rec.Contract = now
+		base.Channels[ch.Name()] = rec
 		changed++
 	}
 	return changed

@@ -107,6 +107,9 @@ func freeze(args []string) error {
 	if tr, ok := model.(lang.TopologyReader); ok {
 		topo := tr.Topology(discard)
 		changedContracts = check.RecordContracts(topo.Channels, base)
+		// The protocol a channel carries, recorded the same way and for the
+		// sharper reason: both ends of it are deployed apart and upgraded apart.
+		changedContracts += check.RecordMessages(topo.Channels, base)
 	}
 
 	// The requirement texts and source segments are recorded without a guard of

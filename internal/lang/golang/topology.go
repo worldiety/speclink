@@ -11,10 +11,11 @@ import (
 
 // ReadTopology extracts the actors, foreign systems and channels declared in a
 // package's *.topology.go files.
-func (p *Package) ReadTopology(out *diag.Set) ([]ir.Participant, []ir.Channel) {
+func (p *Package) ReadTopology(out *diag.Set) ([]ir.Participant, []ir.Channel, []ir.Message) {
 	var (
 		parts    []ir.Participant
 		channels []ir.Channel
+		messages []ir.Message
 	)
 
 	for _, f := range p.topologyFiles {
@@ -39,11 +40,13 @@ func (p *Package) ReadTopology(out *diag.Set) ([]ir.Participant, []ir.Channel) {
 					parts = append(parts, p.readParticipant(ir.ParticipantForeign, vs, lit))
 				case p.isSpecType(lit, "Channel"):
 					channels = append(channels, p.readChannel(vs, lit))
+				case p.isSpecType(lit, "Message"):
+					messages = append(messages, p.readMessage(vs, lit))
 				}
 			}
 		}
 	}
-	return parts, channels
+	return parts, channels, messages
 }
 
 func (p *Package) readParticipant(kind ir.ParticipantKind, vs *ast.ValueSpec, lit *ast.CompositeLit) ir.Participant {
@@ -87,6 +90,12 @@ func (p *Package) readChannel(vs *ast.ValueSpec, lit *ast.CompositeLit) ir.Chann
 			ch.Satisfies = p.identList(value)
 		case "Topics":
 			ch.Topics = p.identList(value)
+		case "Envelope":
+			if t := p.pkg.TypesInfo.TypeOf(value); t != nil {
+				ch.Envelope = p.wireShape(t)
+			}
+		case "Messages":
+			ch.MessageRefs = p.identList(value)
 		case "Contract":
 			// The declaration gives a zero value, so the type of the
 			// expression is the contract. Read the same way a request body
@@ -98,6 +107,60 @@ func (p *Package) readChannel(vs *ast.ValueSpec, lit *ast.CompositeLit) ir.Chann
 		}
 	}
 	return ch
+}
+
+// readMessage reads one message declaration.
+func (p *Package) readMessage(vs *ast.ValueSpec, lit *ast.CompositeLit) ir.Message {
+	m := ir.Message{
+		GoIdent: p.PkgPath() + "." + vs.Names[0].Name,
+		Pos:     p.pos(vs.Pos()),
+	}
+	for key, value := range p.fieldsOfLit(lit) {
+		switch key {
+		case "Payload":
+			// The declaration gives a zero value, so the type of the
+			// expression is the payload. Read the same way a request body is,
+			// so a change inside a nested struct reaches the string a rule
+			// compares.
+			if t := p.pkg.TypesInfo.TypeOf(value); t != nil {
+				m.Payload = p.wireShape(t)
+				m.PayloadType = typeName(t)
+			}
+		case "Ack":
+			if t := p.pkg.TypesInfo.TypeOf(value); t != nil {
+				m.AckType = typeName(t)
+			}
+		case "From":
+			m.From, _ = p.stringArg(value)
+		case "To":
+			m.To, _ = p.stringArg(value)
+		case "Purpose":
+			m.Purpose, _ = p.stringArg(value)
+		case "Trigger":
+			m.Trigger, _ = p.stringArg(value)
+		case "Repeatable":
+			m.Repeatable = p.readAnswer(value)
+		case "Satisfies":
+			m.Satisfies = p.identList(value)
+		case "Topics":
+			m.Topics = p.identList(value)
+		}
+	}
+	return m
+}
+
+// readAnswer resolves a spec.Answer constant by the name it is written with.
+//
+// A computed value leaves it unanswered rather than guessed at, and unanswered
+// is itself reported: a promise about redelivery worked out at run time is one
+// nobody can read from the source.
+func (p *Package) readAnswer(e ast.Expr) ir.Answer {
+	sel, ok := e.(*ast.SelectorExpr)
+	if !ok {
+		return ir.Unanswered
+	}
+	a, _ := ir.AnswerOf(sel.Sel.Name)
+	return a
 }
 
 // fieldsOfLit returns the keyed fields of a composite literal.
@@ -122,11 +185,13 @@ func (p *Package) fieldsOfLit(lit *ast.CompositeLit) map[string]ast.Expr {
 // unmeasured rather than as a mistake.
 func (m *Model) Topology(out *diag.Set) ir.Topology {
 	t := ir.Topology{Packages: map[string]bool{}}
+	var declared []ir.Message
 
 	for _, p := range m.Measured {
-		parts, channels := p.ReadTopology(out)
+		parts, channels, messages := p.ReadTopology(out)
 		t.Participants = append(t.Participants, parts...)
 		t.Channels = append(t.Channels, channels...)
+		declared = append(declared, messages...)
 
 		rel := p.relDir(m.Root)
 		if rel == "" {
@@ -143,7 +208,30 @@ func (m *Model) Topology(out *diag.Set) ir.Topology {
 	}
 
 	sort.Slice(t.Adapters, func(i, j int) bool { return t.Adapters[i].Dir < t.Adapters[j].Dir })
+	resolveMessages(&t, declared)
 	return t
+}
+
+// resolveMessages attaches the declared messages to the channels that list
+// them.
+//
+// The second pass exists for the reason the requirement tree has one: a message
+// may be declared after the channel naming it, and the order of files must not
+// decide what a channel is said to carry. A reference resolving to nothing is
+// left for the checks to report, with the channel it was named on.
+func resolveMessages(t *ir.Topology, declared []ir.Message) {
+	byIdent := make(map[string]ir.Message, len(declared))
+	for _, m := range declared {
+		byIdent[m.GoIdent] = m
+	}
+	for i := range t.Channels {
+		for _, ref := range t.Channels[i].MessageRefs {
+			if m, ok := byIdent[ref]; ok {
+				t.Channels[i].Messages = append(t.Channels[i].Messages, m)
+			}
+		}
+	}
+	t.DeclaredMessages = declared
 }
 
 // firstPos points at the head of a package, for a finding about the package
