@@ -1487,19 +1487,41 @@ func (m *specModel) writeShapeTable(d *doc.Doc, side string, w *ir.WireShape) {
 // required, including the ones tagged omitempty. A column that is right by
 // accident on the majority of rows is worse than no column.
 func (m *specModel) fieldTable(d *doc.Doc, w *ir.WireShape) {
-	t := d.Table("Field", "Wire", "Shape", "Omitted when empty")
-	t.Aligned(doc.Left, doc.Left, doc.Left, doc.Right)
+	// The column of meanings appears only where there is something in it. An
+	// empty column across every row teaches a reader to skip the table, and it
+	// is the wrong lesson: the next shape may have documented every field.
+	described := false
+	for _, f := range w.Fields {
+		if f.Doc != "" {
+			described = true
+			break
+		}
+	}
+
+	head := []string{"Field", "Wire", "Shape", "Omitted when empty"}
+	align := []doc.Align{doc.Left, doc.Left, doc.Left, doc.Right}
+	if described {
+		head = append(head, "Means")
+		align = append(align, doc.Left)
+	}
+	t := d.Table(head...)
+	t.Aligned(align...)
+
 	for _, f := range w.Fields {
 		omitted := doc.No
 		if f.OmitEmpty {
 			omitted = doc.Yes
 		}
-		t.Add(
+		cells := [][]doc.Inline{
 			doc.Cell(doc.Code(f.Name)),
 			doc.Cell(doc.Code(f.Wire)),
 			doc.Cell(doc.Code(f.Shape)),
 			doc.Cell(omitted),
-		)
+		}
+		if described {
+			cells = append(cells, doc.Cell(doc.T(oneLine(f.Doc))))
+		}
+		t.Add(cells...)
 	}
 	m.writeClaims(d, w)
 }

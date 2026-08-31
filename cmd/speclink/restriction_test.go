@@ -194,3 +194,48 @@ func TestAnUnstatedWireShapeSaysSo(t *testing.T) {
 		t.Errorf("the reason nothing is known is not given:\n%s", out)
 	}
 }
+
+// TestWhatAFieldMeansIsReadNotDeclared closes the last thing a hand written
+// schema had that a derived one did not.
+//
+// What a field means is prose, and prose about a field belongs beside the
+// field. A tag would turn documentation into a string literal nobody formats,
+// and a separate schema file would be the same fact in two places — which is
+// the failure the derived schema exists to prevent.
+func TestWhatAFieldMeansIsReadNotDeclared(t *testing.T) {
+	t.Parallel()
+	dir := copyFixture(t, "../../testdata/bare")
+
+	out, code := runSpeclink(t, "generate", dir)
+	if code != 0 {
+		t.Fatalf("generate failed with %d:\n%s", code, out)
+	}
+	if !strings.Contains(out, "| Means |") {
+		t.Fatalf("the field table carries no column of meanings:\n%s", out)
+	}
+	if !strings.Contains(out, "Note was added after the shape was promised") {
+		t.Errorf("the comment beside the field did not reach the document:\n%s", out)
+	}
+}
+
+// TestAnUndocumentedShapeGetsNoEmptyColumn keeps the table readable.
+//
+// A column empty on every row teaches a reader to skip the table, and that is
+// the wrong lesson: the next shape may have documented every field.
+func TestAnUndocumentedShapeGetsNoEmptyColumn(t *testing.T) {
+	t.Parallel()
+	dir := copyFixture(t, "../../testdata/bare")
+	// The one documented field of the fixture. Without it nothing in this
+	// shape has a comment, and the column has no reason to exist.
+	dropLine(t, dir, "app/sales/adapter/fs/quotes.go", "// Note was added after the shape")
+	dropLine(t, dir, "app/sales/adapter/fs/quotes.go", "// until then lacks it.")
+	dropLine(t, dir, "app/sales/adapter/fs/quotes.go", "// which is why it is declared optional")
+
+	out, code := runSpeclink(t, "generate", dir)
+	if code != 0 {
+		t.Fatalf("generate failed with %d:\n%s", code, out)
+	}
+	if strings.Contains(out, "| Means |") {
+		t.Errorf("a column of meanings was printed with nothing in it:\n%s", out)
+	}
+}

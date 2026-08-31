@@ -135,6 +135,7 @@ func crossingShapes(t ir.Topology) []schema.Shape {
 			Shape:      w.Shape,
 			Optional:   map[string]bool{},
 			FieldTypes: map[string]string{},
+			Docs:       map[string]string{},
 		}
 		for _, f := range w.Fields {
 			// Both spellings of absence. One is a decision somebody declared,
@@ -147,6 +148,9 @@ func crossingShapes(t ir.Topology) []schema.Shape {
 			}
 			if f.Type != "" {
 				s.FieldTypes[f.Wire] = f.Type
+			}
+			if f.Doc != "" {
+				s.Docs[f.Wire] = f.Doc
 			}
 		}
 		seen[w.Type] = s

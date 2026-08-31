@@ -37,6 +37,10 @@ type Shape struct {
 	// FieldTypes maps a top level wire name onto the named type it was
 	// declared with, so a restricted value can be pointed at its rule.
 	FieldTypes map[string]string
+	// Docs maps a top level wire name onto what the comment beside the field
+	// says. JSON Schema calls it description, and it is the field a generator
+	// turns back into a comment on the far end.
+	Docs map[string]string
 }
 
 // Of renders one shape as a schema document.
@@ -75,6 +79,11 @@ func applyTopLevel(body map[string]any, t Type, s Shape, restricted map[string]R
 	for _, f := range t.Fields {
 		if !s.Optional[f.Wire] {
 			required = append(required, f.Wire)
+		}
+		if text := s.Docs[f.Wire]; text != "" && props != nil {
+			if p, ok := props[f.Wire].(map[string]any); ok {
+				p["description"] = text
+			}
 		}
 		named := s.FieldTypes[f.Wire]
 		r, ok := restricted[named]

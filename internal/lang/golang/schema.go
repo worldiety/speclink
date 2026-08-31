@@ -174,6 +174,7 @@ func (p *Package) readFields(st *types.Struct) []ir.SchemaField {
 			Wire:      wire,
 			Shape:     shapeOf(f.Type(), map[*types.Named]bool{}),
 			Type:      declaredName(f.Type()),
+			Doc:       p.docs.of(f.Pos()),
 			OmitEmpty: hasTagOption(st.Tag(i), "omitempty"),
 			Pos:       p.pos(f.Pos()),
 		})

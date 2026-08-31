@@ -1060,7 +1060,20 @@ both is refused: two fields would say what crosses and a reader would have to
 work out which is authoritative.
 
 **The shape is not declared.** It follows from `Payload`, and so do the field
-names, the nesting, what may be omitted and what a generated schema says.
+names, the nesting, what may be omitted, what a generated schema says — and what
+each field *means*, which is read from the comment beside it:
+
+```go
+type Hello struct {
+	// RunnerID is the identity the runner believes it has.
+	RunnerID string `json:"runner_id"`
+}
+```
+
+That comment becomes the `description` of the field in the schema and a column
+in the document. Read rather than declared, because prose about a field belongs
+beside the field: a tag would turn documentation into a string literal nobody
+formats, and a schema file beside the type would be the same fact in two places.
 Writing the fields down again would be the same fact in two places, and the copy
 is the one that rots. What is declared is what no type can carry: the direction,
 the purpose, the moment, the promise about redelivery and the answer.

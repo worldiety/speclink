@@ -96,6 +96,10 @@ type Package struct {
 	testFiles []*ast.File
 	// isTest marks a test variant of a package rather than the package itself.
 	isTest bool
+	// docs are the struct field comments of every package this run loaded,
+	// shared by all of them: a payload type is declared in one package and the
+	// channel carrying it in another.
+	docs *fieldDocs
 }
 
 // PkgPath returns the import path of the package.
@@ -173,6 +177,13 @@ func load(dir string, tests bool, patterns ...string) ([]*Package, error) {
 			}
 		}
 		out = append(out, p)
+	}
+
+	// Collected once and shared, because the index is about the module rather
+	// than about any package in it.
+	docs := collectFieldDocs(out)
+	for _, p := range out {
+		p.docs = docs
 	}
 	return out, nil
 }

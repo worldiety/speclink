@@ -42,6 +42,14 @@ type SchemaField struct {
 	// named types: a field declared as RelationID with underlying string has
 	// the shape "string", because that is what a stored message contains.
 	Shape string
+	// Doc is what the comment above the field says, folded into one line.
+	//
+	// Read rather than declared. What a field means is prose, and prose about
+	// a field belongs beside it: a tag would turn documentation into a string
+	// literal nobody formats, and a separate schema would be the same fact in
+	// two places. Empty where the field carries no comment, or where the
+	// package declaring it was not part of this run.
+	Doc string
 	// Type is the qualified name the field was declared with, where that is a
 	// named type. Empty for a plain string or int.
 	//
