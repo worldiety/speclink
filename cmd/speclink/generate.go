@@ -2307,6 +2307,13 @@ func (m *specModel) writeDeclared(d *doc.Doc) {
 		if sorted[i].Package != sorted[j].Package {
 			return sorted[i].Package < sorted[j].Package
 		}
+		// The ones carrying business meaning first. Within a package they are
+		// what a reader came for, and sorting purely by name buries them under
+		// a dozen permissions whose names all begin with the same word.
+		a, b := sorted[i].Kind.NeedsRequirement(), sorted[j].Kind.NeedsRequirement()
+		if a != b {
+			return a
+		}
 		return sorted[i].Name < sorted[j].Name
 	})
 
@@ -2316,9 +2323,29 @@ func (m *specModel) writeDeclared(d *doc.Doc) {
 			pkg = c.Package
 			d.H(3, m.packageDir(pkg))
 		}
-		d.HID(4, constructID(c.Name), lastSegment(c.Name))
+		d.HID(4, constructID(c.Name), constructTitle(c.Name))
 		m.writeConstruct(d, c)
 	}
+}
+
+// constructTitle is the heading a construct gets.
+//
+// # Why it is not simply the last segment
+//
+// Because not every construct is named like a Go type. A type is
+// "example.com/m/app/sales.SubmitQuote", where cutting at the last dot leaves
+// the name; a permission is "sales.quote.submit", where the same cut leaves
+// "submit" — a heading that says nothing, repeated a dozen times down the page
+// with a different meaning each time.
+//
+// The two are told apart by the slash. A Go import path has one and a
+// permission identifier does not, which is not a coincidence to be relied on
+// lightly but is a property of both spellings rather than of any one project.
+func constructTitle(name string) string {
+	if i := strings.LastIndexByte(name, '/'); i >= 0 {
+		return lastSegment(name[i:])
+	}
+	return name
 }
 
 // writeConstruct says what one construct is, where it is and what it answers
