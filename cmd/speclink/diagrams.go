@@ -94,10 +94,29 @@ func diagrams(args []string) error {
 		}
 	}
 	if pkgs.Declared() {
-		if err := writeDiagram(*out, "packages.puml", render.Packages(pkgs, system)); err != nil {
-			return err
+		// One picture while it is still readable, and a map plus one picture
+		// per context once it is not. The split is decided here rather than by
+		// the caller because the caller has no way to judge it: what makes a
+		// drawing unreadable is how many nodes end up in it, which only this
+		// side knows.
+		if !render.Crowded(pkgs) {
+			if err := writeDiagram(*out, "packages.puml", render.Packages(pkgs, system)); err != nil {
+				return err
+			}
+			written++
+		} else {
+			if err := writeDiagram(*out, "context-map.puml", render.ContextMap(pkgs, system)); err != nil {
+				return err
+			}
+			written++
+			for _, ctx := range pkgs.Contexts() {
+				name := "packages-" + slug(ctx) + ".puml"
+				if err := writeDiagram(*out, name, render.PackagesOf(pkgs, ctx, system)); err != nil {
+					return err
+				}
+				written++
+			}
 		}
-		written++
 	}
 	for _, p := range processes {
 		// The same graph, pictured the way the declaration asks for. A course

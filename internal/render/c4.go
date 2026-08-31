@@ -85,9 +85,37 @@ func Blocks(t ir.Topology, system string) string {
 		}
 	}
 
+	// Grouped by the part they belong to, and named by what distinguishes
+	// them within it.
+	//
+	// Laid out flat, eighteen adapters sit in one row, and the drawing comes
+	// out five times wider than it is tall. Scaled to the width of a page that
+	// is unreadable — not merely small: the labels stop resolving, and a
+	// reader is looking at a diagram that tells them nothing while appearing
+	// to tell them everything. Grouping turns one row of eighteen into four
+	// boxes of four or five, which is a shape that fits.
 	fmt.Fprintf(&b, "rectangle %s {\n", quoted(system))
+	byGroup := map[string][]string{}
+	var order []string
 	for _, dir := range sortedKeys(inside) {
-		fmt.Fprintf(&b, "  rectangle %s as %s\n", quoted(dir), ident(dir))
+		g := groupOf(dir)
+		if _, seen := byGroup[g]; !seen {
+			order = append(order, g)
+		}
+		byGroup[g] = append(byGroup[g], dir)
+	}
+	for _, g := range order {
+		if g == "" || len(byGroup[g]) == 1 {
+			for _, dir := range byGroup[g] {
+				fmt.Fprintf(&b, "  rectangle %s as %s\n", quoted(dir), ident(dir))
+			}
+			continue
+		}
+		fmt.Fprintf(&b, "  rectangle %s {\n", quoted(g))
+		for _, dir := range byGroup[g] {
+			fmt.Fprintf(&b, "    rectangle %s as %s\n", quoted(withinGroup(dir, g)), ident(dir))
+		}
+		b.WriteString("  }\n")
 	}
 	b.WriteString("}\n\n")
 
@@ -153,4 +181,27 @@ func sortedKeys(m map[string]bool) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// groupOf is the part of the system a package directory belongs to.
+//
+// The first two segments, which under every layout this tool supports is the
+// context root and the context itself: app/controlplane out of
+// app/controlplane/adapter/wss. A directory with fewer segments belongs to no
+// group and is drawn on its own.
+func groupOf(dir string) string {
+	parts := strings.Split(dir, "/")
+	if len(parts) < 3 {
+		return ""
+	}
+	return parts[0] + "/" + parts[1]
+}
+
+// withinGroup is what is left of a directory once its group is shown around
+// it.
+//
+// The group box already carries app/controlplane, so repeating it inside on
+// every one of six children spends the width the grouping was there to save.
+func withinGroup(dir, group string) string {
+	return strings.TrimPrefix(strings.TrimPrefix(dir, group), "/")
 }

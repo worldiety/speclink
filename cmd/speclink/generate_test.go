@@ -192,10 +192,13 @@ func TestDocumentCarriesTheCoursesOfBusiness(t *testing.T) {
 		"## Courses of business",
 		"### Angebot bis zur Entscheidung",
 		"Answers to: R-QUOTE-SUBMIT, R-QUOTE-APPROVE",
-		// The step names the construct it performs, not a caption.
-		"| SubmitQuote _(activity)_ | QuoteSubmitted _(event raised)_ |",
+		// The step names the construct it performs, not a caption — and names
+		// it as a link, so a reader can follow it to what it is.
+		"[SubmitQuote](#req-code-",
+		"_(activity)_ | [QuoteSubmitted](#req-code-",
 		// The jump backwards survives into the table.
-		"| pruefen _(choice)_ | SubmitQuote _(activity)_ | nachzubessern |",
+		"| pruefen _(choice)_ | [SubmitQuote](#req-code-",
+		"_(activity)_ | nachzubessern |",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("expected %q in the document:\n%s", want, out)
@@ -264,5 +267,65 @@ func TestReadingIsCountedOnceItIsRecorded(t *testing.T) {
 	out, _ := runSpeclink(t, "generate", dir, "./...")
 	if !strings.Contains(out, "| `requirements/_sources/sales/quoteflow.md` | markdown | 4 | 4 | 4 | 0 |") {
 		t.Errorf("a recorded review did not reach the table:\n%s", out)
+	}
+}
+
+// TestALongShapeDoesNotRunOffThePage is a defect a reader found before any
+// test did.
+//
+// The shape grammar is one line by design — it is a fingerprint, compared and
+// hashed — and a real payload comes to six hundred characters of it. A run that
+// long has no spaces in it, so a typesetter cannot break it: it does not wrap,
+// it runs off the column, and the text to the right is simply gone. Nothing on
+// the page tells the reader that anything is missing.
+func TestALongShapeDoesNotRunOffThePage(t *testing.T) {
+	t.Parallel()
+	out, _ := runSpeclink(t, "generate", "../../testdata/bare", "./...")
+
+	for _, line := range strings.Split(out, "\n") {
+		if !strings.HasPrefix(line, "|") {
+			continue
+		}
+		for _, cell := range strings.Split(line, "|") {
+			for _, word := range strings.Fields(cell) {
+				if len(word) > 120 {
+					t.Errorf("a table cell holds an unbreakable run of %d characters, "+
+						"which no typesetter can wrap:\n%s", len(word), word)
+				}
+			}
+		}
+	}
+}
+
+// TestANestedShapeIsSetOutInFull is the other half of that.
+//
+// Taking the structure out of the cell is only an improvement if it lands
+// somewhere. It is set out one field to a line, which is both readable and the
+// form somebody writing the far end actually needs.
+func TestANestedShapeIsSetOutInFull(t *testing.T) {
+	t.Parallel()
+	dir := copyFixture(t, "../../testdata/bare")
+	rewrite(t, dir, "topology/boundary.topology.go",
+		"\tContract: fs.QuoteStore{},",
+		"\tContract: fs.Ablage{},")
+	appendTo(t, dir, "app/sales/adapter/fs/quotes.go", `
+// Ablage is a stored shape with something inside it.
+type Ablage struct {
+	Quotes []QuoteStore `+"`json:\"quotes\"`"+`
+}
+`)
+
+	out, code := runSpeclink(t, "generate", dir, "./...")
+	if code != 0 {
+		t.Fatalf("generate failed with %d:\n%s", code, summary(out))
+	}
+	if !strings.Contains(out, "## Structures in full") {
+		t.Fatalf("the nested structure landed nowhere:\n%s", summary(out))
+	}
+	if !strings.Contains(out, "\n    id: string\n") {
+		t.Errorf("the structure is not set out one field to a line:\n%s", summary(out))
+	}
+	if !strings.Contains(out, `[\[\]QuoteStore](#req-shape-`) {
+		t.Errorf("the table does not point at it:\n%s", summary(out))
 	}
 }

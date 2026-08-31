@@ -134,12 +134,17 @@ func TestSurfaceCatalogueCarriesTheChain(t *testing.T) {
 	if !strings.Contains(out, "## What answers from outside") {
 		t.Fatalf("the exposed surface is missing from the document:\n%s", out)
 	}
+	// The use case is a link into what the code declares, not a bare word. A
+	// reader following the surface inwards is the ordinary path through this
+	// document, and every identifier that is not a link is a place they stop.
 	for _, want := range []string{
-		"| `POST /quotes/submit` | `SubmitQuote` | R-QUOTE-SUBMIT |",
-		"| `POST /invoices/draft` | `DraftInvoice` | R-BILL-DRAFT |",
+		"| `POST /quotes/submit` | [SubmitQuote](#req-code-",
+		"| `POST /invoices/draft` | [DraftInvoice](#req-code-",
+		") | R-QUOTE-SUBMIT |",
+		") | R-BILL-DRAFT |",
 	} {
 		if !strings.Contains(out, want) {
-			t.Errorf("expected the row %q in the catalogue", want)
+			t.Errorf("expected %q in the catalogue:\n%s", want, summary(out))
 		}
 	}
 }
@@ -291,10 +296,10 @@ func TestSurfaceCatalogueCarriesTheWireShapes(t *testing.T) {
 
 	for _, want := range []string{
 		"| Address | Takes | Returns | Serves | Asked for by |",
-		"| `POST /api/v1/quotes` | `SubmitQuoteBody` | `SubmitQuoteResponse` | `SubmitQuote` | R-QUOTE-SUBMIT |",
+		"| `POST /api/v1/quotes` | `SubmitQuoteBody` | `SubmitQuoteResponse` | [SubmitQuote](#req-code-",
 		// A GET carries no body, so the cell is a dash and not the assembled
 		// request model, which no caller ever sends.
-		"| `GET /api/v1/quotes` | — | `ListQuotesResponse` | `ListQuotes` | R-QUOTE-OVERVIEW |",
+		"| `GET /api/v1/quotes` | — | `ListQuotesResponse` | [ListQuotes](#req-code-",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("expected the row %q in the catalogue", want)

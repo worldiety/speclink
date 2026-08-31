@@ -71,6 +71,13 @@ func (r Typst) Render(d *Doc) string {
 			}
 			fmt.Fprintf(b, "#raw(block: true, %s)\n\n", typString(t.Text))
 		case *Figure:
+			// A broad drawing gets the page turned under it. At the width of a
+			// column it would be a few millimetres high with labels that do
+			// not resolve, and a picture nobody can read is worse than none:
+			// the reader believes they have seen it.
+			if t.Wide {
+				b.WriteString("#page(flipped: true)[\n")
+			}
 			// Width only. Giving a height as well makes the figure reserve
 			// that much page whether the drawing needs it or not, and a wide
 			// flat diagram then sits in the middle of half a blank page.
@@ -78,6 +85,9 @@ func (r Typst) Render(d *Doc) string {
 				t.Path, typEscape(t.Caption))
 			if t.ID != "" {
 				fmt.Fprintf(b, " <%s>", label(t.ID))
+			}
+			if t.Wide {
+				b.WriteString("\n]")
 			}
 			b.WriteString("\n\n")
 		case *Table:

@@ -208,6 +208,14 @@ type Figure struct {
 	Caption string
 	// ID makes the figure referable, so a chapter can cite it by number.
 	ID string
+	// Wide marks a drawing that is much broader than it is tall.
+	//
+	// Set in the column it is given, such a figure is scaled to the width of
+	// the text and comes out a few millimetres high: the labels stop
+	// resolving, and the reader is looking at something that appears to tell
+	// them everything while telling them nothing. A backend that can turn the
+	// page is expected to do so.
+	Wide bool
 }
 
 func (*Figure) block() {}
@@ -215,6 +223,12 @@ func (*Figure) block() {}
 // Fig adds a figure.
 func (d *Doc) Fig(id, path, caption string) *Doc {
 	d.Blocks = append(d.Blocks, &Figure{Path: path, Caption: caption, ID: id})
+	return d
+}
+
+// WideFig adds a figure that needs the page turned to be legible.
+func (d *Doc) WideFig(id, path, caption string) *Doc {
+	d.Blocks = append(d.Blocks, &Figure{Path: path, Caption: caption, ID: id, Wide: true})
 	return d
 }
 
@@ -256,6 +270,16 @@ func (d *Doc) H(level int, text string) *Doc {
 // HID adds a heading that can be referred to.
 func (d *Doc) HID(level int, id, text string) *Doc {
 	d.Blocks = append(d.Blocks, &Heading{Level: level, Text: text, ID: id})
+	return d
+}
+
+// Code adds a listing: text set verbatim, in a monospaced block.
+//
+// For a structure, a snippet or anything else whose line breaks and indentation
+// are part of what it says. A paragraph would fold them away, and a table cell
+// would refuse to break at all.
+func (d *Doc) Code(lang, text string) *Doc {
+	d.Blocks = append(d.Blocks, &Listing{Lang: lang, Text: text})
 	return d
 }
 

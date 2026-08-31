@@ -7,32 +7,19 @@ import (
 	"github.com/worldiety/speclink/internal/ir"
 )
 
-// Packages draws the module's own packages and the dependencies between them.
+// Packages is kept as the whole picture, for a module small enough to have
+// one.
 //
-// Grouped by bounded context, because that is the boundary the architecture
-// actually defends: an arrow inside a group is ordinary, and one crossing
-// between groups is the thing a reviewer is looking for. Drawing a flat list of
-// packages would bury that distinction in the middle of the picture.
-//
-// Only this module's packages. An edge to the standard library or to a
-// dependency is not a fact about the architecture of this system, and there are
-// hundreds of them.
+// The threshold is not a matter of taste. Past about thirty nodes a layout
+// engine spends its effort on avoiding crossings rather than on showing
+// structure, and scaled to the width of a page the result is a grey mesh with
+// unreadable labels — worse than no picture, because a reader believes they
+// have seen the architecture. Above it, the document draws a context map and
+// one picture per context instead; see ContextMap and PackagesOf.
 func Packages(g ir.PackageGraph, system string) string {
 	g = systemOnly(g)
 	b := &strings.Builder{}
-	b.WriteString("@startuml packages\n")
-	b.WriteString("skinparam componentStyle rectangle\n")
-	b.WriteString("skinparam shadowing false\n")
-	b.WriteString("skinparam defaultTextAlignment center\n")
-	b.WriteString("skinparam package {\n  BorderColor #999999\n  BackgroundColor #FCFCFC\n}\n")
-	// One colour per layer, and a legend, so the picture can be read without
-	// the surrounding prose — which is how a diagram in an audit document is
-	// usually met.
-	for _, l := range layerOrder {
-		fmt.Fprintf(b, "skinparam component<<%s>> {\n  BackgroundColor %s\n  BorderColor #777777\n}\n",
-			string(l), layerFill[l])
-	}
-	fmt.Fprintf(b, "title %s\n\n", quoted(system))
+	header(b, "packages", system)
 
 	byContext := map[string][]ir.PackageNode{}
 	var loose []ir.PackageNode
@@ -56,26 +43,21 @@ func Packages(g ir.PackageGraph, system string) string {
 	}
 
 	b.WriteString("\n")
-	seen := map[string]bool{}
-	for _, e := range g.Edges {
-		line := fmt.Sprintf("%s --> %s\n", ident(e.From), ident(e.To))
-		if seen[line] {
-			continue
-		}
-		seen[line] = true
-		b.WriteString(line)
-	}
+	writeEdges(b, g.Edges)
 
-	b.WriteString("\nlegend right\n")
-	for _, l := range layerOrder {
-		if !used(g, l) {
-			continue
-		}
-		fmt.Fprintf(b, "  <back:%s>   </back> %s\n", strings.TrimPrefix(layerFill[l], "#"), string(l))
-	}
-	b.WriteString("endlegend\n")
+	legend(b, g)
 	b.WriteString("@enduml\n")
 	return b.String()
+}
+
+// Crowded reports whether the whole picture has stopped being readable.
+//
+// Measured on the module's own packages, because those are what gets drawn.
+// The number is a judgement and is written down here rather than left in
+// somebody's head: thirty nodes is about where a page-width drawing stops
+// being legible at print size.
+func Crowded(g ir.PackageGraph) bool {
+	return len(systemOnly(g).Nodes) > 30
 }
 
 // systemOnly drops the packages that declare the specification.

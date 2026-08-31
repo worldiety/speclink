@@ -1,6 +1,7 @@
 package render
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -139,5 +140,67 @@ func TestContextLeavesOutWhatDoesNotCrossTheBoundary(t *testing.T) {
 	// ends does not want to know that it has a sales context.
 	if strings.Count(got, "rectangle") != 1 {
 		t.Errorf("the system was opened up in the context view:\n%s", got)
+	}
+}
+
+// TestACrowdedGraphIsDrawnAsAMapAndParts holds the split to the reason for it.
+//
+// A drawing of every package of a real system is not a drawing anybody reads.
+// Past about thirty nodes the layout engine spends its effort on avoiding
+// crossings rather than on showing structure, and scaled to the width of a page
+// the result is a grey mesh with unreadable labels — worse than no picture,
+// because a reader believes they have seen the architecture.
+func TestACrowdedGraphIsDrawnAsAMapAndParts(t *testing.T) {
+	t.Parallel()
+
+	var g ir.PackageGraph
+	for _, ctx := range []string{"sales", "billing"} {
+		for i := range 20 {
+			path := fmt.Sprintf("example.com/m/app/%s/p%d", ctx, i)
+			g.Nodes = append(g.Nodes, ir.PackageNode{
+				Path: path, Dir: fmt.Sprintf("app/%s/p%d", ctx, i),
+				Context: ctx, Layer: ir.LayerDomain, Measured: true,
+			})
+			if i > 0 {
+				g.Edges = append(g.Edges, ir.PackageEdge{
+					From: path, To: fmt.Sprintf("example.com/m/app/%s/p0", ctx),
+				})
+			}
+		}
+	}
+	g.Edges = append(g.Edges, ir.PackageEdge{
+		From: "example.com/m/app/sales/p1", To: "example.com/m/app/billing/p0",
+	})
+
+	if !Crowded(g) {
+		t.Fatal("forty packages in one picture is not a picture")
+	}
+
+	// The map has one node per context and says nothing about their insides.
+	// An arrow within a context is the ordinary case and would be noise here:
+	// it says only that a context has an inside, which the reader assumes.
+	m := ContextMap(g, "m")
+	if strings.Count(m, "component ") != 2 {
+		t.Errorf("the map should carry one node per context, got:\n%s", m)
+	}
+	if !strings.Contains(m, "ctx_sales --> ctx_billing") {
+		t.Errorf("the crossing between contexts is missing from the map:\n%s", m)
+	}
+	if strings.Contains(m, "ctx_sales --> ctx_sales") {
+		t.Errorf("a context was drawn depending on itself:\n%s", m)
+	}
+
+	// The part shows its own packages, and the neighbour it reaches as one
+	// box. Drawing the far side in full would put the whole system back on
+	// the page, one context at a time.
+	part := PackagesOf(g, "sales", "m")
+	if strings.Count(part, "app/sales/p") != 20 {
+		t.Errorf("the part should carry its own packages, got:\n%s", part)
+	}
+	if strings.Contains(part, "app/billing/p") {
+		t.Errorf("the neighbour was drawn in full rather than collapsed:\n%s", part)
+	}
+	if !strings.Contains(part, `component "billing"`) {
+		t.Errorf("the neighbour is missing entirely:\n%s", part)
 	}
 }

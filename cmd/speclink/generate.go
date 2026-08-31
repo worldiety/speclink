@@ -18,7 +18,9 @@ import (
 	"github.com/worldiety/speclink/internal/doc"
 	"github.com/worldiety/speclink/internal/ir"
 	"github.com/worldiety/speclink/internal/lang"
+	"github.com/worldiety/speclink/internal/render"
 	"github.com/worldiety/speclink/internal/reqtree"
+	"github.com/worldiety/speclink/internal/schema"
 	"github.com/worldiety/speclink/internal/source"
 )
 
@@ -97,6 +99,9 @@ func generate(args []string) error {
 		return err
 	}
 	model.figures, model.figureExt = *figures, *figExt
+	if *figures != "" && *out != "" {
+		model.figureDir = filepath.Join(filepath.Dir(*out), *figures)
+	}
 	// The title names the system, not the genre. "Specification" is already
 	// printed above it, and a document whose heading repeats its own kind
 	// tells a reader nothing about which system they are holding.
@@ -139,6 +144,18 @@ type specModel struct {
 	topo       ir.Topology
 	processes  []*ir.Process
 	constructs []ir.Construct
+
+	// shapes are the nested structures the field tables point at, in the order
+	// they were first met, and shapeIndex is what keeps that list unique.
+	shapes     []nestedShape
+	shapeIndex map[string]struct{}
+
+	// messages names every payload that got a section of its own, so a process
+	// step can be pointed at one without guessing that it is there.
+	messages map[string]bool
+	// restricted names every type whose values carry a rule, for the same
+	// reason: a link is only written where the target is known to exist.
+	restricted map[string]bool
 	endpoints  []ir.Endpoint
 
 	// figures is the directory the drawings live in, relative to the document.
@@ -149,7 +166,11 @@ type specModel struct {
 	// renderer, so the pictures are made between generating this and
 	// compiling it, and a document that silently referenced a missing one
 	// would be worse than one that admits it.
-	figures   string
+	figures string
+	// figureDir is where those drawings actually are on disk, so that one can
+	// be measured. Empty when the document goes to standard output, where
+	// there is nothing to be relative to.
+	figureDir string
 	figureExt string
 
 	// title names the system this document describes.
@@ -193,7 +214,7 @@ func readModel(absRoot, cfgPath, prof string, patterns []string) (*specModel, er
 		verifications = vr.Verifications(discard)
 	}
 
-	m := &specModel{root: absRoot, skipped: skippedPackages(frontend), can: lang.Of(frontend)}
+	m := &specModel{root: absRoot, skipped: skippedPackages(frontend), can: lang.Of(frontend), shapeIndex: map[string]struct{}{}}
 	if inf, ok := frontend.(lang.ConstructInferrer); ok {
 		m.constructs = inf.Constructs(discard)
 	}
@@ -235,7 +256,22 @@ func readModel(absRoot, cfgPath, prof string, patterns []string) (*specModel, er
 		m.known[r.ID] = true
 	}
 
+	m.messages = map[string]bool{}
+	if tr, ok := frontend.(lang.TopologyReader); ok {
+		for _, c := range tr.Topology(discard).Channels {
+			for _, msg := range c.Messages {
+				if msg.PayloadType != "" {
+					m.messages[msg.PayloadType] = true
+				}
+			}
+		}
+	}
+
 	m.restrictions = check.Restrictions(bindings, discard)
+	m.restricted = map[string]bool{}
+	for _, r := range m.restrictions {
+		m.restricted[r.Type] = true
+	}
 	m.claims = collectClaims(bindings)
 	m.waived = ir.CollectWaivers(bindings)
 	m.base, err = baseline.Load(absRoot)
@@ -267,10 +303,12 @@ func (m *specModel) document() *doc.Doc {
 	m.writeArchitecture(d)
 	m.prose(d, ir.PlaceBeforeComposition)
 	m.writeComposition(d)
+	m.writeDeclared(d)
 	m.prose(d, ir.PlaceBeforeBoundary)
 	m.writeBoundary(d)
 	m.prose(d, ir.PlaceBeforeSurface)
 	m.writeSurface(d)
+	m.writeShapes(d)
 	m.writeRestrictions(d)
 	m.prose(d, ir.PlaceBeforeProcesses)
 	m.writeProcesses(d)
@@ -300,7 +338,7 @@ func (m *specModel) writeRestrictions(d *doc.Doc) {
 		doc.T("An implementation on either end conforms when it accepts every case in the first column and refuses every case in the second."))
 
 	for _, r := range m.restrictions {
-		d.H(3, lastSegment(r.Type))
+		d.HID(3, ruleID(r.Type), lastSegment(r.Type))
 		d.P(doc.T(r.Text))
 
 		t := d.Table("Must accept", "Must refuse")
@@ -470,7 +508,12 @@ func (m *specModel) figure(d *doc.Doc, id, stem, caption string) bool {
 	if m.figures == "" {
 		return false
 	}
-	d.Fig(id, path.Join(m.figures, stem+"."+m.figureExt), caption)
+	name := stem + "." + m.figureExt
+	if m.figureDir != "" && wide(filepath.Join(m.figureDir, name)) {
+		d.WideFig(id, path.Join(m.figures, name), caption)
+		return true
+	}
+	d.Fig(id, path.Join(m.figures, name), caption)
 	return true
 }
 
@@ -1119,10 +1162,7 @@ func (m *specModel) writeComposition(d *doc.Doc) {
 			plural(spec, "package", "packages"))
 	}
 
-	if !m.figure(d, "fig-packages", "packages",
-		"The system's own packages, grouped by the context each belongs to.") {
-		noFigure(d)
-	}
+	m.writePackageFigures(d)
 
 	crossings := m.pkgs.Crossings()
 	d.H(3, "Where one context reaches into another")
@@ -1242,7 +1282,8 @@ func (m *specModel) writeProtocols(d *doc.Doc) {
 	}
 
 	d.H(3, "What is spoken on each channel")
-	d.P(doc.T("Every shape below is recorded in "), doc.Code("speclink.lock"), doc.T(". "),
+	m.sayRecorded(d)
+	d.P(
 		doc.T("Both ends of a protocol are deployed apart and upgraded apart, so at any moment one of them is older than the other — still sending what it always sent, and still expecting what it always expected."))
 
 	for _, c := range carrying {
@@ -1269,7 +1310,7 @@ func (m *specModel) writeProtocols(d *doc.Doc) {
 			if msg.Payload == nil {
 				continue
 			}
-			d.H(5, lastSegment(msg.PayloadType))
+			d.HID(5, messageID(msg.PayloadType), lastSegment(msg.PayloadType))
 			if msg.Purpose != "" {
 				d.P(doc.T(msg.Purpose))
 			}
@@ -1316,9 +1357,9 @@ func (m *specModel) writeContracts(d *doc.Doc) {
 	}
 
 	d.H(3, "What this system relies on receiving")
-	d.P(doc.T("These structures cross the boundary and are recorded in "), doc.Code("speclink.lock"),
-		doc.T(". A change to one is reported the next run, which is the only warning available: "),
-		doc.T("the far end of a channel has not heard of this repository and cannot be told."))
+	m.sayRecorded(d)
+	d.P(doc.T("A change to a recorded structure is reported the next run, which is the only warning "),
+		doc.T("available: the far end of a channel has not heard of this repository and cannot be told."))
 
 	for _, c := range stated {
 		d.H(4, c.Name())
@@ -1515,7 +1556,7 @@ func (m *specModel) fieldTable(d *doc.Doc, w *ir.WireShape) {
 		cells := [][]doc.Inline{
 			doc.Cell(doc.Code(f.Name)),
 			doc.Cell(doc.Code(f.Wire)),
-			doc.Cell(doc.Code(f.Shape)),
+			m.shapeCell(f),
 			doc.Cell(omitted),
 		}
 		if described {
@@ -1524,6 +1565,119 @@ func (m *specModel) fieldTable(d *doc.Doc, w *ir.WireShape) {
 		t.Add(cells...)
 	}
 	m.writeClaims(d, w)
+}
+
+// shapeCell is what the Shape column holds.
+//
+// # Why a nested shape is not printed here
+//
+// Because it does not fit, and the way it does not fit is the dangerous kind.
+// The shape grammar is one line by design — it is a fingerprint, compared and
+// hashed — and the desired configuration of a runner comes to six hundred
+// characters of it. A run that long has no spaces in it, so a typesetter cannot
+// break it at all: it does not wrap, it runs off the page, and the text to the
+// right is simply gone. A reader has no way to tell that anything is missing.
+//
+// So the cell holds the name of the thing and points at it, and the structure
+// is set out once, in full, where there is room for it.
+func (m *specModel) shapeCell(f ir.SchemaField) []doc.Inline {
+	if schema.Composite(f.Shape) {
+		id, title := m.registerShape(f)
+		return doc.Cell(doc.Ref{ID: id, Text: title})
+	}
+	// A scalar under a rule is the more interesting scalar. "string" says
+	// nothing a reader did not already assume; the rule is where they find out
+	// that it may hold at most 64 characters and never a control byte.
+	if m.restricted[f.Type] {
+		return doc.Cell(doc.Code(f.Shape), doc.T(" "),
+			doc.Ref{ID: ruleID(f.Type), Text: lastSegment(f.Type)})
+	}
+	return doc.Cell(doc.Code(f.Shape))
+}
+
+// ruleID is the anchor of a restricted type, and the one place that spelling
+// is decided.
+func ruleID(typeName string) string { return "rule-" + slug(typeName) }
+
+// registerShape records a nested shape for the chapter that sets it out, and
+// returns the anchor and the words to point at it with.
+//
+// Keyed by the declared type where there is one, so a type carried by six
+// messages is set out once and linked six times. Where there is none — an
+// anonymous struct on the wire — the owner and the field name make the key,
+// because that is the only thing that identifies it.
+func (m *specModel) registerShape(f ir.SchemaField) (string, string) {
+	name := lastSegment(f.Type)
+	key := f.Type
+	if name == "" {
+		name = "{…}"
+		key = f.Shape
+	}
+
+	// The section is about the structure, and a list of it is the same
+	// structure. The brackets belong in the cell, where they say how many of
+	// them cross, and not over the section, where they would make one type
+	// look like two.
+	shape := f.Shape
+	title := name
+	if rest, list := strings.CutPrefix(shape, "[]"); list {
+		title = "[]" + name
+		if f.Type != "" {
+			shape = rest
+		}
+	}
+
+	id := "shape-" + slug(key)
+	if _, seen := m.shapeIndex[id]; !seen {
+		m.shapeIndex[id] = struct{}{}
+		m.shapes = append(m.shapes, nestedShape{ID: id, Title: name, Shape: shape})
+	}
+	return id, title
+}
+
+// nestedShape is one structure set out in full.
+type nestedShape struct {
+	ID    string
+	Title string
+	Shape string
+}
+
+// writeShapes sets out every nested structure the tables pointed at.
+//
+// One chapter rather than a block under each table, because the same type
+// crosses on several messages and repeating it would be the same fact printed
+// six times — with six chances of a reader comparing two copies and wondering
+// which is current.
+func (m *specModel) writeShapes(d *doc.Doc) {
+	if len(m.shapes) == 0 {
+		return
+	}
+
+	d.H(2, "Structures in full")
+	d.P(doc.T("Every structure the tables above pointed at, set out one field to a line. "),
+		doc.T("This is the form somebody writing the far end needs, and it is derived from the same "),
+		doc.T("types the shapes are: nothing here is maintained separately, so nothing here can drift."))
+
+	for _, s := range m.shapes {
+		d.HID(3, s.ID, s.Title)
+		d.Code("", schema.PrettyShape(s.Shape))
+	}
+}
+
+// slug turns a qualified type name into something usable as an anchor.
+func slug(name string) string {
+	b := &strings.Builder{}
+	for _, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			b.WriteRune(r - 'A' + 'a')
+		default:
+			b.WriteByte('-')
+		}
+	}
+	return strings.Trim(b.String(), "-")
 }
 
 // writeClaims names the fields of a shape that the sender only asserts.
@@ -1601,7 +1755,7 @@ func (m *specModel) writeSurface(d *doc.Doc) {
 			if len(served) > 0 {
 				served = append(served, doc.T(", "))
 			}
-			served = append(served, doc.Code(short))
+			served = append(served, m.constructRef(uc, short))
 			asked = append(asked, byConstruct[uc]...)
 			asked = append(asked, byConstruct[short]...)
 		}
@@ -1720,11 +1874,32 @@ func (m *specModel) nodeLabel(p *ir.Process, id string) []doc.Inline {
 	kind := doc.Emph("(" + n.Kind.String() + ")")
 	switch {
 	case n.Ref != "":
-		return doc.Cell(doc.T(lastSegment(n.Ref)), doc.T(" "), kind)
+		return doc.Cell(m.refTo(n), doc.T(" "), kind)
 	case n.Label != "":
 		return doc.Cell(doc.T(n.Label), doc.T(" "), kind)
 	}
 	return doc.Cell(doc.T(id), doc.T(" "), kind)
+}
+
+// refTo points a process step at whatever it names.
+//
+// A step names one of two things and they live in different chapters: an
+// activity names a use case, which is declared in the code and has an entry
+// under what the code declares; a send names a payload, which is a shape and
+// is set out with the protocol that carries it.
+//
+// Where neither is there the words are printed plainly. A link to a heading
+// that does not exist is refused by the typesetter, and that refusal is the
+// guarantee this whole mechanism rests on — so it must not be gambled with.
+func (m *specModel) refTo(n ir.ProcessNode) doc.Inline {
+	text := lastSegment(n.Ref)
+	switch {
+	case n.Kind == ir.NodeSend && m.messages[n.Ref]:
+		return doc.Ref{ID: messageID(n.Ref), Text: text}
+	case n.Kind != ir.NodeSend && m.isConstruct(n.Ref):
+		return doc.Ref{ID: constructID(n.Ref), Text: text}
+	}
+	return doc.T(text)
 }
 
 // satisfiedBy resolves the requirement identifiers a process names.
@@ -2053,8 +2228,8 @@ func (m *specModel) writeImplementation(it *items, r *ir.Requirement) {
 			continue
 		}
 		it.under(append([]doc.Inline{
-			doc.Code(name), doc.T(" — "),
-			doc.Code(fmt.Sprintf("%s:%d–%d", m.relative(c.Pos.File), c.Pos.Line, c.EndLine)),
+			m.constructRef(c.Name, lastSegment(c.Name)), doc.T(" — "),
+			doc.Code(m.location(c)),
 		}, m.exercised(c)...)...)
 	}
 }
@@ -2094,4 +2269,211 @@ func omitted(d *doc.Doc, title, reason string) {
 		d.H(2, title)
 	}
 	d.P(doc.Emph(reason))
+}
+
+// writeDeclared gives every construct a place of its own.
+//
+// # Why the document needed one
+//
+// The register does this for requirements: one entry each, with an anchor, so
+// that everything mentioning a requirement can point at it. The code side had
+// no such place. A process step naming a use case, a route naming the use case
+// it serves, a requirement naming what implements it — all of them printed a
+// bare identifier, and a reader who wanted to know what it was had to search
+// the source.
+//
+// That is the difference between a document and a listing. A reader follows
+// what they are curious about, and every identifier that is not a link is a
+// place where they have to stop.
+func (m *specModel) writeDeclared(d *doc.Doc) {
+	if !m.can.Constructs {
+		omitted(d, "What the code declares",
+			"Not measured: this frontend recognises no constructs, so nothing in the code has a name this document can point at.")
+		return
+	}
+	if len(m.constructs) == 0 {
+		omitted(d, "What the code declares",
+			"No construct was recognised. Either this module contains none, or none of it is in the configured scope.")
+		return
+	}
+
+	d.H(2, "What the code declares")
+	d.Pf("%s, each recognised by what it is rather than by an annotation saying so. "+
+		"Everything elsewhere in this document that names one of them points here.",
+		plural(len(m.constructs), "construct", "constructs"))
+
+	sorted := append([]ir.Construct(nil), m.constructs...)
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].Package != sorted[j].Package {
+			return sorted[i].Package < sorted[j].Package
+		}
+		return sorted[i].Name < sorted[j].Name
+	})
+
+	pkg := ""
+	for _, c := range sorted {
+		if c.Package != pkg {
+			pkg = c.Package
+			d.H(3, m.packageDir(pkg))
+		}
+		d.HID(4, constructID(c.Name), lastSegment(c.Name))
+		m.writeConstruct(d, c)
+	}
+}
+
+// writeConstruct says what one construct is, where it is and what it answers
+// to.
+func (m *specModel) writeConstruct(d *doc.Doc, c ir.Construct) {
+	line := []doc.Inline{doc.Emph(c.Kind.String())}
+	if c.Pos.File != "" {
+		line = append(line, doc.T(" — "), doc.Code(m.location(c)))
+	}
+	if ex := m.exercised(c); len(ex) > 0 {
+		line = append(line, ex...)
+	}
+	d.P(line...)
+
+	if reqs := m.answersTo(c); len(reqs) > 0 {
+		var refs []doc.Inline
+		refs = append(refs, doc.Strong("Answers to"), doc.T(" "))
+		for i, id := range reqs {
+			if i > 0 {
+				refs = append(refs, doc.T(", "))
+			}
+			refs = append(refs, doc.Ref{ID: id, Text: id})
+		}
+		d.P(refs...)
+	}
+}
+
+// location is the file and line span of a declaration.
+func (m *specModel) location(c ir.Construct) string {
+	if c.EndLine == 0 {
+		return fmt.Sprintf("%s:%d", m.relative(c.Pos.File), c.Pos.Line)
+	}
+	return fmt.Sprintf("%s:%d–%d", m.relative(c.Pos.File), c.Pos.Line, c.EndLine)
+}
+
+// answersTo lists the requirements a construct satisfies.
+//
+// Read from the coverage index rather than from the construct, because that is
+// where the binding was resolved: a binding may name the type, the constructor
+// or the package, and all three arrive here as the same answer.
+func (m *specModel) answersTo(c ir.Construct) []string {
+	var out []string
+	for id, targets := range m.cov.BySatisfier {
+		for _, t := range targets {
+			if t.String() == c.Name || t.String() == lastSegment(c.Name) {
+				out = append(out, id)
+				break
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// packageDir is the repository relative directory of an import path.
+func (m *specModel) packageDir(path string) string {
+	for _, n := range m.pkgs.Nodes {
+		if n.Path == path {
+			return n.Dir
+		}
+	}
+	return path
+}
+
+// constructRef points at a construct where the document has an entry for it,
+// and prints the name plainly where it has not.
+func (m *specModel) constructRef(qualified, text string) doc.Inline {
+	if m.isConstruct(qualified) {
+		return doc.Ref{ID: constructID(qualified), Text: text}
+	}
+	return doc.Code(text)
+}
+
+// constructID is the anchor of a construct, and the one place that spelling is
+// decided.
+func constructID(name string) string { return "code-" + slug(name) }
+
+// messageID is the anchor of a message payload, and the one place that
+// spelling is decided.
+func messageID(payload string) string { return "msg-" + slug(payload) }
+
+// known reports whether a construct of this qualified name was recognised.
+//
+// Asked before any reference is written, because a link to a heading that does
+// not exist is refused by the typesetter — which is the guarantee, and which
+// means the caller has to be honest about what it points at.
+func (m *specModel) isConstruct(name string) bool {
+	for _, c := range m.constructs {
+		if c.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// writePackageFigures places the drawing, or the several it takes.
+//
+// # Why it is sometimes more than one
+//
+// A drawing of every package of a real system is not a drawing anybody reads.
+// Past about thirty nodes a layout engine spends its effort on avoiding
+// crossings rather than on showing structure, and scaled to the width of a page
+// the result is a grey mesh with unreadable labels. That is worse than no
+// picture: a reader believes they have seen the architecture.
+//
+// Above that size the document shows the map first — what the parts are and
+// which depends on which, which is the question somebody has on first meeting
+// the system — and then the inside of each part, met by a reader who has
+// already decided which one they care about.
+func (m *specModel) writePackageFigures(d *doc.Doc) {
+	if m.figures == "" {
+		noFigure(d)
+		return
+	}
+
+	if !render.Crowded(m.pkgs) {
+		m.figure(d, "fig-packages", "packages",
+			"The system's own packages, grouped by the context each belongs to.")
+		return
+	}
+
+	d.P(doc.T("There are too many packages for one legible drawing, so the picture is split. "),
+		doc.T("The map below is the whole system at the level of its contexts; each context is "),
+		doc.T("then drawn on its own, with everything it reaches outside itself collapsed into "),
+		doc.T("one box per neighbour."))
+	m.figure(d, "fig-context-map", "context-map",
+		"The bounded contexts of this system and what depends on what.")
+
+	for _, ctx := range m.pkgs.Contexts() {
+		m.figure(d, "fig-packages-"+slug(ctx), "packages-"+slug(ctx),
+			"Inside "+ctx+". Boxes outside the frame are whole contexts, drawn collapsed.")
+	}
+}
+
+// sayRecorded states whether the shapes on this page are actually held to
+// anything.
+//
+// # Why it cannot be one sentence
+//
+// The chapter used to say every shape was recorded in speclink.lock. In a
+// project that has frozen its shapes that is true and is the whole point. In
+// one that has not — because it is still a draft, and says so — it is a promise
+// the document makes on behalf of a mechanism that is not running.
+//
+// That is the precise failure this tool exists to prevent, made by the tool
+// itself. A reader on the far end of a channel would build against a shape they
+// had been told was fixed, and nothing would have told them otherwise.
+func (m *specModel) sayRecorded(d *doc.Doc) {
+	if len(m.base.Channels) > 0 || len(m.base.Endpoints) > 0 {
+		d.P(doc.T("Every shape below is recorded in "), doc.Code("speclink.lock"),
+			doc.T(", so a change to one is a finding rather than a surprise."))
+		return
+	}
+	d.P(doc.Strong("None of these shapes is fixed yet."), doc.T(" Nothing is recorded in "),
+		doc.Code("speclink.lock"), doc.T(", so a field may be renamed or removed without this run "),
+		doc.T("saying a word about it. Read what follows as the shape today and not as a promise: "),
+		doc.T("the promise begins with "), doc.Code("speclink freeze"), doc.T("."))
 }

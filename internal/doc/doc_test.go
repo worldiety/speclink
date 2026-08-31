@@ -282,3 +282,31 @@ func TestADanglingReferenceStillFailsAfterKeepingTheWords(t *testing.T) {
 		t.Errorf("the build failed for some other reason:\n%s", out)
 	}
 }
+
+// TestAWideFigureGetsThePageTurned is the layout half of the same problem.
+//
+// A drawing five times wider than it is tall, set at the width of a column,
+// comes out a few millimetres high with labels that do not resolve in print.
+// That is worse than no figure: the reader believes they have seen it. Typst
+// can turn the page under it, which buys the long side of the sheet instead of
+// the short one.
+func TestAWideFigureGetsThePageTurned(t *testing.T) {
+	t.Parallel()
+
+	d := doc.New("m")
+	d.WideFig("fig-wide", "wide.svg", "A broad drawing.")
+	d.Fig("fig-normal", "normal.svg", "An ordinary one.")
+
+	out := doc.Typst{}.Render(d)
+	if !strings.Contains(out, "#page(flipped: true)[") {
+		t.Errorf("the broad figure did not get the page turned:\n%s", out)
+	}
+	if strings.Count(out, "#page(flipped: true)[") != 1 {
+		t.Errorf("the ordinary figure was turned as well:\n%s", out)
+	}
+	// Markdown has no pages, so there is nothing to turn and nothing to say
+	// about it. The same tree renders either way.
+	if md := (doc.Markdown{}).Render(d); !strings.Contains(md, "wide.svg") || strings.Contains(md, "flipped") {
+		t.Errorf("markdown should carry the figure and no page instruction:\n%s", md)
+	}
+}

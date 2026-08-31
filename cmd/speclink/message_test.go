@@ -379,3 +379,27 @@ var Ablauf = spec.Process{
 		t.Errorf("a payload the channel carries was called uncarried:\n%s", summary(out))
 	}
 }
+
+// TestAnUnfrozenShapeIsNotPresentedAsAPromise is the tool making, about
+// itself, the mistake it exists to prevent.
+//
+// The chapter said every shape was recorded in speclink.lock. In a project that
+// has frozen its shapes that is true and is the whole point. In one that has
+// not — because it is still a draft, and says so — it is a promise the document
+// makes on behalf of a mechanism that is not running, and a reader on the far
+// end would build against a shape they had been told was fixed.
+func TestAnUnfrozenShapeIsNotPresentedAsAPromise(t *testing.T) {
+	t.Parallel()
+	dir := copyFixture(t, "../../testdata/bare")
+	if err := os.Remove(filepath.Join(dir, "speclink.lock")); err != nil {
+		t.Fatal(err)
+	}
+
+	out, _ := runSpeclink(t, "generate", dir, "./...")
+	if !strings.Contains(out, "None of these shapes is fixed yet.") {
+		t.Errorf("an unrecorded shape was not called one:\n%s", summary(out))
+	}
+	if strings.Contains(out, "Every shape below is recorded") {
+		t.Errorf("the document promised a guarantee it does not have:\n%s", summary(out))
+	}
+}
