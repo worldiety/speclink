@@ -1,6 +1,7 @@
 package golang
 
 import (
+	"go/types"
 	"path/filepath"
 	"testing"
 )
@@ -131,4 +132,57 @@ func keysOf(set map[string]bool) []string {
 		out = append(out, k)
 	}
 	return out
+}
+
+// TestATimeAndAByteSliceAreStringsOnTheWire holds the shape to what
+// encoding/json actually writes.
+//
+// Read structurally, a time.Time is an empty object — all its fields are
+// unexported — and a []byte is an array of numbers. Neither is what any
+// implementation on the far end will ever see: the first is an RFC 3339 string
+// and the second is base64.
+//
+// This is worse than an incomplete answer. A schema generated from the
+// structural reading produces a parser that fails on the first real message,
+// and it fails while looking correct, because nothing in the document hints
+// that the shape was derived from fields nobody marshals.
+func TestATimeAndAByteSliceAreStringsOnTheWire(t *testing.T) {
+	t.Parallel()
+
+	if got := shapeOf(types.NewSlice(types.Typ[types.Byte]), map[*types.Named]bool{}); got != "string" {
+		t.Errorf("a []byte is base64 on the wire, and the shape says %q", got)
+	}
+
+	root, err := filepath.Abs("../../../testdata/bare")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The standard library is loaded alongside, because the shape of a
+	// time.Time has to be read from the real declaration: a hand built stand
+	// in would be a test of the test.
+	pkgs, err := Load(root, "./...", "time")
+	if err != nil {
+		t.Fatalf("load fixture: %v", err)
+	}
+
+	clock := lookupTime(pkgs)
+	if clock == nil {
+		t.Fatal("time.Time was not found, so the interesting half of this test never ran")
+	}
+	if got := shapeOf(clock, map[*types.Named]bool{}); got != "string" {
+		t.Errorf("a time.Time is RFC 3339 on the wire, and the shape says %q", got)
+	}
+}
+
+// lookupTime finds the real time.Time among the loaded packages.
+func lookupTime(pkgs []*Package) types.Type {
+	for _, p := range pkgs {
+		if p.PkgPath() != "time" {
+			continue
+		}
+		if obj := p.pkg.Types.Scope().Lookup("Time"); obj != nil {
+			return obj.Type()
+		}
+	}
+	return nil
 }

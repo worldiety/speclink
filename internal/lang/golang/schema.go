@@ -305,6 +305,10 @@ func basicShape(b *types.Basic) string {
 // stored message contains. seen guards against a type that reaches itself,
 // which is legal through a pointer or a slice.
 func shapeOf(t types.Type, seen map[*types.Named]bool) string {
+	if shape, ok := marshalledShape(t); ok {
+		return shape
+	}
+
 	switch u := t.(type) {
 	case *types.Alias:
 		return shapeOf(types.Unalias(u), seen)
@@ -354,4 +358,44 @@ func shapeOf(t types.Type, seen map[*types.Named]bool) string {
 		return "any"
 	}
 	return "unknown"
+}
+
+// marshalledShape is the wire form of a type whose fields do not describe it.
+//
+// # Why this is not a special case
+//
+// The shape is a statement about what crosses the wire, and for most types
+// that is the fields. For a few it is not, because encoding/json says so, and
+// then reading the fields produces a shape that is confidently wrong rather
+// than merely incomplete: time.Time comes out as an empty object because all
+// its fields are unexported, and a []byte comes out as an array of numbers.
+// Neither is what any implementation on the far end will ever see, and a
+// generated schema saying so is worse than one saying nothing — it makes a
+// parser that will fail on the first real message.
+//
+// Only the two cases the standard library defines are handled. Both are
+// documented, unambiguous and the same in every Go program.
+//
+// # Why not every json.Marshaler
+//
+// Because for those the wire form is whatever the method writes, and no
+// analysis of the type can find out what that is. Guessing would put the same
+// kind of confident wrongness back, one level up. Such a type keeps its
+// structural shape, which is at least honestly derived, and the field
+// documentation beside it is where a reader is told what it really carries.
+func marshalledShape(t types.Type) (string, bool) {
+	if named, ok := types.Unalias(t).(*types.Named); ok {
+		obj := named.Obj()
+		if obj != nil && obj.Pkg() != nil && obj.Pkg().Path() == "time" && obj.Name() == "Time" {
+			// RFC 3339 with nanoseconds, which is what MarshalJSON writes.
+			return "string", true
+		}
+	}
+	if slice, ok := types.Unalias(t).Underlying().(*types.Slice); ok {
+		if basic, ok := slice.Elem().Underlying().(*types.Basic); ok && basic.Kind() == types.Uint8 {
+			// Base64, standard encoding, as encoding/json writes it.
+			return "string", true
+		}
+	}
+	return "", false
 }
