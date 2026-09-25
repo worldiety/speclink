@@ -19,6 +19,7 @@ func TestCommandsDoNotKnowAFrontend(t *testing.T) {
 	banned := []string{
 		`"github.com/worldiety/speclink/internal/lang/golang"`,
 		`"github.com/worldiety/speclink/internal/lang/jvm"`,
+		`"github.com/worldiety/speclink/internal/lang/rust`,
 		`"github.com/worldiety/speclink/spec"`,
 	}
 	entries, err := os.ReadDir(".")
