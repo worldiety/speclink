@@ -329,3 +329,26 @@ type Ablage struct {
 		t.Errorf("the table does not point at it:\n%s", summary(out))
 	}
 }
+
+// Only the derived requirement declares the edge, so a document that printed
+// it at that end alone would show the parent as a leaf, and changing it would
+// look free. Both ends have to say it, and both as links.
+func TestDerivationIsShownAtBothEnds(t *testing.T) {
+	t.Parallel()
+	out, code := runSpeclink(t, "generate", "../../testdata/bare", "./...")
+	if code != 0 {
+		t.Fatalf("generate failed with %d:\n%s", code, out)
+	}
+
+	for _, c := range []struct{ chapter, want string }{
+		{"R-QUOTE-SUBMIT", "**Derived from** [R-DEC-NUMBERING](#req-R-DEC-NUMBERING)"},
+		{"R-DEC-NUMBERING", "**Derived requirements** [R-QUOTE-SUBMIT](#req-R-QUOTE-SUBMIT)"},
+		{"R-QUOTE-SUBMIT", "**Supersedes** [R-QUOTE-SUBMIT-MANUAL](#req-R-QUOTE-SUBMIT-MANUAL)"},
+		{"R-QUOTE-SUBMIT-MANUAL", "**Superseded by** [R-QUOTE-SUBMIT](#req-R-QUOTE-SUBMIT)"},
+	} {
+		chapter := between(out, `<a id="req-`+c.chapter+`"></a>`, `<a id="req-`)
+		if !strings.Contains(chapter, c.want) {
+			t.Errorf("the chapter of %s does not say %q:\n%s", c.chapter, c.want, chapter)
+		}
+	}
+}

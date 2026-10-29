@@ -184,6 +184,16 @@ type specModel struct {
 	// compile, so those stay plain text.
 	known map[string]bool
 
+	// derivedInto and supersededBy are DerivedFrom and Supersedes turned
+	// around, keyed by the requirement that is named.
+	//
+	// Only the child declares the edge, so the parent's chapter on its own
+	// reads as a leaf: nothing says that three other requirements rest on it,
+	// and changing it looks cheaper than it is. The document is the one place
+	// both ends are on paper, so it says so at both ends.
+	derivedInto  map[string][]string
+	supersededBy map[string][]string
+
 	// can records what the frontend was able to look for at all.
 	//
 	// A chapter missing because nothing was declared and one missing because
@@ -252,8 +262,16 @@ func readModel(absRoot, cfgPath, prof string, patterns []string) (*specModel, er
 	}
 
 	m.known = map[string]bool{}
+	m.derivedInto = map[string][]string{}
+	m.supersededBy = map[string][]string{}
 	for _, r := range m.tree.All() {
 		m.known[r.ID] = true
+		for _, p := range r.DerivedFrom {
+			m.derivedInto[p] = append(m.derivedInto[p], r.ID)
+		}
+		for _, p := range r.Supersedes {
+			m.supersededBy[p] = append(m.supersededBy[p], r.ID)
+		}
 	}
 
 	m.messages = map[string]bool{}
@@ -788,7 +806,9 @@ func (m *specModel) writeRequirements(d *doc.Doc) {
 		it := &items{}
 		m.writeList(it, "Asked for in", m.origins(r))
 		m.writeRefs(it, "Derived from", r.DerivedFrom)
+		m.writeRefs(it, "Derived requirements", m.derivedInto[r.ID])
 		m.writeRefs(it, "Supersedes", r.Supersedes)
+		m.writeRefs(it, "Superseded by", m.supersededBy[r.ID])
 		m.writeImplementation(it, r)
 		m.writeList(it, "Demonstrated by", m.demonstratedBy(r))
 		if who := m.base.Requirements[r.ID]; who.ReviewedBy != "" && who.Text == baseline.HashText(r.Text, r.Title) {
