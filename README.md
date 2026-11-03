@@ -489,6 +489,7 @@ Every project names one, in `speclink.json`:
 | `go_nago_ddd1` | Go on nago, DDD in three layers with a functional core |
 | `go_bare_ddd1` | Go with no framework, over a hand written foundation |
 | `java_springboot_ddd1` | Java on Spring Boot, same architecture; no rules yet |
+| `ts_vue_hex1` | TypeScript on Vue 3, ports and adapters with use case classes; see [11b](#11b-typescript-on-vue) |
 
 The name has three parts because there are three decisions, and they are a
 chain rather than a product: the language decides the reader, the framework
@@ -580,6 +581,7 @@ Every profile understands `sourceRoots`, `scope` and `exclude`. Beyond those:
 | `go_nago_ddd1` | `contextRoot`, `cmdRoot`, `infraRoots` |
 | `go_bare_ddd1` | the same, plus `foundationRoot` |
 | `java_springboot_ddd1` | `classRoots`, `sourceCode`, `reportRoots`, `specPackage` |
+| `ts_vue_hex1` | `srcRoot` (default `src`), `testRoots` (default `tests`) |
 
 Anything else is **refused, not ignored**. `classRoots` under a Go profile is
 not a harmless leftover — it is somebody expecting an effect that will not
@@ -2232,6 +2234,7 @@ states it differently:
 | `go_nago_ddd1` | the repository constructor: `NewJSONRepository` names a persistence model distinct from the domain model, `NewSloppyJSONRepository` names none and ties the domain type to the wire |
 | `go_bare_ddd1` | the element type of a repository port, `type R data.Repository[E, ID]`; an adapter that keeps a shape of its own says so with `spec.StoredAs` |
 | `java_springboot_ddd1` | nothing yet |
+| `ts_vue_hex1` | nothing yet |
 
 A profile with no such recogniser says so rather than reporting the family
 sound:
@@ -2292,6 +2295,28 @@ is refused rather than accepted.
 | `K7-INFRA-DOMAIN-FREE` *(style)* | `V6-032`, `V6-033` | infrastructure imports a context or declares a use case |
 | `K8-MAIN-LOCATION` *(style)* | `V6-030` | a `main` package outside `cmd/` |
 | `K8-MAIN-EXISTS` *(style)* | `V6-031` | the module has no entry point |
+| `K5-UC-FILE` *(hex1)* | `V6-230`, `V6-231`, `V6-232` | not one default exported `<Name>UseCase` per file, misnamed, or outside `domain/usecases` |
+| `K5-UC-SHAPE` *(hex1)* | `V6-233` | a use case lacks `execute` or offers another public member |
+| `K5-UC-DEPS` *(hex1)* | `V6-234` | a use case imports something other than services and domain types |
+| `K5-UC-STATELESS` *(hex1)* | `V6-235` | a use case keeps module level or static state |
+| `K5-UC-AUTHZ` *(hex1)* | `V6-236` | `execute` reads no `permissions` and calls no `audit` |
+| `K6-DOMAIN-NO-ADAPTER-IMPORT` *(hex1)* | `V6-240` | the domain imports the user interface, an adapter or the entry point |
+| `K6-DOMAIN-NO-FRAMEWORK` *(hex1)* | `V6-241`, `V6-242` | the domain imports a package or uses a browser global |
+| `K6-TYPES-PURE` *(hex1)* | `V6-243`, `V6-244` | a domain type imports a non-type or declares logic |
+| `K6-PORTS-PURE` *(hex1)* | `V6-245`, `V6-246` | a port file holds more than one interface `<Name>Repository` in domain types |
+| `K6-SERVICE-NO-USECASE` *(hex1)* | `V6-247` | a service imports a use case |
+| `K6-ADAPTER-IMPLEMENTS-PORT` *(hex1)* | `V6-248`, `V6-249` | an adapter class implements not exactly one port, or is not `<Port>Impl` |
+| `K6-ADAPTER-WIRED-IN-MAIN` *(hex1)* | `V6-250` | something other than `main.ts` imports an adapter |
+| `K6-ADAPTER-ISOLATED` *(hex1)* | `V6-251` | an adapter imports services, the locator, the UI or another technology |
+| `K6-UI-NO-PORT` *(hex1)* | `V6-252` | the user interface imports a port |
+| `K6-UI-VIA-USECASE` *(hex1)* | `V6-253`, `V6-254` | the user interface imports a service, or uses the locator other than in `new <X>UseCase(…)` |
+| `K6-LOCATOR-INIT-IN-MAIN` *(hex1)* | `V6-255` | the service locator is filled outside `main.ts` |
+| `K6-LAYER-UNKNOWN` *(hex1)* | `V6-256` | a module below the source root belongs to no layer |
+| `K7-ROUTE-TARGETS-VIEW` *(hex1)* | `V6-257`, `V6-258` | a route shows something other than a `<Name>View.vue`, or the view directory holds something else |
+| `K7-I18N-KEY-PARITY` *(hex1)* | `V6-259` | a translation catalogue lacks keys another one has |
+| `K7-I18N-KEY-EXISTS` *(hex1)* | `V6-260` | a literal translation key is defined in no catalogue |
+| `K8-MAIN-EXISTS` *(hex1)* | `V6-261` | there is no `src/main.ts` |
+| `K8-MAIN-COMPOSITION` *(hex1)* | `V6-262` | `main.ts` does not create, fill the locator and mount |
 | `K9-DRAFT-REDUNDANT` | `V4-001`, `V4-002` | a draft term at a level the cascade already covers |
 | `K9-BASELINE-MISSING` | `V6-090` | a frozen shape that was never recorded |
 | `K9-DISCRIMINATOR-FROZEN` | `V6-091` | the serialisation tag of a promised type changed |
@@ -2490,6 +2515,95 @@ decoration: a direction that was never measured must not read as one that came
 out clean, so the rules for it are not run at all — over an empty set they would
 report every recorded type as removed, which is a different claim from "nobody
 looked". The figure is absent rather than zero for the same reason.
+
+## 11b. TypeScript on Vue
+
+```json
+{ "profile": "ts_vue_hex1" }
+```
+
+**It reads source.** What a bundler writes has lost its types, its imports and
+its file boundaries, which are exactly what the rules ask about. The reader
+works at the level of declarations: imports, classes and their members,
+interfaces, enums, top level statements, and the script blocks of `.vue`
+files. `@/` and every other alias come from `compilerOptions.paths` in the
+project's `tsconfig*.json`. Run `vue-tsc` first; speclink does not type check.
+
+**The vocabulary is forty lines the project writes itself**, in a file named
+`speclink.ts` (conventionally `src/speclink.ts`). speclink recognises a call by
+the file it was imported from, never by its spelling, so a project function
+called `bind` is not the annotation language and an aliased import of the real
+one still is. The file exports `requirement`, `bind`, `bindModule`,
+`satisfies`, `waive`, `rationale`, `verified` and the enums `Kind`, `Status`,
+`Discipline`, `Role`; any implementation will do, because nothing is run.
+
+**A requirement** is a constant, one per file, in `<ID>.req.ts` — not
+`.spec.ts`, which every test runner takes for a test:
+
+```ts
+// requirements/fun/quote/R-QUOTE-SHOW.req.ts
+import { requirement, Kind, Status } from '../../../src/speclink.ts';
+import { RDecHexagonal } from '../../dec/R-DEC-HEXAGONAL.req.ts';
+
+export const RQuoteShow = requirement({
+  id: 'R-QUOTE-SHOW',
+  kind: Kind.Functional,
+  status: Status.Normative,
+  text: 'A quote MUST be shown with its number and its amount.',
+  derivedFrom: [RDecHexagonal],
+  sources: [{ doc: 'requirements/_sources/quotes.md', anchor: '1-anzeige' }]
+});
+```
+
+Every value is a literal — strings, strings joined with `+`, template literals
+without substitutions, the vocabulary's enums, references to other
+requirements. Anything that would have to be evaluated is refused.
+
+**A binding** sits beside the code in `<module>.annotation.ts` and names the
+class by value, so the compiler checks it exists:
+
+```ts
+// src/domain/usecases/ShowQuoteUseCase.annotation.ts
+bind(ShowQuoteUseCase, satisfies(RQuoteShow));
+bind(LogoutUseCase, waive('K5-UC-AUTHZ', 'logging out has to work without access'));
+bindModule(waive('K6-DOMAIN-NO-FRAMEWORK', '…'));   // about the module beside it
+```
+
+**Verification costs no runtime either.** A test ends with `verified(RQuoteShow)`;
+the claim is read from the source, and the result from Vitest's JSON report:
+
+```
+npx vitest run --reporter=json | speclink evidence
+```
+
+The two are joined on the test file and the titles of the `describe` and
+`test` calls around the claim. The report's file name is matched by its
+ending, because it was written on whatever machine ran the tests. Where Vitest
+writes the report to a file and only prints `JSON report written to …`, as
+recent versions do, speclink reads the file that line names. A claim inside
+`describe.each` or `test.each` stands for every case of it: the title's
+placeholders match whatever the report filled in, and never a test whose name
+is written out in full elsewhere.
+
+**The style** is ports and adapters below `srcRoot`:
+
+```
+src/domain/usecases/<Name>UseCase.ts     one use case class, default export, execute()
+src/domain/services/                     business logic; ServiceLocator.ts is the registry
+src/domain/repositories/<Name>Repository.ts   one port interface per file
+src/domain/types/                        interfaces, enums, type aliases
+src/adapters/ui/                         views, components, router, locales
+src/adapters/<technology>/<Port>Impl.ts  one adapter class per port
+src/main.ts                              the composition root
+```
+
+A use case is what the specification is written about; it is the only
+construct that needs a requirement. The user interface reaches it as
+`new <Name>UseCase(ServiceLocator.get…()).execute(…)` and in no other way. A
+route is an address the application answers on: each is listed with the use
+cases its view and the components below it construct, and frozen like any
+other endpoint. The rules are `K5` to `K8` with *(hex1)* in the
+[rule index](#11-rule-index).
 
 ---
 

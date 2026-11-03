@@ -1,0 +1,8 @@
+{
+  // Path mapping, as a Vue project writes it.
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"],
+    },
+  },
+}

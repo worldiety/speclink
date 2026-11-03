@@ -11,6 +11,7 @@ import (
 	"github.com/worldiety/speclink/internal/lang"
 	"github.com/worldiety/speclink/internal/lang/golang"
 	"github.com/worldiety/speclink/internal/lang/jvm"
+	"github.com/worldiety/speclink/internal/lang/ts"
 )
 
 // The supported combinations.
@@ -168,6 +169,41 @@ func init() {
 					root, config.FileName)
 			}
 			return jvm.NewModel(jvm.NewReader(root, classes, layout.SourceCode, layout.SpecPackage), root, layout.ReportRoots), nil
+		},
+	})
+}
+
+func init() {
+	Register(&Profile{
+		Name:      "ts_vue_hex1",
+		Language:  TS,
+		Framework: "vue",
+		Style:     "hex1",
+		Summary:   "TypeScript on Vue 3, ports and adapters with use case classes and a service locator",
+
+		Layout: config.Config{
+			SrcRoot:     "src",
+			TestRoots:   []string{"tests"},
+			SourceRoots: []string{"requirements/_sources"},
+		},
+		Fields:       []string{"srcRoot", "testRoots"},
+		Architecture: true,
+
+		Open: func(req OpenRequest, out *diag.Set) (lang.Model, error) {
+			// Units and Tests do not narrow anything: source is read whole,
+			// because a rule that follows an import has to see where it
+			// leads, and reading the tests costs next to nothing.
+			project, errs := ts.Load(req.Root, req.Layout)
+			for _, e := range errs {
+				// An unreadable file is reported and skipped, as on the JVM:
+				// its neighbours are unaffected, and vue-tsc has already
+				// judged whether the build as a whole holds.
+				fmt.Fprintln(os.Stderr, "  "+e.Error())
+			}
+			if len(project.Modules) == 0 {
+				return nil, fmt.Errorf("no TypeScript or Vue modules found under %s", req.Root)
+			}
+			return &ts.Model{P: project}, nil
 		},
 	})
 }

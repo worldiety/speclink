@@ -79,6 +79,15 @@ type Config struct {
 	// all on the same version of anything.
 	SpecPackage string `json:"specPackage,omitempty"`
 
+	// SrcRoot is where a TypeScript project keeps the code its style lays out,
+	// relative to the project root. The layers are named below it.
+	SrcRoot string `json:"srcRoot,omitempty"`
+
+	// TestRoots are where a TypeScript project keeps its tests. A file named
+	// *.test.* or *.spec.* is a test wherever it is; these are the
+	// directories in which every file is one.
+	TestRoots []string `json:"testRoots,omitempty"`
+
 	// Scope restricts speclink to the packages matching one of these patterns.
 	// Empty means the whole module, which is the normal case.
 	//
@@ -179,6 +188,7 @@ func (c Config) Over(base Config) Config {
 		{&c.ClassRoots, &out.ClassRoots},
 		{&c.SourceCode, &out.SourceCode},
 		{&c.ReportRoots, &out.ReportRoots},
+		{&c.TestRoots, &out.TestRoots},
 		{&c.Scope, &out.Scope},
 		{&c.Exclude, &out.Exclude},
 	} {
@@ -192,6 +202,9 @@ func (c Config) Over(base Config) Config {
 	if c.FoundationRoot != "" {
 		out.FoundationRoot = c.FoundationRoot
 	}
+	if c.SrcRoot != "" {
+		out.SrcRoot = c.SrcRoot
+	}
 	return out
 }
 
@@ -203,6 +216,12 @@ func (c *Config) normalise() {
 	}
 	for i, r := range c.SourceRoots {
 		c.SourceRoots[i] = filepath.ToSlash(strings.Trim(r, "/"))
+	}
+	if c.SrcRoot != "" {
+		c.SrcRoot = filepath.ToSlash(strings.Trim(c.SrcRoot, "/"))
+	}
+	for i, r := range c.TestRoots {
+		c.TestRoots[i] = filepath.ToSlash(strings.Trim(r, "/"))
 	}
 	for i, r := range c.Scope {
 		c.Scope[i] = filepath.ToSlash(strings.Trim(r, "/"))
