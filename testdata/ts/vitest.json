@@ -1,0 +1,24 @@
+{
+  "numTotalTests": 2,
+  "numPassedTests": 1,
+  "testResults": [
+    {
+      "name": "/somewhere/else/tests/ShowQuoteUseCase.test.ts",
+      "status": "failed",
+      "assertionResults": [
+        {
+          "ancestorTitles": ["ShowQuoteUseCase"],
+          "fullName": "ShowQuoteUseCase shows number and amount",
+          "status": "passed",
+          "title": "shows number and amount"
+        },
+        {
+          "ancestorTitles": ["ShowQuoteUseCase"],
+          "fullName": "ShowQuoteUseCase refuses without permission",
+          "status": "failed",
+          "title": "refuses without permission"
+        }
+      ]
+    }
+  ]
+}

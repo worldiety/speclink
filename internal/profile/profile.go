@@ -54,6 +54,9 @@ const (
 	Go Language = "go"
 	// JVM reads compiled class files, which serves Java and Kotlin alike.
 	JVM Language = "jvm"
+	// TS reads TypeScript source, the script blocks of Vue components
+	// included.
+	TS Language = "ts"
 )
 
 // Profile is one supported combination.

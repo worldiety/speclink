@@ -1168,11 +1168,21 @@ func (m *specModel) writeComposition(d *doc.Doc) {
 
 	d.H(2, "How the code is composed")
 	contexts := m.pkgs.Contexts()
-	d.Pf("%s in %s, and %s between them. Only this module's own packages: "+
-		"a dependency on the standard library or on a third party is not a fact about the shape of this system.",
-		plural(len(m.pkgs.Nodes), "package", "packages"),
-		plural(len(contexts), "bounded context", "bounded contexts"),
-		plural(len(m.pkgs.Edges), "dependency", "dependencies"))
+	if len(contexts) > 0 {
+		d.Pf("%s in %s, and %s between them. Only this module's own packages: "+
+			"a dependency on the standard library or on a third party is not a fact about the shape of this system.",
+			plural(len(m.pkgs.Nodes), "package", "packages"),
+			plural(len(contexts), "bounded context", "bounded contexts"),
+			plural(len(m.pkgs.Edges), "dependency", "dependencies"))
+	} else {
+		// An architecture without bounded contexts has none to count. "0
+		// bounded contexts" would read as a finding about this system when it
+		// is a property of its style.
+		d.Pf("%s, and %s between them. Only this module's own packages: "+
+			"a dependency on the standard library or on a third party is not a fact about the shape of this system.",
+			plural(len(m.pkgs.Nodes), "package", "packages"),
+			plural(len(m.pkgs.Edges), "dependency", "dependencies"))
+	}
 
 	if spec := m.specPackages(); spec > 0 {
 		d.Pf("%s declare this specification rather than the system — the requirements, "+
@@ -1184,6 +1194,11 @@ func (m *specModel) writeComposition(d *doc.Doc) {
 
 	m.writePackageFigures(d)
 
+	if len(contexts) == 0 {
+		// No contexts, so no crossings to report. Saying the contexts are
+		// separate would be a claim about something that does not exist.
+		return
+	}
 	crossings := m.pkgs.Crossings()
 	d.H(3, "Where one context reaches into another")
 	if len(crossings) == 0 {
@@ -2482,8 +2497,11 @@ func (m *specModel) writePackageFigures(d *doc.Doc) {
 	}
 
 	if !render.Crowded(m.pkgs) {
-		m.figure(d, "fig-packages", "packages",
-			"The system's own packages, grouped by the context each belongs to.")
+		caption := "The system's own packages, grouped by the context each belongs to."
+		if len(m.pkgs.Contexts()) == 0 {
+			caption = "The system's own packages, coloured by layer."
+		}
+		m.figure(d, "fig-packages", "packages", caption)
 		return
 	}
 
