@@ -32,6 +32,12 @@ three surfaced within minutes of building against the real module.
 | `bad` | `example.com/bad` | Violates the annotation language rules, one each. |
 | `arch` | `example.com/arch` | Violates the architecture linters, one each. |
 
+Two fixtures are not Go modules, and nothing builds them: `ts` and `tsarch` are
+read by the TypeScript frontend from source, the way it reads every project.
+`ts` must verify with zero findings and carries a recorded run in its
+`speclink.lock`, written from `vitest.json` by `speclink evidence -in`; `tsarch`
+violates every rule of the `hex1` style once.
+
 `example` and `bad` carry `replace github.com/worldiety/speclink => ../..`. That
 is a genuine local dependency and not a substitute: a target project imports the
 `spec` package, and `spec` is where the runtime registry lives.

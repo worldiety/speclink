@@ -1,0 +1,18 @@
+{
+  "version": 8,
+  "types": {},
+  "verifications": {
+    "R-DEC-HEXAGONAL": [
+      {
+        "test": "tests/ShowQuoteUseCase.test.ts.ShowQuoteUseCase \u003e shows number and amount",
+        "text": "798b4a9e9db29605ce09b6b4db53ab611a4545c5323c537caae1e083664ae37f"
+      }
+    ],
+    "R-QUOTE-SHOW": [
+      {
+        "test": "tests/ShowQuoteUseCase.test.ts.ShowQuoteUseCase \u003e shows number and amount",
+        "text": "709ddd10dca2a8f31bb69475c273410904f0dab64c1ef25b1cdcead8e0f5ef03"
+      }
+    ]
+  }
+}
